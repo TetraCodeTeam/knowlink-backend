@@ -1,0 +1,22 @@
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiration: ${JWT_EXPIRATION}
+
+frontend:
+  url: ${FRONTEND_URL}
+
+app:
+  url: ${APP_URL}
+  default-profile-picture: ${DEFAULT_PROFILE_PICTURE_URL}
+
+spring:
+  cache:
+    type: none
+
+cloudinary:
+  cloud-name: ${CLOUD_NAME}
+  api-key: ${CLOUD_API_KEY}
+  api-secret: ${CLOUD_API_SECRET}
+
+notifications:
+  use-email: false
