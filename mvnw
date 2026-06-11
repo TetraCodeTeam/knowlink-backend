@@ -17,4 +17,4 @@ if [ ! -f "$MAVEN_WRAPPER_JAR" ]; then
     || wget -q -O "$MAVEN_WRAPPER_JAR" "$WRAPPER_URL" 2>/dev/null
 fi
 
-exec "$JAVACMD" -jar "$MAVEN_WRAPPER_JAR" "$@"
+exec "$JAVACMD" -classpath "$MAVEN_WRAPPER_JAR" org.apache.maven.wrapper.MavenWrapperMain "$@"
