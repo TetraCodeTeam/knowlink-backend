@@ -1,6 +1,6 @@
 jwt:
-  secret: ${JWT_SECRET}
-  access-token-expiration: ${JWT_EXPIRATION}
+  secret: ${JWT_SECRET:ZmFrZV9zZWNyZXRfZm9yX2Rldg==} # base64 fake_secret_for_dev, set JWT_SECRET env var in prod
+  access-token-expiration: ${JWT_EXPIRATION:3600000}
 
 frontend:
   url: ${FRONTEND_URL}
