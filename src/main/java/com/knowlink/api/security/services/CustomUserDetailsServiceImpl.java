@@ -1,6 +1,8 @@
 package com.knowlink.api.security.services;
 
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
+import com.knowlink.api.security.models.UserPrincipal;
+import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.repositories.IUserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -16,7 +18,8 @@ public class CustomUserDetailsServiceImpl implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        return userRepository.findByEmail(email)
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+        return new UserPrincipal(user);
     }
 }
