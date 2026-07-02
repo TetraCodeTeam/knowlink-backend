@@ -52,7 +52,7 @@ public class AuthServiceImpl implements IAuthService {
                 .lastName(request.lastName())
                 .email(request.email())
                 .password(passwordEncoder.encode(request.password()))
-                .role(Role.USER)
+                .role(Role.ALUMNO)
                 .status(UserStatus.ACTIVE)
                 .build();
         userRepository.save(user);

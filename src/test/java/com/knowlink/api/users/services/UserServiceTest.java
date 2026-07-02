@@ -47,7 +47,7 @@ class UserServiceTest {
                 .email("test@knowlink.com")
                 .firstName("Test")
                 .lastName("User")
-                .role(Role.USER)
+                .role(Role.ALUMNO)
                 .status(UserStatus.ACTIVE)
                 .createdAt(LocalDateTime.now())
                 .build();

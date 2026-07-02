@@ -42,7 +42,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.OPTIONS).permitAll()
                 .requestMatchers(SWAGGER_WHITELIST).permitAll()
                 .requestMatchers(PUBLIC_WHITELIST).permitAll()
-                .requestMatchers(HttpMethod.GET, "/api/v1/tutors/*/profile").hasRole("ALUMNO")
+                .requestMatchers(HttpMethod.GET, "/api/v1/tutors/**").hasRole("ALUMNO")
                 .anyRequest().authenticated()
             )
             .authenticationProvider(authenticationProvider)
