@@ -1,14 +1,11 @@
 package com.knowlink.api.users.controllers.implementations;
 
 import com.knowlink.api.users.controllers.interfaces.IUserController;
-import com.knowlink.api.users.controllers.requests.UpdateUserRequest;
-import com.knowlink.api.users.controllers.responses.UserResponse;
+import com.knowlink.api.users.controllers.requests.ConfirmTokenRequest;
+import com.knowlink.api.users.controllers.requests.EmailRequest;
+import com.knowlink.api.users.controllers.requests.ResetPasswordRequest;
 import com.knowlink.api.users.services.interfaces.IUserService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -20,24 +17,22 @@ public class UserControllerImpl implements IUserController {
     private final IUserService userService;
 
     @Override
-    public ResponseEntity<UserResponse> getUserById(UUID userId) {
-        return ResponseEntity.ok(userService.getUserById(userId));
+    public void verifyAccount(UUID userId, ConfirmTokenRequest confirmTokenRequest) {
+        userService.verifyNewUser(userId, confirmTokenRequest.token());
     }
 
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Page<UserResponse>> getAllUsers(Pageable pageable) {
-        return ResponseEntity.ok(userService.getAllUsers(pageable));
+    public void resendConfirmationEmail(EmailRequest emailRequest) {
+        userService.resendConfirmationEmail(emailRequest.email());
     }
 
     @Override
-    public ResponseEntity<UserResponse> updateUser(UUID userId, UpdateUserRequest request) {
-        return ResponseEntity.ok(userService.updateUser(userId, request));
+    public void resetPassword(ResetPasswordRequest resetPasswordRequest) {
+        userService.resetPassword(resetPasswordRequest.token(), resetPasswordRequest.newPassword(), resetPasswordRequest.confirmNewPassword());
     }
 
     @Override
-    @PreAuthorize("hasRole('ADMIN')")
-    public void deleteUser(UUID userId) {
-        userService.deleteUser(userId);
+    public void sendResetPasswordEmail(EmailRequest emailRequest) {
+        userService.sendResetPasswordEmail(emailRequest.email());
     }
 }

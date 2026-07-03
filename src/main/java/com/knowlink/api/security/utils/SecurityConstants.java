@@ -5,11 +5,11 @@ public class SecurityConstants {
     private SecurityConstants() {}
 
     public static final String[] PUBLIC_WHITELIST = {
-            "/auth/login",
-            "/auth/register",
-            "/api/users/*/verify-account",
-            "/api/users/resend-verification",
-            "/api/users/reset-password/**",
+            "/api/v1/auth/login",
+            "/api/v1/auth/register",
+            "/api/v1/users/*/verify-account",
+            "/api/v1/users/resend-verification-account",
+            "/api/v1/users/reset-password/**",
             "/api/v1/public/**",
             "/actuator/health",
     };
