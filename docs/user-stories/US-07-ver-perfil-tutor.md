@@ -2,7 +2,7 @@
 
 ## Contexto
 
-Implementar la visualización pública del perfil de un tutor para usuarios autenticados con rol ALUMNO.
+Implementar la visualización pública del perfil de un tutor para usuarios autenticados con rol STUDENT.
 
 ## Modelo de dominio existente
 
@@ -78,7 +78,7 @@ GET /api/v1/tutors/{tutorId}/profile
 ## Autorización
 
 * Sólo usuarios autenticados.
-* Sólo rol ALUMNO.
+* Sólo rol STUDENT.
 * Utilizar Spring Security.
 * Implementar @PreAuthorize.
 
