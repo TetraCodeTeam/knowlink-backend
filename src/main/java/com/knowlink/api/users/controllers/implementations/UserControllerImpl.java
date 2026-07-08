@@ -4,6 +4,10 @@ import com.knowlink.api.users.controllers.interfaces.IUserController;
 import com.knowlink.api.users.controllers.requests.ConfirmTokenRequest;
 import com.knowlink.api.users.controllers.requests.EmailRequest;
 import com.knowlink.api.users.controllers.requests.ResetPasswordRequest;
+import com.knowlink.api.users.controllers.requests.UpdateUserRequest;
+import com.knowlink.api.users.controllers.responses.UserResponse;
+import com.knowlink.api.users.data.mappers.UserMapper;
+import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.services.interfaces.IUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.RestController;
@@ -15,6 +19,19 @@ import java.util.UUID;
 public class UserControllerImpl implements IUserController {
 
     private final IUserService userService;
+    private final UserMapper userMapper;
+
+    @Override
+    public UserResponse getUserById(UUID userId) {
+        User user = userService.findByIdOrThrowException(userId);
+        return userMapper.toResponse(user);
+    }
+
+    @Override
+    public UserResponse updateUser(UUID userId, UpdateUserRequest request) {
+        User user = userService.updateUser(userId, request);
+        return userMapper.toResponse(user);
+    }
 
     @Override
     public void verifyAccount(UUID userId, ConfirmTokenRequest confirmTokenRequest) {

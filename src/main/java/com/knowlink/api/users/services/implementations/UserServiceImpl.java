@@ -5,8 +5,10 @@ import com.knowlink.api.users.data.mappers.UserMapper;
 import com.knowlink.api.users.data.models.Token;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.auth.controllers.requests.LoginRequest;
+import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.UserRegistrationRequest;
 import com.knowlink.api.auth.controllers.responses.AuthResponse;
+import com.knowlink.api.users.controllers.requests.UpdateUserRequest;
 import com.knowlink.api.exceptions.custom_exceptions.*;
 import com.knowlink.api.users.events.PasswordResetRequestedEvent;
 import com.knowlink.api.users.events.ResendConfirmationEvent;
@@ -51,9 +53,33 @@ public class UserServiceImpl implements IUserService {
     }
 
     @Override
+    @Transactional
+    public User saveTutorUser(TutorRegistrationRequest request) {
+        userValidationService.ifEmailAlreadyExistsThrowException(request.email());
+        userValidationService.verifyIfPasswordsMatch(request.password(), request.confirmPassword());
+
+        User newUser = userMapper.toTutorUser(request);
+        newUser.setPassword(passwordEncoder.encode(request.password()));
+        userRepository.save(newUser);
+
+        UUID confirmationToken = tokenService.saveUserToken(newUser).getTokenId();
+        eventPublisher.publishEvent(new UserRegisteredEvent(newUser, confirmationToken));
+
+        return newUser;
+    }
+
+    @Override
     public User findByIdOrThrowException(UUID userId) {
         return userRepository.findByUserIdAndAccountStatusNot(userId, AccountStatus.DELETED)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+    }
+
+    @Override
+    @Transactional
+    public User updateUser(UUID userId, UpdateUserRequest request) {
+        User user = findByIdOrThrowException(userId);
+        user.setFullName(request.firstName() + " " + request.lastName());
+        return userRepository.save(user);
     }
 
     @Override
