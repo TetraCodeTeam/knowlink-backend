@@ -37,6 +37,6 @@ public class Token {
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
-        tokenExpirationDate = LocalDateTime.now().plusHours(12);
+        tokenExpirationDate = LocalDateTime.now().plusHours(24);
     }
 }
