@@ -11,10 +11,10 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 @RequestMapping("/api/v1/users")
-@Tag(name = "Users", description = "Gestión de usuarios")
+@Tag(name = "Users", description = "User management")
 public interface IUserController {
 
-    //Después del registro, el usuario debe verificar su cuenta
+    // After registration, the user must verify their account
     @PostMapping("/{userId}/verify-account")
     @ResponseStatus(HttpStatus.ACCEPTED)
     void verifyAccount(@PathVariable UUID userId,
