@@ -2,6 +2,7 @@ package com.knowlink.api.auth.controllers.implementations;
 
 import com.knowlink.api.auth.controllers.interfaces.IAuthController;
 import com.knowlink.api.auth.controllers.requests.LoginRequest;
+import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.UserRegistrationRequest;
 import com.knowlink.api.auth.controllers.responses.AuthResponse;
 import com.knowlink.api.auth.services.interfaces.IAuthService;
@@ -22,5 +23,10 @@ public class AuthControllerImpl implements IAuthController {
     @Override
     public void register(UserRegistrationRequest request) {
         this.authService.register(request);
+    }
+
+    @Override
+    public void registerTutor(TutorRegistrationRequest request) {
+        this.authService.registerTutor(request);
     }
 }
