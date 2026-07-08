@@ -1,46 +1,46 @@
 package com.knowlink.api.users.controllers.interfaces;
 
+import com.knowlink.api.users.controllers.requests.ConfirmTokenRequest;
+import com.knowlink.api.users.controllers.requests.EmailRequest;
+import com.knowlink.api.users.controllers.requests.ResetPasswordRequest;
 import com.knowlink.api.users.controllers.requests.UpdateUserRequest;
 import com.knowlink.api.users.controllers.responses.UserResponse;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
-import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
-import static org.springframework.http.HttpStatus.NO_CONTENT;
-
 @RequestMapping("/api/v1/users")
-@Tag(name = "Users", description = "Gestión de usuarios")
+@Tag(name = "Users", description = "User management")
 public interface IUserController {
 
     @GetMapping("/{userId}")
-    @Operation(summary = "Obtener usuario por ID")
-    @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "Usuario encontrado"),
-            @ApiResponse(responseCode = "404", description = "Usuario no encontrado")
-    })
-    ResponseEntity<UserResponse> getUserById(@PathVariable UUID userId);
+    @Operation(summary = "Get user by ID")
+    @ResponseStatus(HttpStatus.OK)
+    UserResponse getUserById(@PathVariable UUID userId);
 
-    @GetMapping
-    @Operation(summary = "Listar todos los usuarios (admin)")
-    ResponseEntity<Page<UserResponse>> getAllUsers(Pageable pageable);
+    @PutMapping("/{userId}")
+    @Operation(summary = "Update user")
+    @ResponseStatus(HttpStatus.OK)
+    UserResponse updateUser(@PathVariable UUID userId, @RequestBody @Valid UpdateUserRequest request);
 
-    @PatchMapping("/{userId}")
-    @Operation(summary = "Actualizar usuario")
-    ResponseEntity<UserResponse> updateUser(
-            @PathVariable UUID userId,
-            @RequestBody @Valid UpdateUserRequest request
-    );
+    @PostMapping("/{userId}/verify-account")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    void verifyAccount(@PathVariable UUID userId,
+                       @RequestBody @Valid ConfirmTokenRequest confirmTokenRequest);
 
-    @DeleteMapping("/{userId}")
-    @ResponseStatus(NO_CONTENT)
-    @Operation(summary = "Eliminar usuario")
-    void deleteUser(@PathVariable UUID userId);
+    @PostMapping("/resend-verification-account")
+    @ResponseStatus(HttpStatus.OK)
+    void resendConfirmationEmail(@RequestBody @Valid EmailRequest emailRequest);
+
+    @PostMapping("/reset-password/email")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void sendResetPasswordEmail(@RequestBody @Valid EmailRequest emailRequest);
+
+    @PostMapping("/reset-password")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void resetPassword(@RequestBody @Valid ResetPasswordRequest resetPasswordRequest);
 }

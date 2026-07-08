@@ -39,6 +39,18 @@ spring:
         page-parameter-name: page
         size-parameter-name: size
         sort-parameter-name: sort
+  
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 frontend:
   url: ${FRONTEND_URL}

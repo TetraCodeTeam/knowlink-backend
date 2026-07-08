@@ -1,7 +1,7 @@
 package com.knowlink.api.users.data.enums;
 
-public enum UserStatus {
+public enum AccountStatus {
     ACTIVE,
     INACTIVE,
-    PENDING_VERIFICATION
+    DELETED
 }

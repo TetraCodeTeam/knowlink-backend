@@ -19,4 +19,4 @@ cloudinary:
   api-secret: ${CLOUD_API_SECRET}
 
 notifications:
-  use-email: false
+  use-email: true
