@@ -96,6 +96,10 @@ public class UserServiceImpl implements IUserService {
 
         User user = token.getUser();
 
+        if (!user.getUserId().equals(userId)) {
+            throw new ResourceNotFoundException("User", "id", userId);
+        }
+
         if (user.getAccountStatus() == AccountStatus.ACTIVE) {
             return;
         }
