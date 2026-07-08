@@ -17,21 +17,21 @@ import static org.springframework.http.HttpStatus.CREATED;
 import static org.springframework.http.HttpStatus.OK;
 
 @RequestMapping("/api/v1/auth")
-@Tag(name = "Authentication", description = "Autenticación y registro de usuarios")
+@Tag(name = "Authentication", description = "Authentication and user registration")
 public interface IAuthController {
 
     @PostMapping("/login")
-    @Operation(summary = "Iniciar sesión")
+    @Operation(summary = "Login")
     @ResponseStatus(OK)
     AuthResponse login(@RequestBody @Valid LoginRequest request);
 
     @PostMapping("/register")
-    @Operation(summary = "Registrar nuevo usuario (alumno)")
+    @Operation(summary = "Registrar nuevo usuario")
     @ResponseStatus(CREATED)
     void register(@RequestBody @Valid UserRegistrationRequest request);
 
     @PostMapping("/register/tutor")
-    @Operation(summary = "Register new tutor")
+    @Operation(summary = "Registrar nuevo usuario (tutor)")
     @ApiResponse(responseCode = "201", description = "Tutor registered successfully")
     @ResponseStatus(CREATED)
     void registerTutor(@RequestBody @Valid TutorRegistrationRequest request);

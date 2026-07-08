@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 @RequestMapping("/api/v1/users")
-@Tag(name = "Users", description = "Gestión de usuarios")
+@Tag(name = "Users", description = "User management")
 public interface IUserController {
 
     @GetMapping("/{userId}")
