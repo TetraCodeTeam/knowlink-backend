@@ -1,9 +1,7 @@
 package com.knowlink.api.auth.controllers.requests;
 
-import com.knowlink.api.security.enums.Role;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 public record UserRegistrationRequest(
@@ -17,8 +15,5 @@ public record UserRegistrationRequest(
         String password,
 
         @NotBlank(message = "Password confirmation is required")
-        String confirmPassword,
-
-        @NotNull(message = "Role is required")
-        Role role
+        String confirmPassword
 ) {}

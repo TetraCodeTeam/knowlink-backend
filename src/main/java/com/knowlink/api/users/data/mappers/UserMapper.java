@@ -16,14 +16,13 @@ public class UserMapper {
                 user.getEmail(),
                 user.getRole().name(),
                 user.getAccountStatus().name(),
-                user.getCreatedAt()
-        );
+                user.getCreatedAt());
     }
 
     public User toUser(UserRegistrationRequest request) {
         return User.builder()
                 .email(request.email())
-                .role(request.role())
+                .role(Role.STUDENT)
                 .build();
     }
 
