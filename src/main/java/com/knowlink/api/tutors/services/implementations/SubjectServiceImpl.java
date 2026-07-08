@@ -29,11 +29,11 @@ public class SubjectServiceImpl implements ISubjectService {
 
     @Override
     public List<Subject> findBasicSubjects() {
-        return subjectRepository.findByIsBasicTrue();
+        return subjectRepository.findBasicSubjects();
     }
 
     @Override
     public List<Subject> findByCareerId(UUID careerId) {
-        return subjectRepository.findByCareer_CareerIdAndIsBasicFalse(careerId);
+        return subjectRepository.findNonBasicByCareerId(careerId);
     }
 }
