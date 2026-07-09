@@ -65,16 +65,16 @@ src/main/java/com/knowlink/api/
 │   ├── repositories/
 │   └── services/{interfaces,implementations}/
 └── tutors/                        # Módulo de tutores (carreras, materias, perfiles, reservas)
-├── controllers/{interfaces,implementations}/
-├── data/
-│   ├── models/                 # TutorProfile, Career, Subject, TutorSubject, AvailabilityBlock,
-│   │                           # Booking, Rating, AcademicMaterial
-│   ├── enums/                  # Modality, CompensationType, TutorSubjectStatus, BookingStatus
-│   └── mappers/                # TutorProfileMapper, TutorSubjectMapper
-├── repositories/
-├── services/{interfaces,implementations}/
-├── validations/                # ITutorProfileValidationService
-└── config/                     # CareerSeeder, SubjectSeeder (CommandLineRunner)
+    ├── controllers/{interfaces,implementations,responses}/
+    ├── data/
+    │   ├── models/                 # TutorProfile, Career, Subject, TutorSubject, AvailabilityBlock,
+    │   │                           # Booking, Rating, AcademicMaterial
+    │   ├── enums/                  # Modality, CompensationType, TutorSubjectStatus, BookingStatus
+    │   └── mappers/                # TutorProfileMapper, TutorSubjectMapper
+    ├── repositories/
+    ├── services/{interfaces,implementations}/
+    ├── validations/                # ITutorProfileValidationService
+    └── config/                     # CareerSeeder, SubjectSeeder (CommandLineRunner)
 ```
 
 Cada nuevo módulo de dominio replica esta misma estructura, **incluyendo la separación `interfaces/` + `implementations/`** tanto en `controllers/` como en `services/` (no es solo `controllers/` y `services/` a secas).
