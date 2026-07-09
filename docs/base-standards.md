@@ -65,7 +65,7 @@ src/main/java/com/knowlink/api/
 │   ├── repositories/
 │   └── services/{interfaces,implementations}/
 └── tutors/                        # Módulo de tutores (carreras, materias, perfiles, reservas)
-    ├── controllers/{interfaces,implementations,responses}/
+    ├── controllers/{interfaces,implementations,responses,requests}/
     ├── data/
     │   ├── models/                 # TutorProfile, Career, Subject, TutorSubject, AvailabilityBlock,
     │   │                           # Booking, Rating, AcademicMaterial
@@ -103,7 +103,7 @@ Cada nuevo módulo de dominio replica esta misma estructura, **incluyendo la sep
 ### Roles (enum)
 
 ```java
-STUDENT, TUTOR
+STUDENT, TUTOR, ADMIN
 ```
 
 > `ADMIN` todavía no está implementado — agregarlo a esta lista cuando se implemente el módulo de administración.
