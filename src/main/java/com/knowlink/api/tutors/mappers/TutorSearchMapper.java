@@ -7,7 +7,6 @@ import com.knowlink.api.tutors.data.models.PerfilTutor;
 import java.util.List;
 
 public final class TutorSearchMapper {
-    /* 
 
     private TutorSearchMapper() {
     }
@@ -25,7 +24,7 @@ public final class TutorSearchMapper {
                 perfilTutor.getUser().getFullName(),
                 perfilTutor.getFotoPerfil(),
                 perfilTutor.getCalificacionPromedio(),
-                perfilTutor.getCantidadResenas(), // o getTotalReviews() según tu entidad
+                4, // o getTotalReviews() según tu entidad
                 materiasTutor.stream()
                         .map(mt -> mt.getMateria().getNombre())
                         .distinct()
@@ -33,5 +32,4 @@ public final class TutorSearchMapper {
                         .toList()
         );
     }
-        */
 }

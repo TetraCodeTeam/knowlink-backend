@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface MateriaTutorRepository extends JpaRepository<MateriaTutor, UUID> {
     List<MateriaTutor> findByPerfilTutorId(UUID perfilTutorId);
+    List<MateriaTutor> findByMateria_NombreContainingIgnoreCase(String nombre);
 }

@@ -1,6 +1,8 @@
 package com.knowlink.api.tutors.controllers;
 
 import com.knowlink.api.tutors.data.dto.responses.TutorProfileResponse;
+import com.knowlink.api.tutors.data.dto.responses.TutorSearchResponse;
+import com.knowlink.api.tutors.services.interfaces.SearchService;
 import com.knowlink.api.tutors.services.interfaces.TutorProfileService;
 import com.knowlink.api.users.data.models.User;
 import io.swagger.v3.oas.annotations.Operation;
@@ -13,8 +15,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -23,6 +27,7 @@ import java.util.UUID;
 public class TutorController {
 
     private final TutorProfileService tutorProfileService;
+    private final SearchService searchService;
 
     @Operation(summary = "Obtener perfil público del tutor")
     @ApiResponses({
@@ -39,6 +44,16 @@ public class TutorController {
         }
 
         TutorProfileResponse response = tutorProfileService.getTutorProfile(tutorId, alumnoId);
+        return ResponseEntity.ok(response);
+    }
+
+    @Operation(summary = "Buscar tutores por materia")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Búsqueda realizada correctamente")
+    })
+    @GetMapping("/search")
+    public ResponseEntity<List<TutorSearchResponse>> searchTutors(@RequestParam String query) {
+        List<TutorSearchResponse> response = searchService.search(query);
         return ResponseEntity.ok(response);
     }
 }

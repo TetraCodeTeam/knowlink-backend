@@ -17,13 +17,14 @@ import lombok.RequiredArgsConstructor;
 
 @Service
 @RequiredArgsConstructor
-public class SearchServiceImpl { // implements SearchService 
-/* 
+public class SearchServiceImpl implements SearchService {
+
         private final MateriaTutorRepository materiaTutorRepository;
 
+        @Override
         public List<TutorSearchResponse> search(String query) {
 
-                List<MateriaTutor> resultados = materiaTutorRepository.search(query);
+                List<MateriaTutor> resultados = materiaTutorRepository.findByMateria_NombreContainingIgnoreCase(query);
 
                 Map<UUID, List<MateriaTutor>> agrupados = resultados.stream()
                                 .collect(Collectors.groupingBy(
@@ -35,20 +36,22 @@ public class SearchServiceImpl { // implements SearchService
                                 .toList();
         }
 
-        private TutorSearchResponse toTutorResponse(List<MateriaTutor> materiasTutor) {
-
-                MateriaTutor primero = materiasTutor.get(0);
-
-                return new TutorSearchResponse(
-                                primero.getPerfilTutor().getUser().getUserId(),
-                                primero.getPerfilTutor().getUser().getFullName(),
-                                primero.getPerfilTutor().getFotoPerfil(),
-                                primero.getPerfilTutor().getCalificacionPromedio(),
-                                primero.getPerfilTutor().getCantidadResenas(),
-                                materiasTutor.stream()
-                                                .map(mt -> mt.getMateria().getNombre())
-                                                .distinct()
-                                                .toList());
-        }
-                                                */
+        /*
+         * private TutorSearchResponse toTutorResponse(List<MateriaTutor> materiasTutor)
+         * {
+         * 
+         * MateriaTutor primero = materiasTutor.get(0);
+         * 
+         * return new TutorSearchResponse(
+         * primero.getPerfilTutor().getUser().getUserId(),
+         * primero.getPerfilTutor().getUser().getFullName(),
+         * primero.getPerfilTutor().getFotoPerfil(),
+         * primero.getPerfilTutor().getCalificacionPromedio(),
+         * primero.getPerfilTutor().getCantidadResenas(),
+         * materiasTutor.stream()
+         * .map(mt -> mt.getMateria().getNombre())
+         * .distinct()
+         * .toList());
+         * }
+         */
 }
