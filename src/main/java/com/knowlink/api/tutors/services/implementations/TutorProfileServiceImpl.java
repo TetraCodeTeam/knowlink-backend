@@ -5,6 +5,7 @@ import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.tutors.controllers.responses.*;
 import com.knowlink.api.tutors.data.enums.BookingStatus;
 import com.knowlink.api.tutors.data.mappers.TutorProfileMapper;
+import com.knowlink.api.tutors.data.mappers.TutorSearchMapper;
 import com.knowlink.api.tutors.data.mappers.TutorSubjectMapper;
 import com.knowlink.api.tutors.data.models.*;
 import com.knowlink.api.tutors.repositories.*;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -36,6 +38,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         private final ITutorProfileValidationService tutorProfileValidationService;
         private final TutorProfileMapper tutorProfileMapper;
         private final TutorSubjectMapper tutorSubjectMapper;
+        private final ITutorSubjectRepository subjectTutorRepository;
 
         @Override
         @Transactional(readOnly = true)
@@ -98,5 +101,20 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
 
                 tutorProfile.getSubjects().addAll(tutorSubjects);
                 return tutorProfileRepository.save(tutorProfile);
+        }
+
+        @Override
+        public List<TutorSearchResponse> searchTutor(String query) {
+
+                List<TutorSubject> resultados = subjectTutorRepository.findBySubject_NameContainingIgnoreCase(query);
+
+                Map<UUID, List<TutorSubject>> agrupados = resultados.stream()
+                                .collect(Collectors.groupingBy(
+                                                mt -> mt.getTutorProfile().getUser().getUserId()));
+
+                return agrupados.values()
+                                .stream()
+                                .map(TutorSearchMapper::from)
+                                .toList();
         }
 }
