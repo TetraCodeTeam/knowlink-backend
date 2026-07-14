@@ -66,8 +66,7 @@ public class TutorProfileMapper {
             TutorProfile tutorProfile,
             List<TutorSubjectResponse> subjectResponses,
             List<TutorReviewResponse> reviewResponses,
-            List<TutorAvailabilityResponse> availabilityResponses,
-            List<TutorMaterialResponse> materialResponses) {
+            List<TutorAvailabilityResponse> availabilityResponses) {
         return new TutorProfileResponse(
                 tutorProfile.getUser().getUserId(),
                 tutorProfile.getUser().getFullName(),
@@ -78,8 +77,7 @@ public class TutorProfileMapper {
                 tutorProfile.getAverageRating(),
                 subjectResponses,
                 reviewResponses,
-                availabilityResponses,
-                materialResponses
+                availabilityResponses
         );
     }
 }

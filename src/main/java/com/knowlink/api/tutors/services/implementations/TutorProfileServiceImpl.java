@@ -64,23 +64,8 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 .map(tutorProfileMapper::toAvailabilityResponse)
                                 .collect(Collectors.toList());
 
-                List<TutorMaterialResponse> materialResponses = hasActiveBooking(tutorUserId, studentUserId)
-                                ? academicMaterialRepository
-                                                .findAvailableByTutorProfileId(tutorProfile.getTutorProfileId())
-                                                .stream()
-                                                .map(tutorProfileMapper::toMaterialResponse)
-                                                .collect(Collectors.toList())
-                                : List.of();
-
                 return tutorProfileMapper.toProfileResponse(
-                                tutorProfile, subjectResponses, reviewResponses, availabilityResponses,
-                                materialResponses);
-        }
-
-        private boolean hasActiveBooking(UUID tutorUserId, UUID studentUserId) {
-                return bookingRepository.existsActiveBooking(
-                                tutorUserId, studentUserId,
-                                List.of(BookingStatus.BOOKED, BookingStatus.IN_PROGRESS, BookingStatus.COMPLETED));
+                                tutorProfile, subjectResponses, reviewResponses, availabilityResponses);
         }
 
         @Override
