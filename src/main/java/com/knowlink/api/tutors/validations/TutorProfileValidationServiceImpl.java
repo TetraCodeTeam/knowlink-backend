@@ -14,8 +14,11 @@ public class TutorProfileValidationServiceImpl implements ITutorProfileValidatio
 
     @Override
     public void ifTutorProfileAlreadyExistsThrowException(User user) {
-        if (tutorProfileRepository.findByUserId(user.getUserId()).isPresent()) {
-            throw new DuplicateResourceException("TutorProfile", "user", user.getUserId());
+        if (tutorProfileRepository.existsByUserId(user.getUserId())) {
+            throw new DuplicateResourceException(
+                    "DUPLICATE_TUTOR_PROFILE",
+                    "El usuario ya tiene un perfil de tutor",
+                    String.format("user con id '%s' ya tiene tutor profile", user.getUserId()));
         }
     }
 }

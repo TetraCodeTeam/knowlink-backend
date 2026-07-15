@@ -12,4 +12,6 @@ public interface ITutorProfileRepository extends JpaRepository<TutorProfile, UUI
 
     @Query("SELECT tp FROM TutorProfile tp WHERE tp.user.userId = :userId")
     Optional<TutorProfile> findByUserId(@Param("userId") UUID userId);
+
+    boolean existsByUserId(UUID userId);
 }
