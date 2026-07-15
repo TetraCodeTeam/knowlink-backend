@@ -11,11 +11,21 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import static org.springframework.http.HttpStatus.OK;
+
 import java.util.UUID;
 
 @RequestMapping("/api/v1/users")
 @Tag(name = "Users", description = "User management")
 public interface IUserController {
+
+    @GetMapping("/availability")
+    @Operation(summary = "Verificar disponibilidad de email y/o DNI para registro")
+    @ResponseStatus(OK)
+    void checkAvailability(
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String dni
+    );
 
     @GetMapping("/{userId}")
     @Operation(summary = "Get user by ID")
