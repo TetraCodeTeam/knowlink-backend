@@ -5,8 +5,8 @@ import com.knowlink.api.users.data.mappers.UserMapper;
 import com.knowlink.api.users.data.models.Token;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.auth.controllers.requests.LoginRequest;
+import com.knowlink.api.auth.controllers.requests.StudentRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
-import com.knowlink.api.auth.controllers.requests.UserRegistrationRequest;
 import com.knowlink.api.auth.controllers.responses.AuthResponse;
 import com.knowlink.api.users.controllers.requests.UpdateUserRequest;
 import com.knowlink.api.exceptions.custom_exceptions.*;
@@ -40,16 +40,18 @@ public class UserServiceImpl implements IUserService {
 
     @Override
     @Transactional
-    public void saveUser(UserRegistrationRequest request) {
+    public User saveStudentUser(StudentRegistrationRequest request) {
         userValidationService.ifEmailAlreadyExistsThrowException(request.email());
         userValidationService.verifyIfPasswordsMatch(request.password(), request.confirmPassword());
 
-        User newUser = userMapper.toUser(request);
+        User newUser = userMapper.toStudentUser(request);
         newUser.setPassword(passwordEncoder.encode(request.password()));
         userRepository.save(newUser);
 
         UUID confirmationToken = tokenService.saveUserToken(newUser).getTokenId();
         eventPublisher.publishEvent(new UserRegisteredEvent(newUser, confirmationToken));
+
+        return newUser;
     }
 
     @Override
@@ -69,9 +71,22 @@ public class UserServiceImpl implements IUserService {
     }
 
     @Override
+    public void checkAvailability(String email, String dni) {
+        if (email != null) {
+            userValidationService.ifEmailAlreadyExistsThrowException(email);
+        }
+        if (dni != null) {
+            userValidationService.ifDniAlreadyExistsThrowException(dni);
+        }
+    }
+
+    @Override
     public User findByIdOrThrowException(UUID userId) {
         return userRepository.findByUserIdAndAccountStatusNot(userId, AccountStatus.DELETED)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "USER_NOT_FOUND",
+                        "Usuario no encontrado.",
+                        String.format("user con id '%s' no existe", userId)));
     }
 
     @Override
@@ -85,7 +100,10 @@ public class UserServiceImpl implements IUserService {
     @Override
     public User findUserByEmailOrThrowException(String email) {
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User", "email", email));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "USER_NOT_FOUND",
+                        "Usuario no encontrado.",
+                        String.format("user con email '%s' no existe", email)));
     }
 
     @Override
@@ -97,7 +115,11 @@ public class UserServiceImpl implements IUserService {
         User user = token.getUser();
 
         if (!user.getUserId().equals(userId)) {
-            throw new ResourceNotFoundException("User", "id", userId);
+            throw new ResourceNotFoundException(
+                    "USER_NOT_FOUND",
+                    "Usuario no encontrado.",
+                    String.format("token pertenece a userId '%s', pero se recibió userId '%s'", user.getUserId(),
+                            userId));
         }
 
         if (user.getAccountStatus() == AccountStatus.ACTIVE) {
