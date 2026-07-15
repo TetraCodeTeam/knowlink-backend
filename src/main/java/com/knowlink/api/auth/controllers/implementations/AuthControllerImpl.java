@@ -21,8 +21,8 @@ public class AuthControllerImpl implements IAuthController {
     }
 
     @Override
-    public void register(StudentRegistrationRequest request) {
-        this.authService.register(request);
+    public void registerStudent(StudentRegistrationRequest request) {
+        this.authService.registerStudent(request);
     }
 
     @Override

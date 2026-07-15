@@ -28,7 +28,7 @@ public interface IAuthController {
     @PostMapping("/register/student")
     @Operation(summary = "Registrar nuevo usuario (alumno)")
     @ResponseStatus(CREATED)
-    void register(@RequestBody @Valid StudentRegistrationRequest request);
+    void registerStudent(@RequestBody @Valid StudentRegistrationRequest request);
 
     @PostMapping("/register/tutor")
     @Operation(summary = "Registrar nuevo usuario (tutor)")
