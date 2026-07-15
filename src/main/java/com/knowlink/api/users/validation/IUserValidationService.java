@@ -7,6 +7,8 @@ public interface IUserValidationService {
 
     void ifEmailAlreadyExistsThrowException(String email);
 
+    void ifDniAlreadyExistsThrowException(String dni); 
+
     void verifyIfPasswordsMatch(String password, String confirmPassword);
 
     void ifUserIsAlreadyActiveThrowException(User user);

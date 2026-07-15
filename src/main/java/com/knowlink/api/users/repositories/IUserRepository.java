@@ -18,4 +18,7 @@ public interface IUserRepository extends JpaRepository<User, UUID> {
     Optional<User> findByEmail(@Param("email") String email);
 
     Optional<User> findByUserIdAndAccountStatusNot(UUID userId, AccountStatus accountStatus);
+
+    @Query("SELECT CASE WHEN COUNT(u) > 0 THEN TRUE ELSE FALSE END FROM User u WHERE u.dni = :dni AND u.accountStatus != 'DELETED'")
+    boolean existsByDni(@Param("dni") String dni);
 }
