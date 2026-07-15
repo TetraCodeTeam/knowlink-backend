@@ -29,6 +29,7 @@ public record TutorRegistrationRequest(
         String lastName,
 
         @NotBlank(message = "DNI is required")
+        @Pattern(regexp = "^\\d{7,8}$", message = "DNI must be a valid 7 or 8 digit number")
         String dni,
 
         @NotBlank(message = "Phone number is required")

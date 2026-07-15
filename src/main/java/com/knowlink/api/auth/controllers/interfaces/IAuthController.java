@@ -1,8 +1,8 @@
 package com.knowlink.api.auth.controllers.interfaces;
 
 import com.knowlink.api.auth.controllers.requests.LoginRequest;
+import com.knowlink.api.auth.controllers.requests.StudentRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
-import com.knowlink.api.auth.controllers.requests.UserRegistrationRequest;
 import com.knowlink.api.auth.controllers.responses.AuthResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -25,10 +25,10 @@ public interface IAuthController {
     @ResponseStatus(OK)
     AuthResponse login(@RequestBody @Valid LoginRequest request);
 
-    @PostMapping("/register")
-    @Operation(summary = "Registrar nuevo usuario")
+    @PostMapping("/register/student")
+    @Operation(summary = "Registrar nuevo usuario (alumno)")
     @ResponseStatus(CREATED)
-    void register(@RequestBody @Valid UserRegistrationRequest request);
+    void register(@RequestBody @Valid StudentRegistrationRequest request);
 
     @PostMapping("/register/tutor")
     @Operation(summary = "Registrar nuevo usuario (tutor)")
