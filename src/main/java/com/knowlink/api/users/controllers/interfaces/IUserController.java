@@ -7,6 +7,7 @@ import com.knowlink.api.users.controllers.requests.UpdateUserRequest;
 import com.knowlink.api.users.controllers.responses.UserResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -21,11 +22,12 @@ public interface IUserController {
 
     @GetMapping("/availability")
     @Operation(summary = "Verificar disponibilidad de email y/o DNI para registro")
+    @ApiResponse(responseCode = "200", description = "Disponible")
+    @ApiResponse(responseCode = "409", description = "Email y/o DNI ya registrado")
     @ResponseStatus(OK)
     void checkAvailability(
             @RequestParam(required = false) String email,
-            @RequestParam(required = false) String dni
-    );
+            @RequestParam(required = false) String dni);
 
     @GetMapping("/{userId}")
     @Operation(summary = "Get user by ID")
@@ -40,7 +42,7 @@ public interface IUserController {
     @PostMapping("/{userId}/verify-account")
     @ResponseStatus(HttpStatus.ACCEPTED)
     void verifyAccount(@PathVariable UUID userId,
-                       @RequestBody @Valid ConfirmTokenRequest confirmTokenRequest);
+            @RequestBody @Valid ConfirmTokenRequest confirmTokenRequest);
 
     @PostMapping("/resend-verification-account")
     @ResponseStatus(HttpStatus.OK)
