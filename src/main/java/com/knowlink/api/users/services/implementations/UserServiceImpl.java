@@ -42,6 +42,7 @@ public class UserServiceImpl implements IUserService {
     @Transactional
     public User saveStudentUser(StudentRegistrationRequest request) {
         userValidationService.ifEmailAlreadyExistsThrowException(request.email());
+        userValidationService.ifDniAlreadyExistsThrowException(request.dni());
         userValidationService.verifyIfPasswordsMatch(request.password(), request.confirmPassword());
 
         User newUser = userMapper.toStudentUser(request);
@@ -58,6 +59,7 @@ public class UserServiceImpl implements IUserService {
     @Transactional
     public User saveTutorUser(TutorRegistrationRequest request) {
         userValidationService.ifEmailAlreadyExistsThrowException(request.email());
+        userValidationService.ifDniAlreadyExistsThrowException(request.dni());
         userValidationService.verifyIfPasswordsMatch(request.password(), request.confirmPassword());
 
         User newUser = userMapper.toTutorUser(request);
