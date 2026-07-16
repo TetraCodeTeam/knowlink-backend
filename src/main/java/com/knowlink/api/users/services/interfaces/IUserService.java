@@ -1,8 +1,8 @@
 package com.knowlink.api.users.services.interfaces;
 
 import com.knowlink.api.auth.controllers.requests.LoginRequest;
+import com.knowlink.api.auth.controllers.requests.StudentRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
-import com.knowlink.api.auth.controllers.requests.UserRegistrationRequest;
 import com.knowlink.api.auth.controllers.responses.AuthResponse;
 import com.knowlink.api.users.controllers.requests.UpdateUserRequest;
 import com.knowlink.api.users.data.models.User;
@@ -11,9 +11,11 @@ import java.util.UUID;
 
 public interface IUserService {
 
-    void saveUser(UserRegistrationRequest userRegistrationRequest);
+    User saveStudentUser(StudentRegistrationRequest request);
 
     User saveTutorUser(TutorRegistrationRequest request);
+
+    void checkAvailability(String email, String dni);
 
     User findByIdOrThrowException(UUID userId);
 

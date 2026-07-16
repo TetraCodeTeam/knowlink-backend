@@ -22,6 +22,11 @@ public class UserControllerImpl implements IUserController {
     private final UserMapper userMapper;
 
     @Override
+    public void checkAvailability(String email, String dni) {
+        userService.checkAvailability(email, dni);
+    }
+
+    @Override
     public UserResponse getUserById(UUID userId) {
         User user = userService.findByIdOrThrowException(userId);
         return userMapper.toResponse(user);
@@ -45,7 +50,8 @@ public class UserControllerImpl implements IUserController {
 
     @Override
     public void resetPassword(ResetPasswordRequest resetPasswordRequest) {
-        userService.resetPassword(resetPasswordRequest.token(), resetPasswordRequest.newPassword(), resetPasswordRequest.confirmNewPassword());
+        userService.resetPassword(resetPasswordRequest.token(), resetPasswordRequest.newPassword(),
+                resetPasswordRequest.confirmNewPassword());
     }
 
     @Override

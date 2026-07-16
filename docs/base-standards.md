@@ -181,9 +181,21 @@ Con Lombok se puede usar `@RequiredArgsConstructor` en lugar del constructor exp
 - Lanzar excepciones personalizadas desde servicios, nunca manejarlas en controllers.
 - Formato de respuesta de error real:
 ```json
-  { "status": 404, "message": "Resource not found", "detail": "Career con name 'X' no encontrado" }
+  { "status": 409, "message": "Este correo ya está registrado.", "detail": "DUPLICATE_EMAIL" }
 ```
-  (`status` + `message` genérico + `detail` con el detalle específico — no solo `message`/`status` como decía la versión anterior de este doc).
+  (`status` + `message` con texto seguro para mostrar al usuario final + `detail` con un código estable de categoría — nunca información interna como IDs, valores de campo o nombres de entidad).
+- Las excepciones que representan errores de negocio recurrentes (`ResourceNotFoundException`, `DuplicateResourceException`) reciben **3 parámetros** en el constructor: `errorCode` (string fijo tipo `USER_NOT_FOUND`, va a `ApiError.detail`), `userMessage` (texto en español, seguro para el cliente, va a `ApiError.message`) y `technicalMessage` (detalle interno con los valores específicos — IDs, emails, etc. — solo para logs, nunca se expone en la respuesta).
+- El handler correspondiente debe loguear `ex.getMessage()` (el technicalMessage) con `logger.warn(...)` antes de construir el `ApiError`, y usar `ex.getUserMessage()` / `ex.getErrorCode()` para la respuesta:
+```java
+  @ExceptionHandler(ResourceNotFoundException.class)
+  public ResponseEntity<ApiError> handleNotFound(ResourceNotFoundException ex) {
+      logger.warn(ex.getMessage());
+      ApiError error = new ApiError(HttpStatus.NOT_FOUND.value(), ex.getUserMessage(), ex.getErrorCode());
+      return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+  }
+```
+- Para excepciones más simples que no necesitan este patrón de 3 parámetros (`UnauthorizedException`, `TokenExpiredException`, `ValidationException`, etc.), el mensaje pasado al constructor ya debe ser el texto final para el usuario — el `errorCode` se define directo como string literal en el `ApiError` del handler, no hace falta agregarlo a la excepción.
+- El handler catch-all (`RuntimeException`/`Exception`) nunca debe exponer `ex.getMessage()` en la respuesta — solo en el log (`logger.error`). La respuesta al cliente usa siempre un mensaje genérico fijo en español (`"Ocurrió un error inesperado. Intentá nuevamente más tarde."`), para no filtrar detalles de implementación (stack traces, nombres de tabla, etc.).
 - Usar `orElseThrow()` en `Optional`, nunca `get()` sin verificar.
 
 ### Logging

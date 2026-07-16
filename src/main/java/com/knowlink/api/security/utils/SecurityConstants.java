@@ -7,7 +7,7 @@ public class SecurityConstants {
 
         public static final String[] PUBLIC_WHITELIST = {
                 "/api/v1/auth/login",
-                "/api/v1/auth/register",
+                "/api/v1/auth/register/student",
                 "/api/v1/auth/register/tutor",
                 "/api/v1/users/*/verify-account",
                 "/api/v1/users/resend-verification-account",
@@ -17,6 +17,7 @@ public class SecurityConstants {
                 "/api/v1/careers",
                 "/api/v1/subjects",
                 "/api/v1/subjects/basic",
+                "/api/v1/users/availability",
         };
 
         public static final String[] SWAGGER_WHITELIST = {
