@@ -17,6 +17,7 @@ public class SecurityConstants {
                 "/api/v1/careers",
                 "/api/v1/subjects",
                 "/api/v1/subjects/basic",
+                "/api/v1/users/availability",
         };
 
         public static final String[] SWAGGER_WHITELIST = {

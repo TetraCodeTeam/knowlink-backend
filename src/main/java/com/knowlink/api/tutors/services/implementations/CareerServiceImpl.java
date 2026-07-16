@@ -18,7 +18,10 @@ public class CareerServiceImpl implements ICareerService {
     @Override
     public Career findByNameOrThrowException(String name) {
         return careerRepository.findByName(name)
-                .orElseThrow(() -> new ResourceNotFoundException("Career", "name", name));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "CAREER_NOT_FOUND",
+                                                "Carrera no encontrada.",
+                                                String.format("career con name '%s' no existe", name)));
     }
 
     @Override

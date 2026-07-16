@@ -41,7 +41,10 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         @Transactional(readOnly = true)
         public TutorProfileResponse getTutorProfile(UUID tutorUserId, UUID studentUserId) {
                 TutorProfile tutorProfile = tutorProfileRepository.findByUserId(tutorUserId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Tutor", "id", tutorUserId));
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "TUTOR_NOT_FOUND",
+                                                "Perfil de tutor no encontrado.",
+                                                String.format("tutor profile con userId '%s' no existe", tutorUserId)));
 
                 List<TutorSubjectResponse> subjectResponses = tutorSubjectRepository
                                 .findByTutorProfileId(tutorProfile.getTutorProfileId())

@@ -31,13 +31,19 @@ public class TokenServiceImpl implements ITokenService {
     @Override
     public Token findByTokenOrThrowException(UUID tokenId) {
         return tokenRepository.findByTokenId(tokenId)
-                .orElseThrow(() -> new ResourceNotFoundException("Token", "id", tokenId));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "TOKEN_NOT_FOUND",
+                        "El enlace ya no es válido.",
+                        String.format("token con id '%s' no existe", tokenId)));
     }
 
     @Override
     public Token findLatestTokenByUser(User user) {
         return tokenRepository.findFirstByUserOrderByCreatedAtDesc(user)
-                .orElseThrow(() -> new ResourceNotFoundException("Token", "user", user.getUserId()));
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "TOKEN_NOT_FOUND",
+                        "El enlace ya no es válido.",
+                        String.format("token para userId '%s' no existe", user.getUserId())));
     }
 
     @Override

@@ -24,49 +24,51 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiError> handleNotFound(ResourceNotFoundException ex) {
-        ApiError error = new ApiError(HttpStatus.NOT_FOUND.value(), "Resource not found", ex.getMessage());
+        logger.warn(ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.NOT_FOUND.value(), ex.getUserMessage(), ex.getErrorCode());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
 
     @ExceptionHandler(DuplicateResourceException.class)
     public ResponseEntity<ApiError> handleDuplicate(DuplicateResourceException ex) {
-        ApiError error = new ApiError(HttpStatus.CONFLICT.value(), "Duplicate resource", ex.getMessage());
+        logger.warn(ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.CONFLICT.value(), ex.getUserMessage(), ex.getErrorCode());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
 
     @ExceptionHandler(ValidationException.class)
     public ResponseEntity<ApiError> handleValidation(ValidationException ex) {
-        ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(), "Validation error", ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(), ex.getMessage(), "VALIDATION_ERROR");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
     @ExceptionHandler(PasswordsDoNotMatchException.class)
     public ResponseEntity<ApiError> handlePasswordsDoNotMatch(PasswordsDoNotMatchException ex) {
-        ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(), "Validation error", ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(), ex.getMessage(), "PASSWORDS_MISMATCH");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ApiError> handleUnauthorized(UnauthorizedException ex) {
-        ApiError error = new ApiError(HttpStatus.UNAUTHORIZED.value(), "Unauthorized", ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.UNAUTHORIZED.value(), ex.getMessage(), "UNAUTHORIZED");
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
     }
 
     @ExceptionHandler(TokenExpiredException.class)
     public ResponseEntity<ApiError> handleTokenExpired(TokenExpiredException ex) {
-        ApiError error = new ApiError(HttpStatus.UNAUTHORIZED.value(), "Token expired", ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.UNAUTHORIZED.value(), ex.getMessage(), "TOKEN_EXPIRED");
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
     }
 
     @ExceptionHandler(EmailAlreadyVerifiedException.class)
     public ResponseEntity<ApiError> handleEmailAlreadyVerified(EmailAlreadyVerifiedException ex) {
-        ApiError error = new ApiError(HttpStatus.CONFLICT.value(), "Account already verified", ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.CONFLICT.value(), ex.getMessage(), "EMAIL_ALREADY_VERIFIED");
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
 
     @ExceptionHandler(TooManyRequestsException.class)
     public ResponseEntity<ApiError> handleTooManyRequests(TooManyRequestsException ex) {
-        ApiError error = new ApiError(HttpStatus.TOO_MANY_REQUESTS.value(), "Too many requests", ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.TOO_MANY_REQUESTS.value(), ex.getMessage(), "TOO_MANY_REQUESTS");
         return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(error);
     }
 
@@ -117,7 +119,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({ RuntimeException.class, Exception.class })
     public ResponseEntity<ApiError> handleAll(Exception ex, WebRequest request) {
         logger.error("Unexpected error: {}", ex.getMessage(), ex);
-        ApiError error = new ApiError(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Unexpected error", ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Unexpected error",
+                "Ocurrió un error inesperado. Intentá nuevamente más tarde.");
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
     }
 }
