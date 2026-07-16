@@ -34,10 +34,10 @@ public interface ITutorController {
         @ResponseStatus(OK)
         @PreAuthorize("hasRole('STUDENT')")
         TutorProfileResponse getTutorProfile(
-                        @Parameter(description = "ID del usuario (User) con rol TUTOR") @PathVariable UUID userId,
+                        @Parameter(description = "Palabra clave") @PathVariable UUID userId,
                         Authentication authentication);
 
-        @GetMapping("/search")
+        @GetMapping("/search/{query}")
         @Operation(summary = "Buscar tutores", description = "Busca tutores por nombre de materia")
         @ApiResponses({
                         @ApiResponse(responseCode = "200", description = "Búsqueda realizada"),
