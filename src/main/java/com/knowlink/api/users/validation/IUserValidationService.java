@@ -16,4 +16,6 @@ public interface IUserValidationService {
     void validateTokenNotExpired(Token token);
 
     void validateResendLimit(User user);
+
+    void validateAtLeastOneAvailabilityParam(String email, String dni);
 }

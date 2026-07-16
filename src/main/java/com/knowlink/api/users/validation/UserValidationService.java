@@ -68,4 +68,14 @@ public class UserValidationService implements IUserValidationService {
                     "Has excedido el límite de reenvíos. Por favor, intenta nuevamente más tarde.");
         }
     }
+
+    @Override
+    public void validateAtLeastOneAvailabilityParam(String email, String dni) {
+        boolean hasEmail = email != null && !email.isBlank();
+        boolean hasDni = dni != null && !dni.isBlank();
+
+        if (!hasEmail && !hasDni) {
+            throw new ValidationException("Debes enviar al menos 'email' o 'dni' para verificar disponibilidad.");
+        }
+    }
 }

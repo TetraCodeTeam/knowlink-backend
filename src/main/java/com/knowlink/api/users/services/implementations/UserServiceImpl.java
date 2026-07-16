@@ -74,11 +74,13 @@ public class UserServiceImpl implements IUserService {
 
     @Override
     public void checkAvailability(String email, String dni) {
-        if (email != null) {
-            userValidationService.ifEmailAlreadyExistsThrowException(email);
+        userValidationService.validateAtLeastOneAvailabilityParam(email, dni);
+
+        if (email != null && !email.isBlank()) {
+            userValidationService.ifEmailAlreadyExistsThrowException(email.trim());
         }
-        if (dni != null) {
-            userValidationService.ifDniAlreadyExistsThrowException(dni);
+        if (dni != null && !dni.isBlank()) {
+            userValidationService.ifDniAlreadyExistsThrowException(dni.trim());
         }
     }
 
