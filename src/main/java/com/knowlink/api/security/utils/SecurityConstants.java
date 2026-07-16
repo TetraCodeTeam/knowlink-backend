@@ -7,7 +7,7 @@ public class SecurityConstants {
 
         public static final String[] PUBLIC_WHITELIST = {
                 "/api/v1/auth/login",
-                "/api/v1/auth/register",
+                "/api/v1/auth/register/student",
                 "/api/v1/auth/register/tutor",
                 "/api/v1/users/*/verify-account",
                 "/api/v1/users/resend-verification-account",
