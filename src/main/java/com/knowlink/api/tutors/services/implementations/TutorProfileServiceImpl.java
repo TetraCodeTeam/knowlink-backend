@@ -40,11 +40,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         @Override
         @Transactional(readOnly = true)
         public TutorProfileResponse getTutorProfile(UUID tutorUserId, UUID studentUserId) {
-                TutorProfile tutorProfile = tutorProfileRepository.findByUserId(tutorUserId)
-                                .orElseThrow(() -> new ResourceNotFoundException(
-                                                "TUTOR_NOT_FOUND",
-                                                "Perfil de tutor no encontrado.",
-                                                String.format("tutor profile con userId '%s' no existe", tutorUserId)));
+                TutorProfile tutorProfile = findTutorProfileOrThrow(tutorUserId);
 
                 List<TutorSubjectResponse> subjectResponses = tutorSubjectRepository
                                 .findByTutorProfileId(tutorProfile.getTutorProfileId())
@@ -101,5 +97,20 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
 
                 tutorProfile.getSubjects().addAll(tutorSubjects);
                 return tutorProfileRepository.save(tutorProfile);
+        }
+
+        @Override
+        @Transactional(readOnly = true)
+        public TutorSelfProfileResponse getSelfProfile(UUID tutorUserId) {
+                TutorProfile tutorProfile = findTutorProfileOrThrow(tutorUserId);
+                return tutorProfileMapper.toSelfProfileResponse(tutorProfile);
+        }
+
+        private TutorProfile findTutorProfileOrThrow(UUID tutorUserId) {
+                return tutorProfileRepository.findByUserId(tutorUserId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "TUTOR_PROFILE_NOT_FOUND",
+                                                "Este tutor no está registrado.",
+                                                "TutorProfile not found for userId: " + tutorUserId));
         }
 }
