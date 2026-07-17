@@ -5,6 +5,7 @@ import com.knowlink.api.tutors.controllers.responses.TutorAvailabilityResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorMaterialResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorReviewResponse;
+import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSubjectResponse;
 import com.knowlink.api.tutors.data.models.AcademicMaterial;
 import com.knowlink.api.tutors.data.models.AvailabilityBlock;
@@ -34,11 +35,14 @@ public class TutorProfileMapper {
 
     public TutorSubjectResponse toSubjectResponse(TutorSubject tutorSubject) {
         return new TutorSubjectResponse(
+                tutorSubject.getTutorSubjectId(),
                 tutorSubject.getSubject().getName(),
-                tutorSubject.getDescription(),
                 tutorSubject.getModality().name(),
                 tutorSubject.getCompensationType().name(),
-                tutorSubject.getPricePerHour() != null ? tutorSubject.getPricePerHour().doubleValue() : null
+                tutorSubject.getPricePerHour(),
+                tutorSubject.getTutorSubjectStatus().name(),
+                null, // averageRating por materia - pendiente
+                null // reviewCount por materia - pendiente
         );
     }
 
@@ -50,16 +54,14 @@ public class TutorProfileMapper {
         return new TutorAvailabilityResponse(
                 availabilityBlock.getDayOfWeek().name(),
                 availabilityBlock.getStartTime(),
-                availabilityBlock.getEndTime()
-        );
+                availabilityBlock.getEndTime());
     }
 
     public TutorMaterialResponse toMaterialResponse(AcademicMaterial academicMaterial) {
         return new TutorMaterialResponse(
                 academicMaterial.getName(),
                 academicMaterial.getFileUrl(),
-                academicMaterial.getUploadedAt()
-        );
+                academicMaterial.getUploadedAt());
     }
 
     public TutorProfileResponse toProfileResponse(
@@ -79,7 +81,25 @@ public class TutorProfileMapper {
                 subjectResponses,
                 reviewResponses,
                 availabilityResponses,
-                materialResponses
-        );
+                materialResponses);
+    }
+
+    public TutorSelfProfileResponse toSelfProfileResponse(TutorProfile tutorProfile) {
+        List<TutorSubjectResponse> subjects = tutorProfile.getSubjects().stream()
+                .map(this::toSubjectResponse)
+                .toList();
+
+        return new TutorSelfProfileResponse(
+                tutorProfile.getUser().getUserId(),
+                tutorProfile.getUser().getFullName(),
+                tutorProfile.getUser().getEmail(),
+                tutorProfile.getUser().getPhoneNumber(),
+                tutorProfile.getCareer().getName(),
+                tutorProfile.getProfilePictureUrl(),
+                tutorProfile.getBiography(),
+                tutorProfile.getAddress(),
+                tutorProfile.isMercadoPagoLinked(),
+                tutorProfile.getAverageRating(),
+                subjects);
     }
 }
