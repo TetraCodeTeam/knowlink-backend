@@ -107,10 +107,10 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         }
 
         private TutorProfile findTutorProfileOrThrow(UUID tutorUserId) {
-        return tutorProfileRepository.findByUserId(tutorUserId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "TUTOR_PROFILE_NOT_FOUND",
-                        "No se encontró tu perfil de tutor.",
-                        "TutorProfile not found for userId: " + tutorUserId));
-    }
+                return tutorProfileRepository.findByUserId(tutorUserId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "TUTOR_PROFILE_NOT_FOUND",
+                                                "Este tutor no está registrado.",
+                                                "TutorProfile not found for userId: " + tutorUserId));
+        }
 }
