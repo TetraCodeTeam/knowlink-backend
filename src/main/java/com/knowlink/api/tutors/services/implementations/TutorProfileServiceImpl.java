@@ -89,6 +89,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         }
 
         @Override
+        @Transactional(readOnly = true) 
         public List<TutorSearchResponse> searchTutor(String query) {
 
                 List<TutorSubject> resultados = subjectTutorRepository.findBySubject_NameContainingIgnoreCase(query);
