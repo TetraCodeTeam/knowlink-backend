@@ -34,11 +34,14 @@ public class TutorProfileMapper {
 
     public TutorSubjectResponse toSubjectResponse(TutorSubject tutorSubject) {
         return new TutorSubjectResponse(
+                tutorSubject.getTutorSubjectId(),
                 tutorSubject.getSubject().getName(),
-                tutorSubject.getDescription(),
                 tutorSubject.getModality().name(),
                 tutorSubject.getCompensationType().name(),
-                tutorSubject.getPricePerHour() != null ? tutorSubject.getPricePerHour().doubleValue() : null
+                tutorSubject.getPricePerHour(),
+                tutorSubject.getTutorSubjectStatus().name(),
+                null, // averageRating por materia - pendiente
+                null // reviewCount por materia - pendiente
         );
     }
 
@@ -50,16 +53,14 @@ public class TutorProfileMapper {
         return new TutorAvailabilityResponse(
                 availabilityBlock.getDayOfWeek().name(),
                 availabilityBlock.getStartTime(),
-                availabilityBlock.getEndTime()
-        );
+                availabilityBlock.getEndTime());
     }
 
     public TutorMaterialResponse toMaterialResponse(AcademicMaterial academicMaterial) {
         return new TutorMaterialResponse(
                 academicMaterial.getName(),
                 academicMaterial.getFileUrl(),
-                academicMaterial.getUploadedAt()
-        );
+                academicMaterial.getUploadedAt());
     }
 
     public TutorProfileResponse toProfileResponse(

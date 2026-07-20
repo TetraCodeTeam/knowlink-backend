@@ -1,7 +1,7 @@
 package com.knowlink.api.users.data.mappers;
 
+import com.knowlink.api.auth.controllers.requests.StudentRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
-import com.knowlink.api.auth.controllers.requests.UserRegistrationRequest;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.users.controllers.responses.UserResponse;
 import com.knowlink.api.users.data.models.User;
@@ -16,12 +16,16 @@ public class UserMapper {
                 user.getEmail(),
                 user.getRole().name(),
                 user.getAccountStatus().name(),
-                user.getCreatedAt());
+                user.getCreatedAt()
+        );
     }
 
-    public User toUser(UserRegistrationRequest request) {
+    public User toStudentUser(StudentRegistrationRequest request) {
         return User.builder()
                 .email(request.email())
+                .fullName(request.firstName() + " " + request.lastName())
+                .dni(request.dni())
+                .phoneNumber(request.phoneNumber())
                 .role(Role.STUDENT)
                 .build();
     }

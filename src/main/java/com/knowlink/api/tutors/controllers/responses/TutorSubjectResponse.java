@@ -1,9 +1,15 @@
 package com.knowlink.api.tutors.controllers.responses;
 
+import java.math.BigDecimal;
+import java.util.UUID;
+
 public record TutorSubjectResponse(
-        String subject,
-        String description,
+        UUID tutorSubjectId,
+        String subjectName,
         String modality,
         String compensationType,
-        Double pricePerHour
+        BigDecimal pricePerHour,
+        String verificationStatus, // "PENDING" | "ACTIVE" | "REJECTED"
+        Double averageRating,      // null por ahora — pendiente de US de calificaciones por materia
+        Integer reviewCount        // null por ahora, mismo motivo
 ) {}

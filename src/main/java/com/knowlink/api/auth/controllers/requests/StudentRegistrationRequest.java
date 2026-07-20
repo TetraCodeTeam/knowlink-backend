@@ -1,11 +1,11 @@
 package com.knowlink.api.auth.controllers.requests;
 
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
-import java.util.List;
-
-public record TutorRegistrationRequest(
+public record StudentRegistrationRequest(
 
         @NotBlank(message = "Email is required")
         @Email(message = "Email must be valid")
@@ -40,14 +40,5 @@ public record TutorRegistrationRequest(
 
         String institutionalId,
 
-        String profilePictureUrl,
-
-        @Size(max = 300, message = "Biography cannot exceed 300 characters")
-        String biography,
-
-        String address,
-
-        @NotEmpty(message = "At least one subject is required")
-        @Valid
-        List<TutorSubjectRequest> subjects
+        String profilePictureUrl
 ) {}
