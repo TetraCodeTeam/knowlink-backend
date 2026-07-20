@@ -89,14 +89,28 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         }
 
         @Override
-        @Transactional(readOnly = true) 
+        @Transactional(readOnly = true)
         public List<TutorSearchResponse> searchTutor(String query) {
 
-                List<TutorSubject> resultados = subjectTutorRepository.findBySubject_NameContainingIgnoreCase(query);
+                List<TutorSubject> resultadosPorMateria = subjectTutorRepository.findBySubject_NameContainingIgnoreCase(query);
 
-                Map<UUID, List<TutorSubject>> agrupados = resultados.stream()
+                Map<UUID, List<TutorSubject>> agrupados = resultadosPorMateria.stream()
                                 .collect(Collectors.groupingBy(
                                                 mt -> mt.getTutorProfile().getUser().getUserId()));
+
+                // Tutores que matchean por su propio nombre (no por materia): se agregan
+                // con todas sus materias, sin pisar a los que ya matchearon por materia
+                // arriba. Se excluyen tutores sin materias cargadas para no romper
+                // TutorSearchMapper.from(), que requiere al menos una.
+                List<TutorProfile> resultadosPorNombre = tutorProfileRepository
+                                .findByUser_FullNameContainingIgnoreCase(query);
+
+                for (TutorProfile tutorProfile : resultadosPorNombre) {
+                        if (tutorProfile.getSubjects().isEmpty()) {
+                                continue;
+                        }
+                        agrupados.putIfAbsent(tutorProfile.getUser().getUserId(), tutorProfile.getSubjects());
+                }
 
                 return agrupados.values()
                                 .stream()

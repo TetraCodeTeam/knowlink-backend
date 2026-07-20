@@ -1,8 +1,10 @@
 package com.knowlink.api.tutors.data.mappers;
 
 
+import java.util.Comparator;
 import java.util.List;
 
+import com.knowlink.api.tutors.data.models.SubjectSummary;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.data.models.TutorSearchResponse;
 import com.knowlink.api.tutors.data.models.TutorSubject;
@@ -27,9 +29,11 @@ public final class TutorSearchMapper {
                 tutorProfile.getAverageRating(),
                 4, // o getTotalReviews() según tu entidad
                 TutorSubjectList.stream()
-                        .map(mt -> mt.getSubject().getName())
+                        .map(mt -> new SubjectSummary(
+                                mt.getSubject().getName(),
+                                mt.getSubject().getCareer().getName()))
                         .distinct()
-                        .sorted()
+                        .sorted(Comparator.comparing(SubjectSummary::name))
                         .toList()
         );
     }

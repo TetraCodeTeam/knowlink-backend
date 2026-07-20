@@ -9,6 +9,6 @@ public record TutorSearchResponse(
         String photoProfile,
         Double averageRating,
         Integer totalReviews,
-        List<String> subjects
+        List<SubjectSummary> subjects
 ) {
 }
