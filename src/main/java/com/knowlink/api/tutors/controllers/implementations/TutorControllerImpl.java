@@ -3,6 +3,7 @@ package com.knowlink.api.tutors.controllers.implementations;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.tutors.controllers.interfaces.ITutorController;
 import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
+import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
 import com.knowlink.api.tutors.data.models.TutorSearchResponse;
 import com.knowlink.api.tutors.services.interfaces.ITutorProfileService;
 import lombok.RequiredArgsConstructor;
@@ -24,12 +25,13 @@ public class TutorControllerImpl implements ITutorController {
     }
 
     @Override
-    public List<TutorSearchResponse> searchTutor(String query, Authentication authentication) {
-        UUID studentId = null;
-        if (authentication != null && authentication.getPrincipal() instanceof UserPrincipal principal) {
-            studentId = principal.getUser().getUserId();
-        }
+    public TutorSelfProfileResponse getMyProfile(UserPrincipal principal) {
+        return this.tutorProfileService.getSelfProfile(principal.getUser().getUserId());
+    }
 
-        return this.tutorProfileService.searchTutor(query);
+    @Override
+    public List<TutorSearchResponse> searchTutor(String query, UserPrincipal principal) {
+        UUID studentId = principal != null ? principal.getUser().getUserId() : null;
+        return this.tutorProfileService.searchTutor(query,studentId);
     }
 }

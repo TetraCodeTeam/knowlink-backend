@@ -2,13 +2,16 @@ package com.knowlink.api.tutors.controllers.interfaces;
 
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
+import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
 import com.knowlink.api.tutors.data.models.TutorSearchResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,8 +37,19 @@ public interface ITutorController {
         @ResponseStatus(OK)
         @PreAuthorize("hasRole('STUDENT')")
         TutorProfileResponse getTutorProfile(
-                        @Parameter(description = "Palabra clave") @PathVariable UUID userId,
-                        Authentication authentication);
+                        @PathVariable UUID userId,
+                        @AuthenticationPrincipal UserPrincipal principal);
+
+        @GetMapping("/me/profile")
+        @Operation(summary = "Obtener mi perfil de tutor (vista propia, autenticada)")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Perfil encontrado"),
+                        @ApiResponse(responseCode = "404", description = "Perfil no encontrado"),
+                        @ApiResponse(responseCode = "403", description = "Acceso denegado")
+        })
+        @ResponseStatus(OK)
+        @PreAuthorize("hasRole('TUTOR')")
+        TutorSelfProfileResponse getMyProfile(@AuthenticationPrincipal UserPrincipal principal);
 
         @GetMapping("/search/{query}")
         @Operation(summary = "Buscar tutores", description = "Busca tutores por nombre de materia")
@@ -46,6 +60,6 @@ public interface ITutorController {
         @ResponseStatus(OK)
         @PreAuthorize("hasRole('STUDENT')")
         List<TutorSearchResponse> searchTutor(
-                        @Parameter(description = "ID del usuario (User) con rol TUTOR") @PathVariable String query,
-                        Authentication authentication);
+                        @PathVariable String query,
+                        @AuthenticationPrincipal UserPrincipal principal);
 }

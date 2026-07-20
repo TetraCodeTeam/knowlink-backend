@@ -11,6 +11,8 @@ import java.util.UUID;
 
 public interface ITutorProfileRepository extends JpaRepository<TutorProfile, UUID> {
 
+    boolean existsByUser_UserId(UUID userId);
+
     @Query("SELECT tp FROM TutorProfile tp WHERE tp.user.userId = :userId")
     Optional<TutorProfile> findByUserId(@Param("userId") UUID userId);
  

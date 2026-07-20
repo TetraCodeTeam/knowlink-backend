@@ -64,7 +64,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 .collect(Collectors.toList());
 
                 return tutorProfileMapper.toProfileResponse(
-                                tutorProfile, subjectResponses, reviewResponses, availabilityResponses);
+                                tutorProfile, subjectResponses, reviewResponses, availabilityResponses, List.of()); //Provisorio hasta implementar materiales.
         }
 
         @Override
@@ -87,9 +87,24 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                 return tutorProfileRepository.save(tutorProfile);
         }
 
+         @Override
+        @Transactional(readOnly = true)
+        public TutorSelfProfileResponse getSelfProfile(UUID tutorUserId) {
+                TutorProfile tutorProfile = findTutorProfileOrThrow(tutorUserId);
+                return tutorProfileMapper.toSelfProfileResponse(tutorProfile);
+        }
+
+        private TutorProfile findTutorProfileOrThrow(UUID tutorUserId) {
+                return tutorProfileRepository.findByUserId(tutorUserId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "TUTOR_PROFILE_NOT_FOUND",
+                                                "Este tutor no está registrado.",
+                                                "TutorProfile not found for userId: " + tutorUserId));
+        }
+
         @Override
         @Transactional(readOnly = true)
-        public List<TutorSearchResponse> searchTutor(String query) {
+        public List<TutorSearchResponse> searchTutor(String query, UUID alumnoUserId){
 
                 List<TutorSubject> resultadosPorMateria = subjectTutorRepository.findBySubject_NameContainingIgnoreCase(query);
 

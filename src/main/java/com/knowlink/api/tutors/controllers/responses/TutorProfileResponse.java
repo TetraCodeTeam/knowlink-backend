@@ -13,5 +13,6 @@ public record TutorProfileResponse(
         Double averageRating,
         List<TutorSubjectResponse> subjects,
         List<TutorReviewResponse> reviews,
-        List<TutorAvailabilityResponse> availability
+        List<TutorAvailabilityResponse> availability,
+        List<TutorMaterialResponse> materials
 ) {}

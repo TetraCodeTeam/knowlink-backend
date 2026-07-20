@@ -5,6 +5,7 @@ import com.knowlink.api.tutors.controllers.responses.TutorAvailabilityResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorMaterialResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorReviewResponse;
+import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSubjectResponse;
 import com.knowlink.api.tutors.data.models.AcademicMaterial;
 import com.knowlink.api.tutors.data.models.AvailabilityBlock;
@@ -67,7 +68,8 @@ public class TutorProfileMapper {
             TutorProfile tutorProfile,
             List<TutorSubjectResponse> subjectResponses,
             List<TutorReviewResponse> reviewResponses,
-            List<TutorAvailabilityResponse> availabilityResponses) {
+            List<TutorAvailabilityResponse> availabilityResponses,
+            List<TutorMaterialResponse> materialResponses) {
         return new TutorProfileResponse(
                 tutorProfile.getUser().getUserId(),
                 tutorProfile.getUser().getFullName(),
@@ -78,7 +80,26 @@ public class TutorProfileMapper {
                 tutorProfile.getAverageRating(),
                 subjectResponses,
                 reviewResponses,
-                availabilityResponses
-        );
+                availabilityResponses,
+                materialResponses);
+    }
+
+    public TutorSelfProfileResponse toSelfProfileResponse(TutorProfile tutorProfile) {
+        List<TutorSubjectResponse> subjects = tutorProfile.getSubjects().stream()
+                .map(this::toSubjectResponse)
+                .toList();
+
+        return new TutorSelfProfileResponse(
+                tutorProfile.getUser().getUserId(),
+                tutorProfile.getUser().getFullName(),
+                tutorProfile.getUser().getEmail(),
+                tutorProfile.getUser().getPhoneNumber(),
+                tutorProfile.getCareer().getName(),
+                tutorProfile.getProfilePictureUrl(),
+                tutorProfile.getBiography(),
+                tutorProfile.getAddress(),
+                tutorProfile.isMercadoPagoLinked(),
+                tutorProfile.getAverageRating(),
+                subjects);
     }
 }
