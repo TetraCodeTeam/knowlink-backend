@@ -1,26 +1,31 @@
 package com.knowlink.api.tutors.controllers.interfaces;
 
+import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
+import com.knowlink.api.tutors.controllers.responses.TutorSubjectResponse;
 import com.knowlink.api.tutors.data.models.TutorSearchResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-
+import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
 import java.util.List;
 import java.util.UUID;
 
+import static org.springframework.http.HttpStatus.CREATED;
 import static org.springframework.http.HttpStatus.OK;
 
 @RequestMapping("/api/v1/tutors")
@@ -37,8 +42,8 @@ public interface ITutorController {
         @ResponseStatus(OK)
         @PreAuthorize("hasRole('STUDENT')")
         TutorProfileResponse getTutorProfile(
-                        @PathVariable UUID userId,
-                        @AuthenticationPrincipal UserPrincipal principal);
+                        @Parameter(description = "Palabra clave") @PathVariable UUID userId,
+                        UserPrincipal principal);
 
         @GetMapping("/me/profile")
         @Operation(summary = "Obtener mi perfil de tutor (vista propia, autenticada)")
@@ -49,7 +54,8 @@ public interface ITutorController {
         })
         @ResponseStatus(OK)
         @PreAuthorize("hasRole('TUTOR')")
-        TutorSelfProfileResponse getMyProfile(@AuthenticationPrincipal UserPrincipal principal);
+        TutorSelfProfileResponse getMyProfile(UserPrincipal principal);
+        
 
         @GetMapping("/search/{query}")
         @Operation(summary = "Buscar tutores", description = "Busca tutores por nombre de materia")
@@ -57,9 +63,25 @@ public interface ITutorController {
                         @ApiResponse(responseCode = "200", description = "Búsqueda realizada"),
                         @ApiResponse(responseCode = "403", description = "Acceso denegado")
         })
+
         @ResponseStatus(OK)
         @PreAuthorize("hasRole('STUDENT')")
         List<TutorSearchResponse> searchTutor(
-                        @PathVariable String query,
-                        @AuthenticationPrincipal UserPrincipal principal);
+                        @Parameter(description = "ID del usuario (User) con rol TUTOR") @PathVariable String query,
+                        UserPrincipal principal);
+
+        @PostMapping("/subjects")
+        @Operation(summary = "Registrar una materia dictada por el tutor", description = "Crea un TutorSubject para el tutor autenticado. La materia se busca (o se crea) dentro de la carrera del propio tutor.")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "201", description = "Materia registrada"),
+                        @ApiResponse(responseCode = "400", description = "Datos inválidos"),
+                        @ApiResponse(responseCode = "403", description = "Acceso denegado"),
+                        @ApiResponse(responseCode = "404", description = "Tutor no encontrado"),
+                        @ApiResponse(responseCode = "409", description = "El tutor ya tiene registrada esa materia")
+        })
+        @ResponseStatus(CREATED)
+        @PreAuthorize("hasRole('TUTOR')")
+        TutorSubjectResponse createTutorSubject(
+                        @Valid @RequestBody TutorSubjectRequest request,
+                        UserPrincipal principal);
 }

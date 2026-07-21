@@ -1,6 +1,8 @@
 package com.knowlink.api.tutors.services.implementations;
 
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
+import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
+import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.tutors.controllers.responses.*;
 import com.knowlink.api.tutors.data.enums.BookingStatus;
@@ -64,7 +66,10 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 .collect(Collectors.toList());
 
                 return tutorProfileMapper.toProfileResponse(
-                                tutorProfile, subjectResponses, reviewResponses, availabilityResponses, List.of()); //Provisorio hasta implementar materiales.
+                                tutorProfile, subjectResponses, reviewResponses, availabilityResponses, List.of()); // Provisorio
+                                                                                                                    // hasta
+                                                                                                                    // implementar
+                                                                                                                    // materiales.
         }
 
         @Override
@@ -87,7 +92,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                 return tutorProfileRepository.save(tutorProfile);
         }
 
-         @Override
+        @Override
         @Transactional(readOnly = true)
         public TutorSelfProfileResponse getSelfProfile(UUID tutorUserId) {
                 TutorProfile tutorProfile = findTutorProfileOrThrow(tutorUserId);
@@ -104,9 +109,10 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
 
         @Override
         @Transactional(readOnly = true)
-        public List<TutorSearchResponse> searchTutor(String query, UUID alumnoUserId){
+        public List<TutorSearchResponse> searchTutor(String query, UUID alumnoUserId) {
 
-                List<TutorSubject> resultadosPorMateria = subjectTutorRepository.findBySubject_NameContainingIgnoreCase(query);
+                List<TutorSubject> resultadosPorMateria = subjectTutorRepository
+                                .findBySubject_NameContainingIgnoreCase(query);
 
                 Map<UUID, List<TutorSubject>> agrupados = resultadosPorMateria.stream()
                                 .collect(Collectors.groupingBy(
@@ -130,5 +136,30 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 .stream()
                                 .map(TutorSearchMapper::from)
                                 .toList();
+        }
+
+        @Override
+        @Transactional
+        public TutorSubjectResponse createTutorSubject(UUID tutorUserId, TutorSubjectRequest request) {
+                TutorProfile tutorProfile = tutorProfileRepository.findByUserId(tutorUserId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Tutor",
+                                                "id",
+                                                tutorUserId.toString()));
+
+                Subject subject = subjectService.findByNameAndCareerOrThrowException(
+                                request.subjectName(), tutorProfile.getCareer());
+
+                boolean yaDictaEstaMateria = tutorProfile.getSubjects().stream()
+                                .anyMatch(ts -> ts.getSubject().getSubjectId().equals(subject.getSubjectId()));
+
+                if (yaDictaEstaMateria) {
+                        throw new DuplicateResourceException("TutorSubject", "subject", request.subjectName());
+                }
+
+                TutorSubject tutorSubject = tutorSubjectMapper.toEntity(request, tutorProfile, subject);
+                TutorSubject saved = tutorSubjectRepository.save(tutorSubject);
+
+                return tutorProfileMapper.toSubjectResponse(saved);
         }
 }

@@ -1,9 +1,12 @@
 package com.knowlink.api.tutors.controllers.implementations;
 
+import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
+import com.knowlink.api.exceptions.custom_exceptions.UnauthorizedException;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.tutors.controllers.interfaces.ITutorController;
 import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
+import com.knowlink.api.tutors.controllers.responses.TutorSubjectResponse;
 import com.knowlink.api.tutors.data.models.TutorSearchResponse;
 import com.knowlink.api.tutors.services.interfaces.ITutorProfileService;
 import lombok.RequiredArgsConstructor;
@@ -33,5 +36,15 @@ public class TutorControllerImpl implements ITutorController {
     public List<TutorSearchResponse> searchTutor(String query, UserPrincipal principal) {
         UUID studentId = principal != null ? principal.getUser().getUserId() : null;
         return this.tutorProfileService.searchTutor(query,studentId);
+    }
+
+    @Override
+    public TutorSubjectResponse createTutorSubject(TutorSubjectRequest request, UserPrincipal principal) {
+        if (principal == null) {
+            throw new UnauthorizedException("No se pudo identificar al tutor autenticado");
+        }
+ 
+        UUID tutorUserId = principal.getUser().getUserId();
+        return this.tutorProfileService.createTutorSubject(tutorUserId, request);
     }
 }
