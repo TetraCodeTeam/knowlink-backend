@@ -6,6 +6,7 @@ import com.knowlink.api.tutors.availability.repositories.IAvailabilityBlockRepos
 import com.knowlink.api.tutors.controllers.responses.*;
 import com.knowlink.api.tutors.data.enums.BookingStatus;
 import com.knowlink.api.tutors.data.mappers.TutorProfileMapper;
+import com.knowlink.api.tutors.data.mappers.TutorSearchMapper;
 import com.knowlink.api.tutors.data.mappers.TutorSubjectMapper;
 import com.knowlink.api.tutors.data.models.*;
 import com.knowlink.api.tutors.repositories.*;
@@ -19,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -37,6 +39,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         private final ITutorProfileValidationService tutorProfileValidationService;
         private final TutorProfileMapper tutorProfileMapper;
         private final TutorSubjectMapper tutorSubjectMapper;
+        private final ITutorSubjectRepository subjectTutorRepository;
 
         @Override
         @Transactional(readOnly = true)
@@ -61,23 +64,8 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 .map(tutorProfileMapper::toAvailabilityResponse)
                                 .collect(Collectors.toList());
 
-                List<TutorMaterialResponse> materialResponses = hasActiveBooking(tutorUserId, studentUserId)
-                                ? academicMaterialRepository
-                                                .findAvailableByTutorProfileId(tutorProfile.getTutorProfileId())
-                                                .stream()
-                                                .map(tutorProfileMapper::toMaterialResponse)
-                                                .collect(Collectors.toList())
-                                : List.of();
-
                 return tutorProfileMapper.toProfileResponse(
-                                tutorProfile, subjectResponses, reviewResponses, availabilityResponses,
-                                materialResponses);
-        }
-
-        private boolean hasActiveBooking(UUID tutorUserId, UUID studentUserId) {
-                return bookingRepository.existsActiveBooking(
-                                tutorUserId, studentUserId,
-                                List.of(BookingStatus.BOOKED, BookingStatus.IN_PROGRESS, BookingStatus.COMPLETED));
+                                tutorProfile, subjectResponses, reviewResponses, availabilityResponses, List.of()); //Provisorio hasta implementar materiales.
         }
 
         @Override
@@ -100,7 +88,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                 return tutorProfileRepository.save(tutorProfile);
         }
 
-        @Override
+         @Override
         @Transactional(readOnly = true)
         public TutorSelfProfileResponse getSelfProfile(UUID tutorUserId) {
                 TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
@@ -120,5 +108,35 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         public Integer getMinNoticeMinutes(UUID tutorUserId) {
                 TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
                 return tutorProfile.getMinNoticeMinutes();
+        }
+
+        @Override
+        @Transactional(readOnly = true)
+        public List<TutorSearchResponse> searchTutor(String query, UUID alumnoUserId){
+
+                List<TutorSubject> resultadosPorMateria = subjectTutorRepository.findBySubject_NameContainingIgnoreCase(query);
+
+                Map<UUID, List<TutorSubject>> agrupados = resultadosPorMateria.stream()
+                                .collect(Collectors.groupingBy(
+                                                mt -> mt.getTutorProfile().getUser().getUserId()));
+
+                // Tutores que matchean por su propio nombre (no por materia): se agregan
+                // con todas sus materias, sin pisar a los que ya matchearon por materia
+                // arriba. Se excluyen tutores sin materias cargadas para no romper
+                // TutorSearchMapper.from(), que requiere al menos una.
+                List<TutorProfile> resultadosPorNombre = tutorProfileRepository
+                                .findByUser_FullNameContainingIgnoreCase(query);
+
+                for (TutorProfile tutorProfile : resultadosPorNombre) {
+                        if (tutorProfile.getSubjects().isEmpty()) {
+                                continue;
+                        }
+                        agrupados.putIfAbsent(tutorProfile.getUser().getUserId(), tutorProfile.getSubjects());
+                }
+
+                return agrupados.values()
+                                .stream()
+                                .map(TutorSearchMapper::from)
+                                .toList();
         }
 }

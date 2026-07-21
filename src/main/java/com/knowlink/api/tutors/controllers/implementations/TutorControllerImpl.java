@@ -5,10 +5,12 @@ import com.knowlink.api.tutors.controllers.interfaces.ITutorController;
 import com.knowlink.api.tutors.controllers.requests.UpdateMinNoticeMinutesRequest;
 import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
+import com.knowlink.api.tutors.data.models.TutorSearchResponse;
 import com.knowlink.api.tutors.services.interfaces.ITutorProfileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -37,5 +39,11 @@ public class TutorControllerImpl implements ITutorController {
     public UpdateMinNoticeMinutesRequest getMinNoticeMinutes(UserPrincipal principal) {
         Integer minutes = tutorProfileService.getMinNoticeMinutes(principal.getUser().getUserId());
         return new UpdateMinNoticeMinutesRequest(minutes);
+    }
+
+    @Override
+    public List<TutorSearchResponse> searchTutor(String query, UserPrincipal principal) {
+        UUID studentId = principal != null ? principal.getUser().getUserId() : null;
+        return this.tutorProfileService.searchTutor(query,studentId);
     }
 }
