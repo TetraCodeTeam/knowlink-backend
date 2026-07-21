@@ -55,7 +55,6 @@ public interface ITutorController {
         @ResponseStatus(OK)
         @PreAuthorize("hasRole('TUTOR')")
         TutorSelfProfileResponse getMyProfile(UserPrincipal principal);
-        
 
         @GetMapping("/search/{query}")
         @Operation(summary = "Buscar tutores", description = "Busca tutores por nombre de materia")
@@ -83,5 +82,5 @@ public interface ITutorController {
         @PreAuthorize("hasRole('TUTOR')")
         TutorSubjectResponse createTutorSubject(
                         @Valid @RequestBody TutorSubjectRequest request,
-                        UserPrincipal principal);
+                        @Parameter(hidden = true) Authentication authentication);
 }

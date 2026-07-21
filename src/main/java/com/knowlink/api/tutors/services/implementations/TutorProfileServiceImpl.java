@@ -144,6 +144,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                 TutorProfile tutorProfile = tutorProfileRepository.findByUserId(tutorUserId)
                                 .orElseThrow(() -> new ResourceNotFoundException(
                                                 "Tutor",
+                                                
                                                 "id",
                                                 tutorUserId.toString()));
 
