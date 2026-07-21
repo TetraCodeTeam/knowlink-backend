@@ -1,7 +1,8 @@
 package com.knowlink.api.tutors.services.implementations;
 
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
-import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
+import com.knowlink.api.tutors.availability.controllers.responses.AvailabilityBlockResponse;
+import com.knowlink.api.tutors.availability.repositories.IAvailabilityBlockRepository;
 import com.knowlink.api.tutors.controllers.responses.*;
 import com.knowlink.api.tutors.data.enums.BookingStatus;
 import com.knowlink.api.tutors.data.mappers.TutorProfileMapper;
@@ -106,11 +107,18 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                 return tutorProfileMapper.toSelfProfileResponse(tutorProfile);
         }
 
-        private TutorProfile findTutorProfileOrThrow(UUID tutorUserId) {
-                return tutorProfileRepository.findByUserId(tutorUserId)
-                                .orElseThrow(() -> new ResourceNotFoundException(
-                                                "TUTOR_PROFILE_NOT_FOUND",
-                                                "Este tutor no está registrado.",
-                                                "TutorProfile not found for userId: " + tutorUserId));
+        @Override
+        @Transactional
+        public void updateMinNoticeMinutes(UUID tutorUserId, Integer minNoticeMinutes) {
+                TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
+                tutorProfile.setMinNoticeMinutes(minNoticeMinutes);
+                tutorProfileRepository.save(tutorProfile);
+        }
+        
+        @Override
+        @Transactional(readOnly = true)
+        public Integer getMinNoticeMinutes(UUID tutorUserId) {
+                TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
+                return tutorProfile.getMinNoticeMinutes();
         }
 }

@@ -1,16 +1,21 @@
 package com.knowlink.api.tutors.controllers.interfaces;
 
 import com.knowlink.api.security.models.UserPrincipal;
+import com.knowlink.api.tutors.controllers.requests.UpdateMinNoticeMinutesRequest;
 import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
@@ -45,4 +50,16 @@ public interface ITutorController {
         @ResponseStatus(OK)
         @PreAuthorize("hasRole('TUTOR')")
         TutorSelfProfileResponse getMyProfile(@AuthenticationPrincipal UserPrincipal principal);
+
+        @PutMapping("/me/min-notice-minutes")
+        @Operation(summary = "Actualizar la antelación mínima (en minutos) para reservar clases del tutor autenticado")
+        @ResponseStatus(OK)
+        void updateMinNoticeMinutes(
+                        @AuthenticationPrincipal UserPrincipal principal,
+                        @RequestBody @Valid UpdateMinNoticeMinutesRequest request);
+
+        @GetMapping("/me/min-notice-minutes")
+        @Operation(summary = "Obtener la antelación mínima (en minutos) configurada por el tutor autenticado")
+        @ResponseStatus(OK)
+        UpdateMinNoticeMinutesRequest getMinNoticeMinutes(@AuthenticationPrincipal UserPrincipal principal);
 }

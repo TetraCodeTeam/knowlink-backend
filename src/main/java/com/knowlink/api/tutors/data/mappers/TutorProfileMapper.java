@@ -1,14 +1,14 @@
 package com.knowlink.api.tutors.data.mappers;
 
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
-import com.knowlink.api.tutors.controllers.responses.TutorAvailabilityResponse;
+import com.knowlink.api.tutors.availability.controllers.responses.AvailabilityBlockResponse;
+import com.knowlink.api.tutors.availability.data.models.AvailabilityBlock;
 import com.knowlink.api.tutors.controllers.responses.TutorMaterialResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorReviewResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSubjectResponse;
 import com.knowlink.api.tutors.data.models.AcademicMaterial;
-import com.knowlink.api.tutors.data.models.AvailabilityBlock;
 import com.knowlink.api.tutors.data.models.Career;
 import com.knowlink.api.tutors.data.models.Rating;
 import com.knowlink.api.tutors.data.models.TutorProfile;
@@ -50,11 +50,13 @@ public class TutorProfileMapper {
         return new TutorReviewResponse(rating.getScore(), rating.getComment(), rating.getRatingDate());
     }
 
-    public TutorAvailabilityResponse toAvailabilityResponse(AvailabilityBlock availabilityBlock) {
-        return new TutorAvailabilityResponse(
-                availabilityBlock.getDayOfWeek().name(),
+    public AvailabilityBlockResponse toAvailabilityResponse(AvailabilityBlock availabilityBlock) {
+        return new AvailabilityBlockResponse(
+                availabilityBlock.getAvailabilityBlockId(),
+                availabilityBlock.getDate(),
                 availabilityBlock.getStartTime(),
-                availabilityBlock.getEndTime());
+                availabilityBlock.getEndTime(),
+                availabilityBlock.isRepeatWeekly());
     }
 
     public TutorMaterialResponse toMaterialResponse(AcademicMaterial academicMaterial) {
@@ -68,7 +70,7 @@ public class TutorProfileMapper {
             TutorProfile tutorProfile,
             List<TutorSubjectResponse> subjectResponses,
             List<TutorReviewResponse> reviewResponses,
-            List<TutorAvailabilityResponse> availabilityResponses,
+            List<AvailabilityBlockResponse> availabilityResponses,
             List<TutorMaterialResponse> materialResponses) {
         return new TutorProfileResponse(
                 tutorProfile.getUser().getUserId(),

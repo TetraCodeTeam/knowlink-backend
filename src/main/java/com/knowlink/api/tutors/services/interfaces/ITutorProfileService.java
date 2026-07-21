@@ -15,4 +15,8 @@ public interface ITutorProfileService {
     TutorProfileResponse getTutorProfile(UUID tutorUserId, UUID alumnoUserId);
 
     TutorSelfProfileResponse getSelfProfile(UUID tutorUserId);
+
+    void updateMinNoticeMinutes(UUID tutorUserId, Integer minNoticeMinutes);
+
+    Integer getMinNoticeMinutes(UUID tutorUserId);
 }

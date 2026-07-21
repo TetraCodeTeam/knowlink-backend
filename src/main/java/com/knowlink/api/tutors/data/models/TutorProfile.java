@@ -27,7 +27,7 @@ public class TutorProfile {
     @JoinColumn(name = "user_id", nullable = false, unique = true)
     private User user;
 
-    @ManyToOne(fetch = FetchType.LAZY) 
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "career_id", nullable = false)
     private Career career;
 
@@ -38,22 +38,22 @@ public class TutorProfile {
     private String profilePictureUrl;
 
     @Column(name = "institutional_id")
-    private String institutionalId; 
+    private String institutionalId;
 
     @Column(name = "address")
-    private String address; 
+    private String address;
 
     @Column(name = "mercado_pago_linked", nullable = false)
     @Builder.Default
     private boolean mercadoPagoLinked = false;
 
-    @Column(name = "average_rating") 
+    @Column(name = "average_rating")
     private Double averageRating;
 
-    @Column(name = "min_notice_hours") 
-    private Integer minNoticeHours;
+    @Column(name = "min_notice_minutes")
+    private Integer minNoticeMinutes;
 
-    @Column(name = "verified", nullable = false) 
+    @Column(name = "verified", nullable = false)
     @Builder.Default
     private boolean verified = false;
 
