@@ -1,10 +1,14 @@
 package com.knowlink.api.tutors.validations;
 
 import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
+import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
+import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.repositories.ITutorProfileRepository;
 import com.knowlink.api.users.data.models.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -20,5 +24,14 @@ public class TutorProfileValidationServiceImpl implements ITutorProfileValidatio
                     "El usuario ya tiene un perfil de tutor",
                     String.format("user con id '%s' ya tiene tutor profile", user.getUserId()));
         }
+    }
+
+    @Override
+    public TutorProfile findTutorProfileOrThrowException(UUID tutorUserId) {
+        return tutorProfileRepository.findByUserId(tutorUserId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "TUTOR_PROFILE_NOT_FOUND",
+                        "Este tutor no está registrado.",
+                        "TutorProfile not found for userId: " + tutorUserId));
     }
 }

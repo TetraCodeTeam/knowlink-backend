@@ -40,7 +40,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         @Override
         @Transactional(readOnly = true)
         public TutorProfileResponse getTutorProfile(UUID tutorUserId, UUID studentUserId) {
-                TutorProfile tutorProfile = findTutorProfileOrThrow(tutorUserId);
+                TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
 
                 List<TutorSubjectResponse> subjectResponses = tutorSubjectRepository
                                 .findByTutorProfileId(tutorProfile.getTutorProfileId())
@@ -54,7 +54,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 .map(tutorProfileMapper::toReviewResponse)
                                 .collect(Collectors.toList());
 
-                List<TutorAvailabilityResponse> availabilityResponses = availabilityBlockRepository
+                List<AvailabilityBlockResponse> availabilityResponses = availabilityBlockRepository
                                 .findAvailableByTutorProfileId(tutorProfile.getTutorProfileId())
                                 .stream()
                                 .map(tutorProfileMapper::toAvailabilityResponse)
@@ -102,7 +102,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         @Override
         @Transactional(readOnly = true)
         public TutorSelfProfileResponse getSelfProfile(UUID tutorUserId) {
-                TutorProfile tutorProfile = findTutorProfileOrThrow(tutorUserId);
+                TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
                 return tutorProfileMapper.toSelfProfileResponse(tutorProfile);
         }
 
