@@ -68,11 +68,16 @@ public interface ITutorController {
 
         @PutMapping("/me/min-notice-minutes")
         @Operation(summary = "Actualizar la antelación mínima (en minutos) para reservar clases del tutor autenticado")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Antelación mínima actualizada"),
+                        @ApiResponse(responseCode = "400", description = "Parámetros inválidos"),
+                        @ApiResponse(responseCode = "403", description = "Acceso denegado")
+        })
         @ResponseStatus(OK)
+        @PreAuthorize("hasRole('TUTOR')")
         void updateMinNoticeMinutes(
                         @AuthenticationPrincipal UserPrincipal principal,
                         @RequestBody @Valid UpdateMinNoticeMinutesRequest request);
-
         @GetMapping("/me/min-notice-minutes")
         @Operation(summary = "Obtener la antelación mínima (en minutos) configurada por el tutor autenticado")
         @ResponseStatus(OK)
