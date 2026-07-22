@@ -4,7 +4,6 @@ import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
 import com.knowlink.api.tutors.availability.controllers.responses.AvailabilityBlockResponse;
 import com.knowlink.api.tutors.availability.repositories.IAvailabilityBlockRepository;
 import com.knowlink.api.tutors.controllers.responses.*;
-import com.knowlink.api.tutors.data.enums.BookingStatus;
 import com.knowlink.api.tutors.data.mappers.TutorProfileMapper;
 import com.knowlink.api.tutors.data.mappers.TutorSearchMapper;
 import com.knowlink.api.tutors.data.mappers.TutorSubjectMapper;
@@ -31,8 +30,6 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         private final ITutorSubjectRepository tutorSubjectRepository;
         private final IRatingRepository ratingRepository;
         private final IAvailabilityBlockRepository availabilityBlockRepository;
-        private final IAcademicMaterialRepository academicMaterialRepository;
-        private final IBookingRepository bookingRepository;
         private final ITutorProfileRepository tutorProfileRepository;
         private final ICareerService careerService;
         private final ISubjectService subjectService;

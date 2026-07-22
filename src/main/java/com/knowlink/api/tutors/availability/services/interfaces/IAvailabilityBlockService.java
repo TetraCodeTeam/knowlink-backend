@@ -12,4 +12,8 @@ public interface IAvailabilityBlockService {
             UUID tutorUserId, LocalDate weekStart, LocalDate weekEnd, List<AvailabilityBlockRequest> blocks);
 
     List<AvailabilityBlockResponse> getBlocksInRange(UUID tutorUserId, LocalDate from, LocalDate to);
+
+    void removeWeekCustomization(UUID tutorUserId, LocalDate weekStart);
+
+    boolean isWeekCustomized(UUID tutorUserId, LocalDate weekStart);
 }

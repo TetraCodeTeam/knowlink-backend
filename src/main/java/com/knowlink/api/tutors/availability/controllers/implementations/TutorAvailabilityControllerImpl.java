@@ -4,6 +4,7 @@ import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.tutors.availability.controllers.interfaces.ITutorAvailabilityController;
 import com.knowlink.api.tutors.availability.controllers.requests.SaveAvailabilityBlocksRequest;
 import com.knowlink.api.tutors.availability.controllers.responses.AvailabilityBlockResponse;
+import com.knowlink.api.tutors.availability.controllers.responses.WeekCustomizationResponse;
 import com.knowlink.api.tutors.availability.services.interfaces.IAvailabilityBlockService;
 
 import lombok.RequiredArgsConstructor;
@@ -40,5 +41,24 @@ public class TutorAvailabilityControllerImpl implements ITutorAvailabilityContro
                 principal.getUser().getUserId(),
                 from,
                 to);
+    }
+
+    @Override
+    public WeekCustomizationResponse getWeekCustomization(
+            UserPrincipal principal,
+            LocalDate weekStart) {
+        boolean customized = availabilityBlockService.isWeekCustomized(
+                principal.getUser().getUserId(),
+                weekStart);
+        return new WeekCustomizationResponse(customized);
+    }
+
+    @Override
+    public void removeWeekCustomization(
+            UserPrincipal principal,
+            LocalDate weekStart) {
+        availabilityBlockService.removeWeekCustomization(
+                principal.getUser().getUserId(),
+                weekStart);
     }
 }
