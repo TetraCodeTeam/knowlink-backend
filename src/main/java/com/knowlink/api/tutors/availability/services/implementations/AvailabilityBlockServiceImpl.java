@@ -40,6 +40,7 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
             LocalDate weekEnd,
             List<AvailabilityBlockRequest> blocks) {
 
+        availabilityBlockValidationService.validateWeekRequest(weekStart, weekEnd, blocks);
         availabilityBlockValidationService.validateBlocks(blocks);
 
         TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
@@ -47,31 +48,46 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
 
         boolean anyRepeat = blocks.stream().anyMatch(request -> Boolean.TRUE.equals(request.repeatWeekly()));
 
-        List<Integer> protectedWeekOffsets = new ArrayList<>();
-
-        if (anyRepeat) {
-            // Solo si este guardado establece (o mantiene) un patrón repetido tocamos el futuro:
-            // recorremos las próximas semanas, saltando las ya protegidas, y limpiamos el resto
-            // para dejar lugar a las copias nuevas.
-            for (int i = 1; i <= AvailabilityConstants.REPEAT_WEEKS_AHEAD; i++) {
-                LocalDate futureWeekStart = weekStart.plusWeeks(i);
-                LocalDate futureWeekEnd = weekEnd.plusWeeks(i);
-
-                boolean isCustomized = weekCustomizationRepository
-                        .existsByTutorProfile_TutorProfileIdAndWeekStart(tutorProfileId, futureWeekStart);
-
-                if (isCustomized) {
-                    protectedWeekOffsets.add(i);
-                    continue;
-                }
-
-                availabilityBlockRepository.deleteInRange(tutorProfileId, futureWeekStart, futureWeekEnd);
-            }
-        }
-        // Si anyRepeat es false, no se toca ninguna semana futura - este guardado
-        // solo afecta a la semana actual, sea cual sea su estado previo (heredado o no).
+        List<Integer> protectedWeekOffsets = anyRepeat
+                ? clearNonProtectedFutureWeeks(tutorProfileId, weekStart, weekEnd)
+                : List.of();
 
         availabilityBlockRepository.deleteInRange(tutorProfileId, weekStart, weekEnd);
+
+        List<AvailabilityBlock> toSave = buildBlocksToSave(blocks, tutorProfile, protectedWeekOffsets);
+
+        availabilityBlockRepository.saveAll(toSave);
+        markWeekAsCustomized(tutorProfile, weekStart);
+
+        return availabilityBlockRepository.findInRange(tutorProfileId, weekStart, weekEnd)
+                .stream()
+                .map(availabilityBlockMapper::toResponse)
+                .toList();
+    }
+
+    private List<Integer> clearNonProtectedFutureWeeks(UUID tutorProfileId, LocalDate weekStart, LocalDate weekEnd) {
+        List<Integer> protectedWeekOffsets = new ArrayList<>();
+
+        for (int i = 1; i <= AvailabilityConstants.REPEAT_WEEKS_AHEAD; i++) {
+            LocalDate futureWeekStart = weekStart.plusWeeks(i);
+            LocalDate futureWeekEnd = weekEnd.plusWeeks(i);
+
+            boolean isCustomized = weekCustomizationRepository
+                    .existsByTutorProfile_TutorProfileIdAndWeekStart(tutorProfileId, futureWeekStart);
+
+            if (isCustomized) {
+                protectedWeekOffsets.add(i);
+                continue;
+            }
+
+            availabilityBlockRepository.deleteInRange(tutorProfileId, futureWeekStart, futureWeekEnd);
+        }
+
+        return protectedWeekOffsets;
+    }
+
+    private List<AvailabilityBlock> buildBlocksToSave(
+            List<AvailabilityBlockRequest> blocks, TutorProfile tutorProfile, List<Integer> protectedWeekOffsets) {
 
         List<AvailabilityBlock> toSave = new ArrayList<>();
 
@@ -90,13 +106,7 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
             }
         }
 
-        availabilityBlockRepository.saveAll(toSave);
-        markWeekAsCustomized(tutorProfile, weekStart);
-
-        return availabilityBlockRepository.findInRange(tutorProfileId, weekStart, weekEnd)
-                .stream()
-                .map(availabilityBlockMapper::toResponse)
-                .toList();
+        return toSave;
     }
 
     private void markWeekAsCustomized(TutorProfile tutorProfile, LocalDate weekStart) {

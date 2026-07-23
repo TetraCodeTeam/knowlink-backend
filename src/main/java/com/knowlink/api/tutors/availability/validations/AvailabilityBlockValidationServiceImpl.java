@@ -15,6 +15,22 @@ import java.util.stream.Collectors;
 public class AvailabilityBlockValidationServiceImpl implements IAvailabilityBlockValidationService {
 
     @Override
+    public void validateWeekRequest(LocalDate weekStart, LocalDate weekEnd, List<AvailabilityBlockRequest> blocks) {
+        if (weekStart.isAfter(weekEnd)) {
+            throw new ValidationException("weekStart debe ser anterior o igual a weekEnd.");
+        }
+        if (blocks == null) {
+            throw new ValidationException("Se requiere la lista de bloques.");
+        }
+        if (blocks.stream().anyMatch(b -> b == null
+                || b.date() == null
+                || b.date().isBefore(weekStart)
+                || b.date().isAfter(weekEnd))) {
+            throw new ValidationException("Todos los bloques deben estar dentro del rango de la semana indicada.");
+        }
+    }
+
+    @Override
     public void validateBlocks(List<AvailabilityBlockRequest> blocks) {
         for (AvailabilityBlockRequest block : blocks) {
             if (!block.endTime().isAfter(block.startTime())) {
