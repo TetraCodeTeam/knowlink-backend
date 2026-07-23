@@ -3,6 +3,8 @@ package com.knowlink.api.tutors.controllers.responses;
 import java.util.List;
 import java.util.UUID;
 
+import com.knowlink.api.tutors.availability.controllers.responses.AvailabilityBlockResponse;
+
 public record TutorProfileResponse(
         UUID id,
         String fullName,
@@ -13,6 +15,6 @@ public record TutorProfileResponse(
         Double averageRating,
         List<TutorSubjectResponse> subjects,
         List<TutorReviewResponse> reviews,
-        List<TutorAvailabilityResponse> availability,
+        List<AvailabilityBlockResponse> availability,
         List<TutorMaterialResponse> materials
 ) {}

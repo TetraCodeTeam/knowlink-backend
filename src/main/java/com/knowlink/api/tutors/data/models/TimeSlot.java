@@ -1,5 +1,6 @@
 package com.knowlink.api.tutors.data.models;
 
+import com.knowlink.api.tutors.availability.data.models.AvailabilityBlock;
 import com.knowlink.api.tutors.data.enums.SlotStatus;
 import jakarta.persistence.*;
 import lombok.*;
