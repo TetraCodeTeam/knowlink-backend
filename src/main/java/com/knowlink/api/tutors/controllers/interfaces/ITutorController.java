@@ -82,5 +82,5 @@ public interface ITutorController {
         @PreAuthorize("hasRole('TUTOR')")
         TutorSubjectResponse createTutorSubject(
                         @Valid @RequestBody TutorSubjectRequest request,
-                        @Parameter(hidden = true) Authentication authentication);
+                        @Parameter(hidden = true) UserPrincipal principal);
 }
