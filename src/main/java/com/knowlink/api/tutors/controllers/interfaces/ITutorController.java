@@ -15,6 +15,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -42,8 +43,8 @@ public interface ITutorController {
         @ResponseStatus(OK)
         @PreAuthorize("hasRole('STUDENT')")
         TutorProfileResponse getTutorProfile(
-                        @Parameter(description = "Palabra clave") @PathVariable UUID userId,
-                        UserPrincipal principal);
+                @Parameter(description = "Palabra clave") @PathVariable UUID userId,
+                @AuthenticationPrincipal UserPrincipal principal);
 
         @GetMapping("/me/profile")
         @Operation(summary = "Obtener mi perfil de tutor (vista propia, autenticada)")
@@ -54,7 +55,7 @@ public interface ITutorController {
         })
         @ResponseStatus(OK)
         @PreAuthorize("hasRole('TUTOR')")
-        TutorSelfProfileResponse getMyProfile(UserPrincipal principal);
+        TutorSelfProfileResponse getMyProfile(@AuthenticationPrincipal UserPrincipal principal);
 
         @GetMapping("/search/{query}")
         @Operation(summary = "Buscar tutores", description = "Busca tutores por nombre de materia")
@@ -66,8 +67,8 @@ public interface ITutorController {
         @ResponseStatus(OK)
         @PreAuthorize("hasRole('STUDENT')")
         List<TutorSearchResponse> searchTutor(
-                        @Parameter(description = "ID del usuario (User) con rol TUTOR") @PathVariable String query,
-                        UserPrincipal principal);
+                @Parameter(description = "ID del usuario (User) con rol TUTOR") @PathVariable String query,
+                @AuthenticationPrincipal UserPrincipal principal);
 
         @PostMapping("/subjects")
         @Operation(summary = "Registrar una materia dictada por el tutor", description = "Crea un TutorSubject para el tutor autenticado. La materia se busca (o se crea) dentro de la carrera del propio tutor.")
@@ -81,6 +82,6 @@ public interface ITutorController {
         @ResponseStatus(CREATED)
         @PreAuthorize("hasRole('TUTOR')")
         TutorSubjectResponse createTutorSubject(
-                        @Valid @RequestBody TutorSubjectRequest request,
-                        @Parameter(hidden = true) UserPrincipal principal);
+                @Valid @RequestBody TutorSubjectRequest request,
+                @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal);
 }
