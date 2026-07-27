@@ -4,6 +4,7 @@ import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
 import com.knowlink.api.exceptions.custom_exceptions.UnauthorizedException;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.tutors.controllers.interfaces.ITutorController;
+import com.knowlink.api.tutors.controllers.requests.UpdateMinNoticeMinutesRequest;
 import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSubjectResponse;
@@ -30,6 +31,17 @@ public class TutorControllerImpl implements ITutorController {
     @Override
     public TutorSelfProfileResponse getMyProfile(UserPrincipal principal) {
         return this.tutorProfileService.getSelfProfile(principal.getUser().getUserId());
+    }
+
+    @Override
+    public void updateMinNoticeMinutes(UserPrincipal principal, UpdateMinNoticeMinutesRequest request) {
+        tutorProfileService.updateMinNoticeMinutes(principal.getUser().getUserId(), request.minNoticeMinutes());
+    }
+
+    @Override
+    public UpdateMinNoticeMinutesRequest getMinNoticeMinutes(UserPrincipal principal) {
+        Integer minutes = tutorProfileService.getMinNoticeMinutes(principal.getUser().getUserId());
+        return new UpdateMinNoticeMinutesRequest(minutes);
     }
 
     @Override

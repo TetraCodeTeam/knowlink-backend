@@ -4,8 +4,9 @@ import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
 import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
+import com.knowlink.api.tutors.availability.controllers.responses.AvailabilityBlockResponse;
+import com.knowlink.api.tutors.availability.repositories.IAvailabilityBlockRepository;
 import com.knowlink.api.tutors.controllers.responses.*;
-import com.knowlink.api.tutors.data.enums.BookingStatus;
 import com.knowlink.api.tutors.data.mappers.TutorProfileMapper;
 import com.knowlink.api.tutors.data.mappers.TutorSearchMapper;
 import com.knowlink.api.tutors.data.mappers.TutorSubjectMapper;
@@ -32,8 +33,6 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         private final ITutorSubjectRepository tutorSubjectRepository;
         private final IRatingRepository ratingRepository;
         private final IAvailabilityBlockRepository availabilityBlockRepository;
-        private final IAcademicMaterialRepository academicMaterialRepository;
-        private final IBookingRepository bookingRepository;
         private final ITutorProfileRepository tutorProfileRepository;
         private final ICareerService careerService;
         private final ISubjectService subjectService;
@@ -45,7 +44,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         @Override
         @Transactional(readOnly = true)
         public TutorProfileResponse getTutorProfile(UUID tutorUserId, UUID studentUserId) {
-                TutorProfile tutorProfile = findTutorProfileOrThrow(tutorUserId);
+                TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
 
                 List<TutorSubjectResponse> subjectResponses = tutorSubjectRepository
                                 .findByTutorProfileId(tutorProfile.getTutorProfileId())
@@ -59,7 +58,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 .map(tutorProfileMapper::toReviewResponse)
                                 .collect(Collectors.toList());
 
-                List<TutorAvailabilityResponse> availabilityResponses = availabilityBlockRepository
+                List<AvailabilityBlockResponse> availabilityResponses = availabilityBlockRepository
                                 .findAvailableByTutorProfileId(tutorProfile.getTutorProfileId())
                                 .stream()
                                 .map(tutorProfileMapper::toAvailabilityResponse)
@@ -95,16 +94,23 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         @Override
         @Transactional(readOnly = true)
         public TutorSelfProfileResponse getSelfProfile(UUID tutorUserId) {
-                TutorProfile tutorProfile = findTutorProfileOrThrow(tutorUserId);
+                TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
                 return tutorProfileMapper.toSelfProfileResponse(tutorProfile);
         }
 
-        private TutorProfile findTutorProfileOrThrow(UUID tutorUserId) {
-                return tutorProfileRepository.findByUserId(tutorUserId)
-                                .orElseThrow(() -> new ResourceNotFoundException(
-                                                "TUTOR_PROFILE_NOT_FOUND",
-                                                "Este tutor no está registrado.",
-                                                "TutorProfile not found for userId: " + tutorUserId));
+        @Override
+        @Transactional
+        public void updateMinNoticeMinutes(UUID tutorUserId, Integer minNoticeMinutes) {
+                TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
+                tutorProfile.setMinNoticeMinutes(minNoticeMinutes);
+                tutorProfileRepository.save(tutorProfile);
+        }
+        
+        @Override
+        @Transactional(readOnly = true)
+        public Integer getMinNoticeMinutes(UUID tutorUserId) {
+                TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
+                return tutorProfile.getMinNoticeMinutes();
         }
 
         @Override
