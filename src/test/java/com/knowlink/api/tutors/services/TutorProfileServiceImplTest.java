@@ -19,6 +19,7 @@ import com.knowlink.api.tutors.services.interfaces.ISubjectService;
 import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
 import com.knowlink.api.users.data.models.User;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -110,7 +111,8 @@ class TutorProfileServiceImplTest {
     }
 
     @Test
-    void searchTutor_matchesTutorsBySubjectName() {
+    @DisplayName("CP-003.01 - Busqueda por nombre de materia devuelve el tutor que la dicta")
+    void searchT_matchesTutorsBySubjectName() {
         when(subjectTutorRepository.findBySubject_NameContainingIgnoreCase("Algebra"))
                 .thenReturn(List.of(tutorSubject("Ana García", "Álgebra", "Ingeniería en Sistemas")));
         when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("Algebra"))
@@ -127,6 +129,7 @@ class TutorProfileServiceImplTest {
     }
 
     @Test
+    @DisplayName("CP-003.02 - Busqueda por nombre completo devuelve el tutor")
     void searchTutor_matchesTutorsByFullName() {
         when(subjectTutorRepository.findBySubject_NameContainingIgnoreCase("Ana"))
                 .thenReturn(List.of());
@@ -141,6 +144,7 @@ class TutorProfileServiceImplTest {
     }
 
     @Test
+    @DisplayName("CP-003.03 - Matches por materia y por nombre se unifican sin duplicados")
     void searchTutor_mergesSubjectAndNameMatchesWithoutDuplicates() {
         TutorSubject bySubject = tutorSubject("Ana García", "Álgebra", "Ingeniería en Sistemas");
         TutorProfile byName = bySubject.getTutorProfile();
@@ -157,6 +161,7 @@ class TutorProfileServiceImplTest {
     }
 
     @Test
+    @DisplayName("CP-003.04 - Tutor sin materias cargadas se excluye del resultado")
     void searchTutor_skipsTutorsWithoutSubjectsInNameMatch() {
         TutorProfile noSubjects = tutorProfile("Ana García", "Ingeniería en Sistemas", List.of("Álgebra"));
         noSubjects.getSubjects().clear();
@@ -172,6 +177,7 @@ class TutorProfileServiceImplTest {
     }
 
     @Test
+    @DisplayName("CP-003.05 - Query sin coincidencias devuelve lista vacia")
     void searchTutor_returnsEmptyWhenNothingMatches() {
         when(subjectTutorRepository.findBySubject_NameContainingIgnoreCase("xyz"))
                 .thenReturn(List.of());
@@ -181,5 +187,54 @@ class TutorProfileServiceImplTest {
         List<TutorSearchResponse> result = service.searchTutor("xyz", UUID.randomUUID());
 
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    @DisplayName("CP-003.06 - La busqueda por materia es case-insensitive")
+    void searchTutor_subjectMatch_isCaseInsensitive() {
+        when(subjectTutorRepository.findBySubject_NameContainingIgnoreCase("algebra"))
+                .thenReturn(List.of(tutorSubject("Ana Garc\u00eda", "\u00c1lgebra", "Ingenier\u00eda en Sistemas")));
+        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("algebra"))
+                .thenReturn(List.of());
+
+        List<TutorSearchResponse> result = service.searchTutor("algebra", UUID.randomUUID());
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).fullName()).isEqualTo("Ana Garc\u00eda");
+    }
+
+    @Test
+    @DisplayName("CP-003.07 - Tutor con varias materias matcheadas se devuelve una sola vez con todas sus materias")
+    void searchTutor_subjectMatch_groupedByTutor_withAllSubjects() {
+        Career career = Career.builder().name("Ingenier\u00eda en Sistemas").build();
+        User user = User.builder().userId(tutorUserId).fullName("Ana Garc\u00eda").role(Role.TUTOR).build();
+        TutorProfile profile = TutorProfile.builder()
+                .tutorProfileId(UUID.randomUUID())
+                .user(user)
+                .career(career)
+                .averageRating(4.5)
+                .build();
+        TutorSubject algebra = TutorSubject.builder()
+                .tutorSubjectId(UUID.randomUUID())
+                .tutorProfile(profile)
+                .subject(Subject.builder().name("\u00c1lgebra").career(career).build())
+                .build();
+        TutorSubject fisica = TutorSubject.builder()
+                .tutorSubjectId(UUID.randomUUID())
+                .tutorProfile(profile)
+                .subject(Subject.builder().name("F\u00edsica").career(career).build())
+                .build();
+        profile.getSubjects().addAll(List.of(algebra, fisica));
+
+        when(subjectTutorRepository.findBySubject_NameContainingIgnoreCase("a"))
+                .thenReturn(List.of(algebra, fisica));
+        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("a"))
+                .thenReturn(List.of());
+
+        List<TutorSearchResponse> result = service.searchTutor("a", UUID.randomUUID());
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).subjects()).extracting(SubjectSummary::name)
+                .containsExactlyInAnyOrder("\u00c1lgebra", "F\u00edsica");
     }
 }

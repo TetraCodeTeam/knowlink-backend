@@ -17,6 +17,7 @@ import com.knowlink.api.users.data.enums.AccountStatus;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.repositories.IUserRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -139,6 +140,7 @@ class TutorSearchControllerTest {
     }
 
     @Test
+    @DisplayName("CP-003.01 - 200: devuelve los tutores que dictan la materia buscada")
     void search_returnsTutorsTeachingThatSubject_asStudent() throws Exception {
         mockMvc.perform(get("/api/v1/tutors/search/Algebra").with(asUser(Role.STUDENT)))
                 .andExpect(status().isOk())
@@ -149,6 +151,7 @@ class TutorSearchControllerTest {
     }
 
     @Test
+    @DisplayName("CP-003.02 - 200: solo devuelve tutores por nombre completo, sin estudiantes")
     void search_matchesTutorsByFullName_onlyTutorsReturned() throws Exception {
         mockMvc.perform(get("/api/v1/tutors/search/Ana").with(asUser(Role.STUDENT)))
                 .andExpect(status().isOk())
@@ -157,6 +160,7 @@ class TutorSearchControllerTest {
     }
 
     @Test
+    @DisplayName("CP-003.03 - 200: query sin coincidencias devuelve array vacio")
     void search_returnsEmptyArray_whenNothingMatches() throws Exception {
         mockMvc.perform(get("/api/v1/tutors/search/zzz").with(asUser(Role.STUDENT)))
                 .andExpect(status().isOk())
@@ -164,12 +168,14 @@ class TutorSearchControllerTest {
     }
 
     @Test
+    @DisplayName("CP-003.04 - 403: un tutor autenticado no puede buscar")
     void search_returns403_whenCalledByTutor() throws Exception {
         mockMvc.perform(get("/api/v1/tutors/search/Algebra").with(asUser(Role.TUTOR)))
                 .andExpect(status().isForbidden());
     }
 
     @Test
+    @DisplayName("CP-003.05 - 401: un usuario anonimo no esta autenticado")
     void search_returns401_whenCalledByAnonymous() throws Exception {
         mockMvc.perform(get("/api/v1/tutors/search/Algebra"))
                 .andExpect(status().isUnauthorized());
