@@ -8,6 +8,7 @@ import com.knowlink.api.tutors.data.models.Career;
 import com.knowlink.api.tutors.data.models.Subject;
 import com.knowlink.api.tutors.data.models.SubjectSummary;
 import com.knowlink.api.tutors.data.models.TutorProfile;
+import com.knowlink.api.tutors.data.models.TutorSearchFilters;
 import com.knowlink.api.tutors.data.models.TutorSearchResponse;
 import com.knowlink.api.tutors.data.models.TutorSubject;
 import com.knowlink.api.tutors.repositories.IRatingRepository;
@@ -24,11 +25,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -58,6 +61,8 @@ class TutorProfileServiceImplTest {
     private TutorProfileServiceImpl service;
 
     private final UUID tutorUserId = UUID.randomUUID();
+
+    private static final TutorSearchFilters NO_FILTERS = new TutorSearchFilters(null, null, null, null, null, null);
 
     private TutorSubject tutorSubject(String fullName, String subjectName, String careerName) {
         Career career = Career.builder().name(careerName).build();
@@ -113,12 +118,12 @@ class TutorProfileServiceImplTest {
     @Test
     @DisplayName("CP-003.01 - Busqueda por nombre de materia devuelve el tutor que la dicta")
     void searchT_matchesTutorsBySubjectName() {
-        when(subjectTutorRepository.findBySubject_NameContainingIgnoreCase("Algebra"))
+        when(subjectTutorRepository.findAll(any(Specification.class)))
                 .thenReturn(List.of(tutorSubject("Ana García", "Álgebra", "Ingeniería en Sistemas")));
         when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("Algebra"))
                 .thenReturn(List.of());
 
-        List<TutorSearchResponse> result = service.searchTutor("Algebra", UUID.randomUUID());
+        List<TutorSearchResponse> result = service.searchTutor("Algebra", UUID.randomUUID(), NO_FILTERS);
 
         assertThat(result).hasSize(1);
         TutorSearchResponse response = result.get(0);
@@ -131,12 +136,12 @@ class TutorProfileServiceImplTest {
     @Test
     @DisplayName("CP-003.02 - Busqueda por nombre completo devuelve el tutor")
     void searchTutor_matchesTutorsByFullName() {
-        when(subjectTutorRepository.findBySubject_NameContainingIgnoreCase("Ana"))
+        when(subjectTutorRepository.findAll(any(Specification.class)))
                 .thenReturn(List.of());
         when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("Ana"))
                 .thenReturn(List.of(tutorProfile("Ana García", "Ingeniería en Sistemas", List.of("Álgebra"))));
 
-        List<TutorSearchResponse> result = service.searchTutor("Ana", UUID.randomUUID());
+        List<TutorSearchResponse> result = service.searchTutor("Ana", UUID.randomUUID(), NO_FILTERS);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).fullName()).isEqualTo("Ana García");
@@ -149,12 +154,12 @@ class TutorProfileServiceImplTest {
         TutorSubject bySubject = tutorSubject("Ana García", "Álgebra", "Ingeniería en Sistemas");
         TutorProfile byName = bySubject.getTutorProfile();
 
-        when(subjectTutorRepository.findBySubject_NameContainingIgnoreCase("Ana"))
+        when(subjectTutorRepository.findAll(any(Specification.class)))
                 .thenReturn(List.of(bySubject));
         when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("Ana"))
                 .thenReturn(List.of(byName));
 
-        List<TutorSearchResponse> result = service.searchTutor("Ana", UUID.randomUUID());
+        List<TutorSearchResponse> result = service.searchTutor("Ana", UUID.randomUUID(), NO_FILTERS);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).fullName()).isEqualTo("Ana García");
@@ -166,12 +171,12 @@ class TutorProfileServiceImplTest {
         TutorProfile noSubjects = tutorProfile("Ana García", "Ingeniería en Sistemas", List.of("Álgebra"));
         noSubjects.getSubjects().clear();
 
-        when(subjectTutorRepository.findBySubject_NameContainingIgnoreCase("Ana"))
+        when(subjectTutorRepository.findAll(any(Specification.class)))
                 .thenReturn(List.of());
         when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("Ana"))
                 .thenReturn(List.of(noSubjects));
 
-        List<TutorSearchResponse> result = service.searchTutor("Ana", UUID.randomUUID());
+        List<TutorSearchResponse> result = service.searchTutor("Ana", UUID.randomUUID(), NO_FILTERS);
 
         assertThat(result).isEmpty();
     }
@@ -179,12 +184,12 @@ class TutorProfileServiceImplTest {
     @Test
     @DisplayName("CP-003.05 - Query sin coincidencias devuelve lista vacia")
     void searchTutor_returnsEmptyWhenNothingMatches() {
-        when(subjectTutorRepository.findBySubject_NameContainingIgnoreCase("xyz"))
+        when(subjectTutorRepository.findAll(any(Specification.class)))
                 .thenReturn(List.of());
         when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("xyz"))
                 .thenReturn(List.of());
 
-        List<TutorSearchResponse> result = service.searchTutor("xyz", UUID.randomUUID());
+        List<TutorSearchResponse> result = service.searchTutor("xyz", UUID.randomUUID(), NO_FILTERS);
 
         assertThat(result).isEmpty();
     }
@@ -192,12 +197,12 @@ class TutorProfileServiceImplTest {
     @Test
     @DisplayName("CP-003.06 - La busqueda por materia es case-insensitive")
     void searchTutor_subjectMatch_isCaseInsensitive() {
-        when(subjectTutorRepository.findBySubject_NameContainingIgnoreCase("algebra"))
+        when(subjectTutorRepository.findAll(any(Specification.class)))
                 .thenReturn(List.of(tutorSubject("Ana Garc\u00eda", "\u00c1lgebra", "Ingenier\u00eda en Sistemas")));
         when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("algebra"))
                 .thenReturn(List.of());
 
-        List<TutorSearchResponse> result = service.searchTutor("algebra", UUID.randomUUID());
+        List<TutorSearchResponse> result = service.searchTutor("algebra", UUID.randomUUID(), NO_FILTERS);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).fullName()).isEqualTo("Ana Garc\u00eda");
@@ -226,12 +231,12 @@ class TutorProfileServiceImplTest {
                 .build();
         profile.getSubjects().addAll(List.of(algebra, fisica));
 
-        when(subjectTutorRepository.findBySubject_NameContainingIgnoreCase("a"))
+        when(subjectTutorRepository.findAll(any(Specification.class)))
                 .thenReturn(List.of(algebra, fisica));
         when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("a"))
                 .thenReturn(List.of());
 
-        List<TutorSearchResponse> result = service.searchTutor("a", UUID.randomUUID());
+        List<TutorSearchResponse> result = service.searchTutor("a", UUID.randomUUID(), NO_FILTERS);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).subjects()).extracting(SubjectSummary::name)

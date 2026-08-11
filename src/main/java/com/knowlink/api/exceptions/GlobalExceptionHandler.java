@@ -15,6 +15,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.stream.Collectors;
 
@@ -114,6 +115,13 @@ public class GlobalExceptionHandler {
                 .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
                 .collect(Collectors.joining(", "));
         ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(), "Invalid parameters", detail);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiError> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(),
+                "El parámetro '" + ex.getName() + "' no tiene un valor válido.", "INVALID_PARAMETER");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
