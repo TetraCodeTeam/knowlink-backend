@@ -5,6 +5,9 @@ import com.knowlink.api.tutors.availability.controllers.responses.AvailabilityBl
 import com.knowlink.api.tutors.availability.data.mappers.AvailabilityBlockMapper;
 import com.knowlink.api.tutors.availability.data.models.AvailabilityBlock;
 import com.knowlink.api.tutors.availability.data.models.AvailabilityWeekCustomization;
+import com.knowlink.api.timeslot.data.mappers.TimeSlotGenerator;
+import com.knowlink.api.timeslot.data.models.TimeSlot;
+import com.knowlink.api.timeslot.repositories.ITimeSlotRepository;
 import com.knowlink.api.tutors.availability.repositories.IAvailabilityBlockRepository;
 import com.knowlink.api.tutors.availability.repositories.IAvailabilityWeekCustomizationRepository;
 import com.knowlink.api.tutors.availability.services.interfaces.IAvailabilityBlockService;
@@ -31,6 +34,8 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
     private final ITutorProfileValidationService tutorProfileValidationService;
     private final IAvailabilityBlockValidationService availabilityBlockValidationService;
     private final AvailabilityBlockMapper availabilityBlockMapper;
+    private final ITimeSlotRepository timeSlotRepository;
+    private final TimeSlotGenerator timeSlotGenerator;
 
     @Override
     @Transactional
@@ -52,11 +57,17 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
                 ? clearNonProtectedFutureWeeks(tutorProfileId, weekStart, weekEnd)
                 : List.of();
 
+        timeSlotRepository.deleteAvailableInRange(tutorProfileId, weekStart, weekEnd);
         availabilityBlockRepository.deleteInRange(tutorProfileId, weekStart, weekEnd);
 
         List<AvailabilityBlock> toSave = buildBlocksToSave(blocks, tutorProfile, protectedWeekOffsets);
-
         availabilityBlockRepository.saveAll(toSave);
+
+        List<TimeSlot> newSlots = toSave.stream()
+                .flatMap(block -> timeSlotGenerator.generate(block, block.getDate(), block.getDate()).stream())
+                .toList();
+        timeSlotRepository.saveAll(newSlots);
+
         markWeekAsCustomized(tutorProfile, weekStart);
 
         return availabilityBlockRepository.findInRange(tutorProfileId, weekStart, weekEnd)
@@ -80,6 +91,7 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
                 continue;
             }
 
+            timeSlotRepository.deleteAvailableInRange(tutorProfileId, futureWeekStart, futureWeekEnd);
             availabilityBlockRepository.deleteInRange(tutorProfileId, futureWeekStart, futureWeekEnd);
         }
 
