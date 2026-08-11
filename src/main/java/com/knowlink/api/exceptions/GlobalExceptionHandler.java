@@ -1,6 +1,7 @@
 package com.knowlink.api.exceptions;
 
 import com.knowlink.api.exceptions.custom_exceptions.*;
+import io.jsonwebtoken.JwtException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -57,6 +58,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(TokenExpiredException.class)
     public ResponseEntity<ApiError> handleTokenExpired(TokenExpiredException ex) {
         ApiError error = new ApiError(HttpStatus.UNAUTHORIZED.value(), ex.getMessage(), "TOKEN_EXPIRED");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    }
+
+    @ExceptionHandler(JwtException.class)
+    public ResponseEntity<ApiError> handleJwt(JwtException ex) {
+        logger.warn("JWT error: {}", ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.UNAUTHORIZED.value(),
+                "Token inválido o expirado", "TOKEN_INVALID");
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
     }
 
