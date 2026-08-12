@@ -19,7 +19,7 @@ public interface ITimeSlotRepository extends JpaRepository<TimeSlot, UUID> {
             SELECT ts FROM TimeSlot ts
             WHERE ts.tutorProfileId = :tutorProfileId
             AND ts.date BETWEEN :from AND :to
-            AND ts.status = 'AVAILABLE'
+            AND ts.status = com.knowlink.api.timeslot.data.enums.SlotStatus.AVAILABLE
             ORDER BY ts.date, ts.startTime
             """)
     List<TimeSlot> findAvailableInRange(
@@ -33,7 +33,8 @@ public interface ITimeSlotRepository extends JpaRepository<TimeSlot, UUID> {
             DELETE FROM TimeSlot ts
             WHERE ts.tutorProfileId = :tutorProfileId
             AND ts.date BETWEEN :from AND :to
-            AND ts.status = 'AVAILABLE'
+            AND ts.status = com.knowlink.api.timeslot.data.enums.SlotStatus.AVAILABLE
+            AND NOT EXISTS (SELECT 1 FROM Booking b WHERE b.timeSlot = ts)
             """)
     void deleteAvailableInRange(
             @Param("tutorProfileId") UUID tutorProfileId,
