@@ -8,7 +8,6 @@ import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSubjectResponse;
 import com.knowlink.api.tutors.data.enums.CompensationType;
 import com.knowlink.api.tutors.data.enums.Modality;
-import com.knowlink.api.tutors.data.enums.TimeFrame;
 import com.knowlink.api.tutors.data.models.TutorSearchResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -66,7 +65,7 @@ public interface ITutorController {
 
         @GetMapping("/search/{query}")
         @Operation(summary = "Buscar tutores", description = "Busca tutores por nombre de materia o nombre completo del tutor. "
-                        + "Acepta filtros opcionales combinables con AND (modalidad, compensación, día/franja horaria, verificados, calificación mínima). "
+                        + "Acepta filtros opcionales combinables con AND (modalidad, compensación, día de disponibilidad, verificados, calificación mínima). "
                         + "Sin filtros se comporta idéntico a la búsqueda base. "
                         + "La respuesta es la misma lista de la búsqueda base (sin envoltorio): si el cliente aplicó filtros y la lista queda vacía, "
                         + "el frontend debe mostrar 'No se encontraron tutores para los filtros seleccionados'.")
@@ -82,7 +81,6 @@ public interface ITutorController {
                 @Parameter(description = "Modalidad: VIRTUAL, IN_PERSON o BOTH (VIRTUAL/IN_PERSON incluyen a BOTH)") @RequestParam(required = false) Modality modality,
                 @Parameter(description = "Tipo de compensación: FREE o PAID") @RequestParam(required = false) CompensationType compensation,
                 @Parameter(description = "Día de la semana con disponibilidad: MONDAY, TUESDAY, ..., SUNDAY") @RequestParam(required = false) DayOfWeek dayOfWeek,
-                @Parameter(description = "Franja horaria: MORNING (06-12), AFTERNOON (12-18), EVENING (18-24)") @RequestParam(required = false) TimeFrame timeFrame,
                 @Parameter(description = "Solo tutores verificados") @RequestParam(required = false) Boolean verifiedOnly,
                 @Parameter(description = "Calificación mínima del tutor (1-5; fuera de rango devuelve 400)") @RequestParam(required = false) Double minRating,
                 @AuthenticationPrincipal UserPrincipal principal);

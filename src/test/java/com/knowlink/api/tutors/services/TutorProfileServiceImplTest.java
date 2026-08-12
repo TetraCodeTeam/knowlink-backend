@@ -62,7 +62,7 @@ class TutorProfileServiceImplTest {
 
     private final UUID tutorUserId = UUID.randomUUID();
 
-    private static final TutorSearchFilters NO_FILTERS = new TutorSearchFilters(null, null, null, null, null, null);
+    private static final TutorSearchFilters NO_FILTERS = new TutorSearchFilters(null, null, null, null, null);
 
     private TutorSubject tutorSubject(String fullName, String subjectName, String careerName) {
         Career career = Career.builder().name(careerName).build();

@@ -2,7 +2,6 @@ package com.knowlink.api.tutors.data.models;
 
 import com.knowlink.api.tutors.data.enums.CompensationType;
 import com.knowlink.api.tutors.data.enums.Modality;
-import com.knowlink.api.tutors.data.enums.TimeFrame;
 
 import java.time.DayOfWeek;
 
@@ -15,7 +14,6 @@ public record TutorSearchFilters(
         Modality modality,
         CompensationType compensation,
         DayOfWeek dayOfWeek,
-        TimeFrame timeFrame,
         Boolean verifiedOnly,
         Double minRating
 ) {
@@ -34,7 +32,7 @@ public record TutorSearchFilters(
     }
 
     public boolean hasAvailability() {
-        return dayOfWeek != null || timeFrame != null;
+        return dayOfWeek != null;
     }
 
     public boolean hasMinRating() {

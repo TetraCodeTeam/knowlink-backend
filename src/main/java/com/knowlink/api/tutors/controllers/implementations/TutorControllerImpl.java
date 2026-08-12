@@ -10,7 +10,6 @@ import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSubjectResponse;
 import com.knowlink.api.tutors.data.enums.CompensationType;
 import com.knowlink.api.tutors.data.enums.Modality;
-import com.knowlink.api.tutors.data.enums.TimeFrame;
 import com.knowlink.api.tutors.data.models.TutorSearchFilters;
 import com.knowlink.api.tutors.data.models.TutorSearchResponse;
 import com.knowlink.api.tutors.services.interfaces.ITutorProfileService;
@@ -51,11 +50,11 @@ public class TutorControllerImpl implements ITutorController {
 
     @Override
     public List<TutorSearchResponse> searchTutor(String query, Modality modality, CompensationType compensation,
-            DayOfWeek dayOfWeek, TimeFrame timeFrame, Boolean verifiedOnly, Double minRating,
+            DayOfWeek dayOfWeek, Boolean verifiedOnly, Double minRating,
             UserPrincipal principal) {
         UUID studentId = principal != null ? principal.getUser().getUserId() : null;
         TutorSearchFilters filters = new TutorSearchFilters(
-                modality, compensation, dayOfWeek, timeFrame, verifiedOnly, minRating);
+                modality, compensation, dayOfWeek, verifiedOnly, minRating);
         return this.tutorProfileService.searchTutor(query, studentId, filters);
     }
 

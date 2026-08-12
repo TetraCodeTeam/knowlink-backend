@@ -8,7 +8,6 @@ import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.tutors.availability.controllers.responses.AvailabilityBlockResponse;
 import com.knowlink.api.tutors.availability.repositories.IAvailabilityBlockRepository;
 import com.knowlink.api.tutors.controllers.responses.*;
-import com.knowlink.api.tutors.data.enums.TimeFrame;
 import com.knowlink.api.tutors.data.mappers.TutorProfileMapper;
 import com.knowlink.api.tutors.data.mappers.TutorSearchMapper;
 import com.knowlink.api.tutors.data.mappers.TutorSubjectMapper;
@@ -149,7 +148,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                 for (TutorSubject tutorSubject : subjectTutorRepository.findAll(subjectSpec)) {
                         TutorProfile tutorProfile = tutorSubject.getTutorProfile();
                         if (filters.hasAvailability()
-                                        && !tutorHasAvailability(tutorProfile, filters.dayOfWeek(), filters.timeFrame())) {
+                                        && !tutorHasAvailability(tutorProfile, filters.dayOfWeek())) {
                                 continue;
                         }
                         agrupados.computeIfAbsent(tutorProfile.getUser().getUserId(), k -> new ArrayList<>())
@@ -176,7 +175,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 continue;
                         }
                         if (filters.hasAvailability()
-                                        && !tutorHasAvailability(tutorProfile, filters.dayOfWeek(), filters.timeFrame())) {
+                                        && !tutorHasAvailability(tutorProfile, filters.dayOfWeek())) {
                                 continue;
                         }
 
@@ -202,11 +201,11 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 .toList();
         }
 
-        private boolean tutorHasAvailability(TutorProfile tutorProfile, DayOfWeek dayOfWeek, TimeFrame timeFrame) {
+        private boolean tutorHasAvailability(TutorProfile tutorProfile, DayOfWeek dayOfWeek) {
                 return availabilityBlockRepository.findAvailableByTutorProfileId(tutorProfile.getTutorProfileId())
                                 .stream()
                                 .anyMatch(block -> TutorSearchSpecifications.matchesAvailability(
-                                                block, dayOfWeek, timeFrame));
+                                                block, dayOfWeek, null));
         }
 
         /**
