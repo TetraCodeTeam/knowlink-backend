@@ -47,6 +47,7 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
 
         availabilityBlockValidationService.validateWeekRequest(weekStart, weekEnd, blocks);
         availabilityBlockValidationService.validateBlocks(blocks);
+        availabilityBlockValidationService.validateNoActiveBookingsInRange(tutorUserId, weekStart, weekEnd);
 
         TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
         UUID tutorProfileId = tutorProfile.getTutorProfileId();
@@ -54,7 +55,7 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
         boolean anyRepeat = blocks.stream().anyMatch(request -> Boolean.TRUE.equals(request.repeatWeekly()));
 
         List<Integer> protectedWeekOffsets = anyRepeat
-                ? clearNonProtectedFutureWeeks(tutorProfileId, weekStart, weekEnd)
+                ? clearNonProtectedFutureWeeks(tutorUserId,tutorProfileId, weekStart, weekEnd)
                 : List.of();
 
         timeSlotRepository.deleteAvailableInRange(tutorProfileId, weekStart, weekEnd);
@@ -76,7 +77,7 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
                 .toList();
     }
 
-    private List<Integer> clearNonProtectedFutureWeeks(UUID tutorProfileId, LocalDate weekStart, LocalDate weekEnd) {
+    private List<Integer> clearNonProtectedFutureWeeks(UUID tutorUserId, UUID tutorProfileId, LocalDate weekStart, LocalDate weekEnd) {
         List<Integer> protectedWeekOffsets = new ArrayList<>();
 
         for (int i = 1; i <= AvailabilityConstants.REPEAT_WEEKS_AHEAD; i++) {
@@ -90,6 +91,9 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
                 protectedWeekOffsets.add(i);
                 continue;
             }
+
+            availabilityBlockValidationService.validateNoActiveBookingsInRange(
+                tutorUserId, futureWeekStart, futureWeekEnd);
 
             timeSlotRepository.deleteAvailableInRange(tutorProfileId, futureWeekStart, futureWeekEnd);
             availabilityBlockRepository.deleteInRange(tutorProfileId, futureWeekStart, futureWeekEnd);
