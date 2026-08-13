@@ -1,5 +1,6 @@
 package com.knowlink.api.tutors.validations;
 
+import com.knowlink.api.tutors.data.models.Subject;
 import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.tutors.data.models.TutorProfile;
@@ -33,5 +34,19 @@ public class TutorProfileValidationServiceImpl implements ITutorProfileValidatio
                         "TUTOR_PROFILE_NOT_FOUND",
                         "Este tutor no está registrado.",
                         "TutorProfile not found for userId: " + tutorUserId));
+    }
+
+    @Override
+    public void ifTutorAlreadyTeachesSubjectThrowException(TutorProfile tutorProfile, Subject subject) {
+        boolean alreadyTeachesThisSubject = tutorProfile.getSubjects().stream()
+                .anyMatch(tutorSubject -> tutorSubject.getSubject().getSubjectId().equals(subject.getSubjectId()));
+
+        if (alreadyTeachesThisSubject) {
+            throw new DuplicateResourceException(
+                    "DUPLICATE_TUTOR_SUBJECT",
+                    "Ya tenés esta materia cargada.",
+                    String.format("TutorProfile con id '%s' ya tiene la materia '%s' cargada",
+                            tutorProfile.getTutorProfileId(), subject.getName()));
+        }
     }
 }
