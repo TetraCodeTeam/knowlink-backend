@@ -2,17 +2,24 @@ package com.knowlink.api.tutors.availability.validations;
 
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.tutors.availability.controllers.requests.AvailabilityBlockRequest;
+import com.knowlink.api.tutors.availability.data.enums.BookingStatusGroups;
+import com.knowlink.api.tutors.repositories.IBookingRepository;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class AvailabilityBlockValidationServiceImpl implements IAvailabilityBlockValidationService {
+
+    private final IBookingRepository bookingRepository;
 
     @Override
     public void validateWeekRequest(LocalDate weekStart, LocalDate weekEnd, List<AvailabilityBlockRequest> blocks) {
@@ -38,6 +45,14 @@ public class AvailabilityBlockValidationServiceImpl implements IAvailabilityBloc
             }
         }
         validateNoOverlaps(blocks);
+    }
+
+    @Override
+    public void validateNoActiveBookingsInRange(UUID tutorUserId, LocalDate from, LocalDate to) {
+        if (bookingRepository.existsActiveBookingInRange(tutorUserId, from, to, BookingStatusGroups.ACTIVE)) {
+            throw new ValidationException(
+                    "No es posible reemplazar la disponibilidad: hay reservas activas en el rango indicado.");
+        }
     }
 
     private void validateNoOverlaps(List<AvailabilityBlockRequest> blocks) {

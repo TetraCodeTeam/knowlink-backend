@@ -2,8 +2,6 @@ package com.knowlink.api.tutors.services.implementations;
 
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
-import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
-import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.tutors.availability.controllers.responses.AvailabilityBlockResponse;
 import com.knowlink.api.tutors.availability.repositories.IAvailabilityBlockRepository;
 import com.knowlink.api.tutors.controllers.responses.*;
@@ -105,7 +103,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                 tutorProfile.setMinNoticeMinutes(minNoticeMinutes);
                 tutorProfileRepository.save(tutorProfile);
         }
-        
+
         @Override
         @Transactional(readOnly = true)
         public Integer getMinNoticeMinutes(UUID tutorUserId) {
@@ -115,30 +113,26 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
 
         @Override
         @Transactional(readOnly = true)
-        public List<TutorSearchResponse> searchTutor(String query, UUID alumnoUserId) {
+        public List<TutorSearchResponse> searchTutor(String query, UUID studentUserId) {
 
-                List<TutorSubject> resultadosPorMateria = subjectTutorRepository
+                List<TutorSubject> subjectMatches = subjectTutorRepository
                                 .findBySubject_NameContainingIgnoreCase(query);
 
-                Map<UUID, List<TutorSubject>> agrupados = resultadosPorMateria.stream()
+                Map<UUID, List<TutorSubject>> groupedResults = subjectMatches.stream()
                                 .collect(Collectors.groupingBy(
-                                                mt -> mt.getTutorProfile().getUser().getUserId()));
+                                                tutorSubject -> tutorSubject.getTutorProfile().getUser().getUserId()));
 
-                // Tutores que matchean por su propio nombre (no por materia): se agregan
-                // con todas sus materias, sin pisar a los que ya matchearon por materia
-                // arriba. Se excluyen tutores sin materias cargadas para no romper
-                // TutorSearchMapper.from(), que requiere al menos una.
-                List<TutorProfile> resultadosPorNombre = tutorProfileRepository
+                List<TutorProfile> nameMatches = tutorProfileRepository
                                 .findByUser_FullNameContainingIgnoreCase(query);
 
-                for (TutorProfile tutorProfile : resultadosPorNombre) {
+                for (TutorProfile tutorProfile : nameMatches) {
                         if (tutorProfile.getSubjects().isEmpty()) {
                                 continue;
                         }
-                        agrupados.putIfAbsent(tutorProfile.getUser().getUserId(), tutorProfile.getSubjects());
+                        groupedResults.putIfAbsent(tutorProfile.getUser().getUserId(), tutorProfile.getSubjects());
                 }
 
-                return agrupados.values()
+                return groupedResults.values()
                                 .stream()
                                 .map(TutorSearchMapper::from)
                                 .toList();
@@ -147,22 +141,12 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         @Override
         @Transactional
         public TutorSubjectResponse createTutorSubject(UUID tutorUserId, TutorSubjectRequest request) {
-                TutorProfile tutorProfile = tutorProfileRepository.findByUserId(tutorUserId)
-                                .orElseThrow(() -> new ResourceNotFoundException(
-                                                "Tutor",
-                                                
-                                                "id",
-                                                tutorUserId.toString()));
+                TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
 
                 Subject subject = subjectService.findByNameAndCareerOrThrowException(
                                 request.subjectName(), tutorProfile.getCareer());
 
-                boolean yaDictaEstaMateria = tutorProfile.getSubjects().stream()
-                                .anyMatch(ts -> ts.getSubject().getSubjectId().equals(subject.getSubjectId()));
-
-                if (yaDictaEstaMateria) {
-                        throw new DuplicateResourceException("TutorSubject", "subject", request.subjectName());
-                }
+                tutorProfileValidationService.ifTutorAlreadyTeachesSubjectThrowException(tutorProfile, subject);
 
                 TutorSubject tutorSubject = tutorSubjectMapper.toEntity(request, tutorProfile, subject);
                 TutorSubject saved = tutorSubjectRepository.save(tutorSubject);

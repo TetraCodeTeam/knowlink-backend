@@ -5,6 +5,9 @@ import com.knowlink.api.tutors.availability.controllers.responses.AvailabilityBl
 import com.knowlink.api.tutors.availability.data.mappers.AvailabilityBlockMapper;
 import com.knowlink.api.tutors.availability.data.models.AvailabilityBlock;
 import com.knowlink.api.tutors.availability.data.models.AvailabilityWeekCustomization;
+import com.knowlink.api.timeslot.data.mappers.TimeSlotGenerator;
+import com.knowlink.api.timeslot.data.models.TimeSlot;
+import com.knowlink.api.timeslot.repositories.ITimeSlotRepository;
 import com.knowlink.api.tutors.availability.repositories.IAvailabilityBlockRepository;
 import com.knowlink.api.tutors.availability.repositories.IAvailabilityWeekCustomizationRepository;
 import com.knowlink.api.tutors.availability.services.interfaces.IAvailabilityBlockService;
@@ -31,6 +34,8 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
     private final ITutorProfileValidationService tutorProfileValidationService;
     private final IAvailabilityBlockValidationService availabilityBlockValidationService;
     private final AvailabilityBlockMapper availabilityBlockMapper;
+    private final ITimeSlotRepository timeSlotRepository;
+    private final TimeSlotGenerator timeSlotGenerator;
 
     @Override
     @Transactional
@@ -42,6 +47,7 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
 
         availabilityBlockValidationService.validateWeekRequest(weekStart, weekEnd, blocks);
         availabilityBlockValidationService.validateBlocks(blocks);
+        availabilityBlockValidationService.validateNoActiveBookingsInRange(tutorUserId, weekStart, weekEnd);
 
         TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
         UUID tutorProfileId = tutorProfile.getTutorProfileId();
@@ -49,14 +55,20 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
         boolean anyRepeat = blocks.stream().anyMatch(request -> Boolean.TRUE.equals(request.repeatWeekly()));
 
         List<Integer> protectedWeekOffsets = anyRepeat
-                ? clearNonProtectedFutureWeeks(tutorProfileId, weekStart, weekEnd)
+                ? clearNonProtectedFutureWeeks(tutorUserId,tutorProfileId, weekStart, weekEnd)
                 : List.of();
 
+        timeSlotRepository.deleteAvailableInRange(tutorProfileId, weekStart, weekEnd);
         availabilityBlockRepository.deleteInRange(tutorProfileId, weekStart, weekEnd);
 
         List<AvailabilityBlock> toSave = buildBlocksToSave(blocks, tutorProfile, protectedWeekOffsets);
-
         availabilityBlockRepository.saveAll(toSave);
+
+        List<TimeSlot> newSlots = toSave.stream()
+                .flatMap(block -> timeSlotGenerator.generate(block, block.getDate(), block.getDate()).stream())
+                .toList();
+        timeSlotRepository.saveAll(newSlots);
+
         markWeekAsCustomized(tutorProfile, weekStart);
 
         return availabilityBlockRepository.findInRange(tutorProfileId, weekStart, weekEnd)
@@ -65,7 +77,7 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
                 .toList();
     }
 
-    private List<Integer> clearNonProtectedFutureWeeks(UUID tutorProfileId, LocalDate weekStart, LocalDate weekEnd) {
+    private List<Integer> clearNonProtectedFutureWeeks(UUID tutorUserId, UUID tutorProfileId, LocalDate weekStart, LocalDate weekEnd) {
         List<Integer> protectedWeekOffsets = new ArrayList<>();
 
         for (int i = 1; i <= AvailabilityConstants.REPEAT_WEEKS_AHEAD; i++) {
@@ -80,6 +92,10 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
                 continue;
             }
 
+            availabilityBlockValidationService.validateNoActiveBookingsInRange(
+                tutorUserId, futureWeekStart, futureWeekEnd);
+
+            timeSlotRepository.deleteAvailableInRange(tutorProfileId, futureWeekStart, futureWeekEnd);
             availabilityBlockRepository.deleteInRange(tutorProfileId, futureWeekStart, futureWeekEnd);
         }
 
