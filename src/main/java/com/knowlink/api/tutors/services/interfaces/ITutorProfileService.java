@@ -3,6 +3,7 @@ package com.knowlink.api.tutors.services.interfaces;
 import java.util.List;
 import java.util.UUID;
 
+import com.knowlink.api.tutors.controllers.responses.ActivateStudentRoleResponse;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
 import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
@@ -27,4 +28,6 @@ public interface ITutorProfileService {
     List<TutorSearchResponse> searchTutor(String query, UUID alumnoUserId);
 
     TutorSubjectResponse createTutorSubject(UUID tutorUserId, TutorSubjectRequest request);
+
+    ActivateStudentRoleResponse activateStudentRole(UUID tutorUserId);
 }

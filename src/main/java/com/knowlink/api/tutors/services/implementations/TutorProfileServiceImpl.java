@@ -1,5 +1,10 @@
 package com.knowlink.api.tutors.services.implementations;
 
+import com.knowlink.api.tutors.controllers.responses.ActivateStudentRoleResponse;
+import com.knowlink.api.security.enums.Role;
+import com.knowlink.api.security.services.JwtService;
+import com.knowlink.api.students.services.interfaces.IStudentProfileService;
+import com.knowlink.api.users.repositories.IUserRepository;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
 import com.knowlink.api.tutors.availability.controllers.responses.AvailabilityBlockResponse;
@@ -38,6 +43,9 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         private final TutorProfileMapper tutorProfileMapper;
         private final TutorSubjectMapper tutorSubjectMapper;
         private final ITutorSubjectRepository subjectTutorRepository;
+        private final IStudentProfileService studentProfileService;
+        private final IUserRepository userRepository;
+        private final JwtService jwtService;
 
         @Override
         @Transactional(readOnly = true)
@@ -93,7 +101,8 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         @Transactional(readOnly = true)
         public TutorSelfProfileResponse getSelfProfile(UUID tutorUserId) {
                 TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
-                return tutorProfileMapper.toSelfProfileResponse(tutorProfile);
+                boolean hasStudentProfile = studentProfileService.hasProfile(tutorUserId);
+                return tutorProfileMapper.toSelfProfileResponse(tutorProfile, hasStudentProfile);
         }
 
         @Override
@@ -152,5 +161,19 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                 TutorSubject saved = tutorSubjectRepository.save(tutorSubject);
 
                 return tutorProfileMapper.toSubjectResponse(saved);
+        }
+
+        @Override
+        @Transactional
+        public ActivateStudentRoleResponse activateStudentRole(UUID tutorUserId) {
+                TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
+                User user = tutorProfile.getUser();
+
+                studentProfileService.createProfileFromTutorData(user, tutorProfile);
+
+                user.setRole(Role.STUDENT);
+                userRepository.save(user);
+
+                return new ActivateStudentRoleResponse(jwtService.generateToken(user));
         }
 }
