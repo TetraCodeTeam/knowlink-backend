@@ -19,6 +19,6 @@ public record TutorSubjectRequest(
         @NotNull(message = "Compensation type is required")
         CompensationType compensationType,
 
-        @DecimalMin(value = "0.01", inclusive = true, message = "Price must be greater than zero")
+        @DecimalMin(value = "0", message = "Price cannot be negative")
         BigDecimal pricePerHour
 ) {}
