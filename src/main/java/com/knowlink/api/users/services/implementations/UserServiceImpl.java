@@ -16,6 +16,9 @@ import com.knowlink.api.users.events.UserRegisteredEvent;
 import com.knowlink.api.users.validation.IUserValidationService;
 import com.knowlink.api.users.repositories.IUserRepository;
 import com.knowlink.api.security.services.JwtService;
+import com.knowlink.api.security.enums.Role;
+import com.knowlink.api.students.repositories.IStudentProfileRepository;
+import com.knowlink.api.tutors.repositories.ITutorProfileRepository;
 import com.knowlink.api.users.services.interfaces.ITokenService;
 import com.knowlink.api.users.services.interfaces.IUserService;
 import jakarta.transaction.Transactional;
@@ -37,6 +40,8 @@ public class UserServiceImpl implements IUserService {
     private final JwtService jwtService;
     private final IUserValidationService userValidationService;
     private final ApplicationEventPublisher eventPublisher;
+    private final IStudentProfileRepository studentProfileRepository;
+    private final ITutorProfileRepository tutorProfileRepository;
 
     @Override
     @Transactional
@@ -149,6 +154,21 @@ public class UserServiceImpl implements IUserService {
     @Override
     public AuthResponse verifyUser(LoginRequest loginRequest) {
         User user = findUserByEmailOrThrowException(loginRequest.email());
+
+        Role targetRole = loginRequest.targetRole() != null ? loginRequest.targetRole() : user.getRole();
+
+        if (targetRole == Role.TUTOR && !tutorProfileRepository.existsByUser_UserId(user.getUserId())) {
+            throw new ValidationException("No tenés un perfil de tutor activo.");
+        }
+        if (targetRole == Role.STUDENT && !studentProfileRepository.existsByUser_UserId(user.getUserId())) {
+            throw new ValidationException("No tenés un perfil de alumno activo.");
+        }
+
+        if (!targetRole.equals(user.getRole())) {
+            user.setRole(targetRole);
+            userRepository.save(user);
+        }
+
         String token = jwtService.generateToken(user);
         return new AuthResponse(user.getUserId(), user.getEmail(), token, user.getRole());
     }
