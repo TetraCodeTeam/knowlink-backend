@@ -1,9 +1,7 @@
 package com.knowlink.api.users.services.interfaces;
-
-import com.knowlink.api.auth.controllers.requests.LoginRequest;
+import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.auth.controllers.requests.StudentRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
-import com.knowlink.api.auth.controllers.responses.AuthResponse;
 import com.knowlink.api.users.controllers.requests.UpdateUserRequest;
 import com.knowlink.api.users.data.models.User;
 
@@ -27,7 +25,7 @@ public interface IUserService {
 
     void resendConfirmationEmail(String email);
 
-    AuthResponse verifyUser(LoginRequest loginRequest);
+    User updateUserRole(UUID userId, Role role);
 
     void resetPassword(UUID token, String newPassword, String confirmNewPassword);
 

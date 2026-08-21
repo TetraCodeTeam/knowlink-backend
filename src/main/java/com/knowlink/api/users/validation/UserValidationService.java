@@ -1,5 +1,5 @@
 package com.knowlink.api.users.validation;
-
+import java.util.UUID;
 import com.knowlink.api.exceptions.custom_exceptions.*;
 import com.knowlink.api.users.data.enums.AccountStatus;
 import com.knowlink.api.users.data.models.Token;
@@ -58,6 +58,17 @@ public class UserValidationService implements IUserValidationService {
         if (token.getTokenExpirationDate() == null ||
                 token.getTokenExpirationDate().isBefore(LocalDateTime.now())) {
             throw new TokenExpiredException("El enlace ha expirado. Por favor, solicita uno nuevo");
+        }
+    }
+
+    @Override
+    public void ifTokenDoesNotBelongToUserThrowException(Token token, UUID userId) {
+        if (!token.getUser().getUserId().equals(userId)) {
+            throw new ResourceNotFoundException(
+                    "USER_NOT_FOUND",
+                    "Usuario no encontrado.",
+                    String.format("token pertenece a userId '%s', pero se recibió userId '%s'",
+                            token.getUser().getUserId(), userId));
         }
     }
 
