@@ -15,8 +15,6 @@ public interface IStudentProfileService {
 
     StudentSelfProfileResponse getSelfProfile(UUID userId);
 
-    boolean hasProfile(UUID userId);
-
     StudentProfile createProfileFromTutorData(User user, TutorProfile tutorProfile);
 
     ActivateTutorRoleResponse activateTutorRole(UUID userId, ActivateTutorRoleRequest request);
