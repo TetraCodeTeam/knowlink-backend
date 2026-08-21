@@ -1,8 +1,11 @@
 package com.knowlink.api.tutors.validations;
 
+import com.knowlink.api.tutors.data.enums.CompensationType;
 import com.knowlink.api.tutors.data.models.Subject;
+import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
 import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
+import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.repositories.ITutorProfileRepository;
 import com.knowlink.api.users.data.models.User;
@@ -47,6 +50,18 @@ public class TutorProfileValidationServiceImpl implements ITutorProfileValidatio
                     "Ya tenés esta materia cargada.",
                     String.format("TutorProfile con id '%s' ya tiene la materia '%s' cargada",
                             tutorProfile.getTutorProfileId(), subject.getName()));
+        }
+    }
+
+    @Override
+    public void ifPaidSubjectHasInvalidPriceThrowException(TutorSubjectRequest request) {
+        boolean isPaidWithInvalidPrice = request.compensationType() == CompensationType.PAID
+                && (request.pricePerHour() == null || request.pricePerHour().signum() <= 0);
+
+        if (isPaidWithInvalidPrice) {
+            throw new ValidationException(
+                    String.format("El precio por hora debe ser mayor a cero para la materia '%s'.",
+                            request.subjectName()));
         }
     }
 }
