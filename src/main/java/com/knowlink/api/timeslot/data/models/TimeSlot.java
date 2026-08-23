@@ -1,7 +1,8 @@
-package com.knowlink.api.tutors.data.models;
+package com.knowlink.api.timeslot.data.models;
 
+import com.knowlink.api.timeslot.data.enums.SlotStatus;
 import com.knowlink.api.tutors.availability.data.models.AvailabilityBlock;
-import com.knowlink.api.tutors.data.enums.SlotStatus;
+
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -33,10 +34,13 @@ public class TimeSlot {
     private LocalTime endTime;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "slot_status", nullable = false)
-    private SlotStatus slotStatus;
+    @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(20)")
+    private SlotStatus status;
+
+    @Column(name = "tutor_profile_id", nullable = false, updatable = false)
+    private UUID tutorProfileId;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "availability_block_id", nullable = false)
-    private AvailabilityBlock availabilityBlock;
+    @JoinColumn(name = "availability_block_id")
+    private AvailabilityBlock assignedBlock;
 }

@@ -1,5 +1,6 @@
 package com.knowlink.api.tutors.data.models;
 
+import com.knowlink.api.timeslot.data.models.TimeSlot;
 import com.knowlink.api.tutors.data.enums.BookingStatus;
 import com.knowlink.api.users.data.models.User;
 import jakarta.persistence.*;

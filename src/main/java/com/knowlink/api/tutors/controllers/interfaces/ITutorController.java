@@ -43,8 +43,9 @@ public interface ITutorController {
         @Operation(summary = "Obtener perfil del tutor", description = "El userId corresponde al usuario (User) con rol TUTOR, no al tutor_profile_id")
         @ApiResponses({
                         @ApiResponse(responseCode = "200", description = "Perfil encontrado"),
+                        @ApiResponse(responseCode = "401", description = "No autenticado"),
+                        @ApiResponse(responseCode = "403", description = "Acceso denegado"),
                         @ApiResponse(responseCode = "404", description = "Tutor no encontrado"),
-                        @ApiResponse(responseCode = "403", description = "Acceso denegado")
         })
         @ResponseStatus(OK)
         @PreAuthorize("hasRole('STUDENT')")
@@ -56,8 +57,9 @@ public interface ITutorController {
         @Operation(summary = "Obtener mi perfil de tutor (vista propia, autenticada)")
         @ApiResponses({
                         @ApiResponse(responseCode = "200", description = "Perfil encontrado"),
+                        @ApiResponse(responseCode = "401", description = "No autenticado"),
+                        @ApiResponse(responseCode = "403", description = "Acceso denegado"),
                         @ApiResponse(responseCode = "404", description = "Perfil no encontrado"),
-                        @ApiResponse(responseCode = "403", description = "Acceso denegado")
         })
         @ResponseStatus(OK)
         @PreAuthorize("hasRole('TUTOR')")

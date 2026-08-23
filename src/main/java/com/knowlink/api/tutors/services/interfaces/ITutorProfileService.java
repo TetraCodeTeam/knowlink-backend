@@ -27,10 +27,5 @@ public interface ITutorProfileService {
 
     List<TutorSearchResponse> searchTutor(String query, UUID alumnoUserId, TutorSearchFilters filters);
 
-    /**
-     * Registra una nueva materia dictada por el tutor autenticado
-     * (tutorUserId). La materia se busca/crea dentro de la carrera del
-     * propio tutor.
-     */
     TutorSubjectResponse createTutorSubject(UUID tutorUserId, TutorSubjectRequest request);
 }

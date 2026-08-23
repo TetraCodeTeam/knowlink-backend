@@ -9,7 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-import com.knowlink.api.tutors.data.models.TimeSlot;
+import com.knowlink.api.timeslot.data.models.TimeSlot;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 
 @Entity
@@ -51,7 +51,7 @@ public class AvailabilityBlock {
     @JoinColumn(name = "tutor_profile_id", nullable = false)
     private TutorProfile tutorProfile;
 
-    @OneToMany(mappedBy = "availabilityBlock", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "assignedBlock", cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @Builder.Default
     private List<TimeSlot> generatedSlots = new ArrayList<>();
 }
