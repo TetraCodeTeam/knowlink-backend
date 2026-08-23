@@ -9,6 +9,7 @@ import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSubjectResponse;
 import com.knowlink.api.tutors.data.models.TutorProfile;
+import com.knowlink.api.tutors.data.models.TutorSearchFilters;
 import com.knowlink.api.tutors.data.models.TutorSearchResponse;
 import com.knowlink.api.users.data.models.User;
 
@@ -24,7 +25,7 @@ public interface ITutorProfileService {
 
     Integer getMinNoticeMinutes(UUID tutorUserId);
 
-    List<TutorSearchResponse> searchTutor(String query, UUID alumnoUserId);
+    List<TutorSearchResponse> searchTutor(String query, UUID alumnoUserId, TutorSearchFilters filters);
 
     TutorSubjectResponse createTutorSubject(UUID tutorUserId, TutorSubjectRequest request);
 }

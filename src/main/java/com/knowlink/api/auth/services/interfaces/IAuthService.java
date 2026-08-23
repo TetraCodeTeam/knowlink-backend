@@ -9,4 +9,5 @@ public interface IAuthService {
     AuthResponse login(LoginRequest request);
     void registerStudent(StudentRegistrationRequest request); 
     void registerTutor(TutorRegistrationRequest request);
+    void logout(String token);
 }

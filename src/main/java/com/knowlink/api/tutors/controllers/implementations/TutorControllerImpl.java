@@ -7,11 +7,15 @@ import com.knowlink.api.tutors.controllers.requests.UpdateMinNoticeMinutesReques
 import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSubjectResponse;
+import com.knowlink.api.tutors.data.enums.CompensationType;
+import com.knowlink.api.tutors.data.enums.Modality;
+import com.knowlink.api.tutors.data.models.TutorSearchFilters;
 import com.knowlink.api.tutors.data.models.TutorSearchResponse;
 import com.knowlink.api.tutors.services.interfaces.ITutorProfileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.DayOfWeek;
 import java.util.List;
 import java.util.UUID;
 
@@ -43,8 +47,13 @@ public class TutorControllerImpl implements ITutorController {
     }
 
     @Override
-    public List<TutorSearchResponse> searchTutor(String query, UserPrincipal principal) {
-        return this.tutorProfileService.searchTutor(query, principal.getUser().getUserId());
+    public List<TutorSearchResponse> searchTutor(String query, Modality modality, CompensationType compensation,
+            DayOfWeek dayOfWeek, Boolean verifiedOnly, Double minRating,
+            UserPrincipal principal) {
+        UUID studentId = principal != null ? principal.getUser().getUserId() : null;
+        TutorSearchFilters filters = new TutorSearchFilters(
+                modality, compensation, dayOfWeek, verifiedOnly, minRating);
+        return this.tutorProfileService.searchTutor(query, studentId, filters);
     }
 
     @Override

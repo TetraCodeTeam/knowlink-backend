@@ -6,6 +6,8 @@ import com.knowlink.api.tutors.controllers.requests.UpdateMinNoticeMinutesReques
 import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSubjectResponse;
+import com.knowlink.api.tutors.data.enums.CompensationType;
+import com.knowlink.api.tutors.data.enums.Modality;
 import com.knowlink.api.tutors.data.models.TutorSearchResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,8 +25,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
+import java.time.DayOfWeek;
 import java.util.List;
 import java.util.UUID;
 
@@ -62,16 +66,25 @@ public interface ITutorController {
         TutorSelfProfileResponse getMyProfile(@AuthenticationPrincipal UserPrincipal principal);
 
         @GetMapping("/search/{query}")
-        @Operation(summary = "Buscar tutores", description = "Busca tutores por nombre de materia")
+        @Operation(summary = "Buscar tutores", description = "Busca tutores por nombre de materia o nombre completo del tutor. "
+                        + "Acepta filtros opcionales combinables con AND (modalidad, compensación, día de disponibilidad, verificados, calificación mínima). "
+                        + "Sin filtros se comporta idéntico a la búsqueda base. "
+                        + "La respuesta es la misma lista de la búsqueda base (sin envoltorio): si el cliente aplicó filtros y la lista queda vacía, "
+                        + "el frontend debe mostrar 'No se encontraron tutores para los filtros seleccionados'.")
         @ApiResponses({
                         @ApiResponse(responseCode = "200", description = "Búsqueda realizada"),
+                        @ApiResponse(responseCode = "400", description = "Filtro inválido (valor de enum no reconocido o calificacionMinima fuera de 1-5)"),
                         @ApiResponse(responseCode = "403", description = "Acceso denegado")
         })
-
         @ResponseStatus(OK)
         @PreAuthorize("hasRole('STUDENT')")
         List<TutorSearchResponse> searchTutor(
-                @Parameter(description = "ID del usuario (User) con rol TUTOR") @PathVariable String query,
+                @Parameter(description = "Término de búsqueda (materia o nombre del tutor)") @PathVariable String query,
+                @Parameter(description = "Modalidad: VIRTUAL, IN_PERSON o BOTH (VIRTUAL/IN_PERSON incluyen a BOTH)") @RequestParam(required = false) Modality modality,
+                @Parameter(description = "Tipo de compensación: FREE o PAID") @RequestParam(required = false) CompensationType compensation,
+                @Parameter(description = "Día de la semana con disponibilidad: MONDAY, TUESDAY, ..., SUNDAY") @RequestParam(required = false) DayOfWeek dayOfWeek,
+                @Parameter(description = "Solo tutores verificados") @RequestParam(required = false) Boolean verifiedOnly,
+                @Parameter(description = "Calificación mínima del tutor (1-5; fuera de rango devuelve 400)") @RequestParam(required = false) Double minRating,
                 @AuthenticationPrincipal UserPrincipal principal);
 
         @PostMapping("/subjects")
