@@ -144,14 +144,14 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                 // por lo que "verificado" cruza contra la materia buscada. La disponibilidad
                 // se filtra en memoria (DAYOFWEEK difiere entre MySQL y H2, ver
                 // TutorSearchSpecifications), con la misma semántica para ambas rutas.
-                Map<UUID, List<TutorSubject>> agrupados = new LinkedHashMap<>();
+                Map<UUID, List<TutorSubject>> groupedResults = new LinkedHashMap<>();
                 for (TutorSubject tutorSubject : subjectTutorRepository.findAll(subjectSpec)) {
                         TutorProfile tutorProfile = tutorSubject.getTutorProfile();
                         if (filters.hasAvailability()
                                         && !tutorHasAvailability(tutorProfile, filters.dayOfWeek())) {
                                 continue;
                         }
-                        agrupados.computeIfAbsent(tutorProfile.getUser().getUserId(), k -> new ArrayList<>())
+                        groupedResults.computeIfAbsent(tutorProfile.getUser().getUserId(), k -> new ArrayList<>())
                                         .add(tutorSubject);
                 }
 
@@ -188,7 +188,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 }
                         }
 
-                        agrupados.putIfAbsent(tutorProfile.getUser().getUserId(), subjects);
+                        groupedResults.putIfAbsent(tutorProfile.getUser().getUserId(), subjects);
                 }
 
                 return groupedResults.values()
