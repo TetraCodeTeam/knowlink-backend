@@ -8,12 +8,15 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
 import static org.springframework.http.HttpStatus.CREATED;
+import static org.springframework.http.HttpStatus.NO_CONTENT;
 import static org.springframework.http.HttpStatus.OK;
 
 @RequestMapping("/api/v1/auth")
@@ -35,4 +38,12 @@ public interface IAuthController {
     @ApiResponse(responseCode = "201", description = "Tutor registered successfully")
     @ResponseStatus(CREATED)
     void registerTutor(@RequestBody @Valid TutorRegistrationRequest request);
+
+    @PostMapping("/logout")
+    @Operation(summary = "Cerrar sesión", description = "Invalida el token JWT actual del usuario autenticado. "
+            + "Los tokens invalidados dejan de ser aceptados para requests posteriores.")
+    @ApiResponse(responseCode = "204", description = "Sesión cerrada correctamente")
+    @ApiResponse(responseCode = "401", description = "Token ausente, inválido o ya invalidado")
+    @ResponseStatus(NO_CONTENT)
+    void logout(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorization);
 }

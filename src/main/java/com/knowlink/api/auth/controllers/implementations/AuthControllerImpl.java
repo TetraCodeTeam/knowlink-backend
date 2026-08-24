@@ -29,4 +29,20 @@ public class AuthControllerImpl implements IAuthController {
     public void registerTutor(TutorRegistrationRequest request) {
         this.authService.registerTutor(request);
     }
+
+    @Override
+    public void logout(String authorization) {
+        String token = resolveBearerToken(authorization);
+        if (token == null) {
+            return;
+        }
+        this.authService.logout(token);
+    }
+
+    private String resolveBearerToken(String authorization) {
+        if (authorization == null || !authorization.startsWith("Bearer ")) {
+            return null;
+        }
+        return authorization.substring(7);
+    }
 }

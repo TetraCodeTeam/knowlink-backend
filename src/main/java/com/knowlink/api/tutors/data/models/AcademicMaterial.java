@@ -29,18 +29,31 @@ public class AcademicMaterial {
     @Column(name = "name", nullable = false)
     private String name;
 
+    @Column(name = "original_file_name")
+    private String originalFileName;
+
+    @Column(name = "storage_path", nullable = false)
+    private String storagePath;
+
     @Column(name = "file_url")
     private String fileUrl;
 
     @Column(name = "uploaded_at")
     private LocalDateTime uploadedAt;
 
-    @Column(name = "reports_count", nullable = false) 
+    @Column(name = "size_in_bytes")
+    private Long sizeInBytes;
+
+    @Column(name = "reports_count", nullable = false)
     @Builder.Default
     private Integer reportsCount = 0;
 
     @Column(name = "available", nullable = false)
     private boolean available;
+
+    @Column(name = "active", nullable = false)
+    @Builder.Default
+    private boolean active = true;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "material_type", nullable = false)

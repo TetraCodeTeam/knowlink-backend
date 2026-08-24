@@ -8,6 +8,7 @@ import com.knowlink.api.auth.services.interfaces.IAuthService;
 import com.knowlink.api.auth.validations.IAuthValidationService;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.security.services.JwtService;
+import com.knowlink.api.security.services.TokenBlacklistService;
 import com.knowlink.api.students.services.interfaces.IStudentProfileService;
 import com.knowlink.api.tutors.services.interfaces.ITutorProfileService;
 import com.knowlink.api.users.data.models.User;
@@ -17,6 +18,10 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -28,6 +33,7 @@ public class AuthServiceImpl implements IAuthService {
     private final IAuthValidationService authValidationService;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Override
     public AuthResponse login(LoginRequest request) {
@@ -54,6 +60,17 @@ public class AuthServiceImpl implements IAuthService {
     public void registerStudent(StudentRegistrationRequest request) {
         User student = userService.saveStudentUser(request);
         studentProfileService.createProfile(student, request);
+    }
+
+    @Override
+    public void logout(String token) {
+        String jti = jwtService.extractJti(token);
+        UUID userId = jwtService.extractUserId(token);
+        LocalDateTime expiresAt = jwtService.extractExpiration(token)
+                .toInstant()
+                .atZone(ZoneId.systemDefault())
+                .toLocalDateTime();
+        tokenBlacklistService.blacklist(jti, userId, expiresAt);
     }
 
     @Override

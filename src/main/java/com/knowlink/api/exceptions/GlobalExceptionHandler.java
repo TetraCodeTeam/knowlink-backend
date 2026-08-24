@@ -1,6 +1,10 @@
 package com.knowlink.api.exceptions;
 
 import com.knowlink.api.exceptions.custom_exceptions.*;
+import com.knowlink.api.recursos.exception.FormatNotAllowedException;
+import com.knowlink.api.recursos.exception.SinReservaActivaException;
+import com.knowlink.api.recursos.exception.SubjectNotAssociatedException;
+import io.jsonwebtoken.JwtException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -11,9 +15,11 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.LockedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.stream.Collectors;
 
@@ -42,6 +48,24 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
+    @ExceptionHandler(FormatNotAllowedException.class)
+    public ResponseEntity<ApiError> handleFormatNotAllowed(FormatNotAllowedException ex) {
+        ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(), ex.getMessage(), "FORMAT_NOT_ALLOWED");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(SubjectNotAssociatedException.class)
+    public ResponseEntity<ApiError> handleSubjectNotAssociated(SubjectNotAssociatedException ex) {
+        ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(), ex.getMessage(), "SUBJECT_NOT_ASSOCIATED");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(SinReservaActivaException.class)
+    public ResponseEntity<ApiError> handleSinReservaActiva(SinReservaActivaException ex) {
+        ApiError error = new ApiError(HttpStatus.FORBIDDEN.value(), ex.getMessage(), "NO_ACTIVE_RESERVATION");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+    }
+
     @ExceptionHandler(PasswordsDoNotMatchException.class)
     public ResponseEntity<ApiError> handlePasswordsDoNotMatch(PasswordsDoNotMatchException ex) {
         ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(), ex.getMessage(), "PASSWORDS_MISMATCH");
@@ -57,6 +81,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(TokenExpiredException.class)
     public ResponseEntity<ApiError> handleTokenExpired(TokenExpiredException ex) {
         ApiError error = new ApiError(HttpStatus.UNAUTHORIZED.value(), ex.getMessage(), "TOKEN_EXPIRED");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    }
+
+    @ExceptionHandler(JwtException.class)
+    public ResponseEntity<ApiError> handleJwt(JwtException ex) {
+        logger.warn("JWT error: {}", ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.UNAUTHORIZED.value(),
+                "Token inválido o expirado", "TOKEN_INVALID");
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
     }
 
@@ -105,6 +137,20 @@ public class GlobalExceptionHandler {
                 .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
                 .collect(Collectors.joining(", "));
         ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(), "Invalid parameters", detail);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiError> handleMissingParameter(MissingServletRequestParameterException ex) {
+        ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(),
+                "Parámetro faltante: " + ex.getParameterName(), "MISSING_PARAMETER");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiError> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(),
+                "El parámetro '" + ex.getName() + "' no tiene un valor válido.", "INVALID_PARAMETER");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 

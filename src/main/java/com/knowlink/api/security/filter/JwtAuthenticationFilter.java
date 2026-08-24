@@ -1,7 +1,8 @@
 package com.knowlink.api.security.filter;
 
 import com.knowlink.api.security.services.JwtService;
-import io.jsonwebtoken.ClaimJwtException;
+import com.knowlink.api.security.services.TokenBlacklistService;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,6 +34,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final UserDetailsService userDetailsService;
     private final PathMatcher pathMatcher;
     private final HandlerExceptionResolver handlerExceptionResolver;
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Override
     protected void doFilterInternal(
@@ -63,7 +65,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(userEmail);
-                if (jwtService.isTokenValid(jwt, userDetails)) {
+                final String jti = jwtService.extractJti(jwt);
+                final boolean isBlacklisted = jti != null && tokenBlacklistService.isBlacklisted(jti);
+                if (jwtService.isTokenValid(jwt, userDetails) && !isBlacklisted) {
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities()
                     );
@@ -73,7 +77,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             }
 
             filterChain.doFilter(request, response);
-        } catch (ClaimJwtException ex) {
+        } catch (JwtException ex) {
             handlerExceptionResolver.resolveException(request, response, null, ex);
         }
     }

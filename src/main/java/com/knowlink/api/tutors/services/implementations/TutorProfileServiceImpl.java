@@ -7,6 +7,9 @@ import com.knowlink.api.users.services.interfaces.IUserProfileLookupService;
 import com.knowlink.api.users.services.interfaces.IUserService;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
+import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
+import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
+import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.tutors.availability.controllers.responses.AvailabilityBlockResponse;
 import com.knowlink.api.tutors.availability.repositories.IAvailabilityBlockRepository;
 import com.knowlink.api.tutors.controllers.responses.*;
@@ -14,6 +17,7 @@ import com.knowlink.api.tutors.data.mappers.TutorProfileMapper;
 import com.knowlink.api.tutors.data.mappers.TutorSearchMapper;
 import com.knowlink.api.tutors.data.mappers.TutorSubjectMapper;
 import com.knowlink.api.tutors.data.models.*;
+import com.knowlink.api.tutors.data.specifications.TutorSearchSpecifications;
 import com.knowlink.api.tutors.repositories.*;
 import com.knowlink.api.tutors.services.interfaces.ICareerService;
 import com.knowlink.api.tutors.services.interfaces.ISubjectService;
@@ -22,9 +26,13 @@ import com.knowlink.api.tutors.services.interfaces.ITutorSubjectAssemblyService;
 import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
 import com.knowlink.api.users.data.models.User;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -119,14 +127,39 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
 
         @Override
         @Transactional(readOnly = true)
-        public List<TutorSearchResponse> searchTutor(String query, UUID studentUserId) {
+        public List<TutorSearchResponse> searchTutor(String query, UUID alumnoUserId, TutorSearchFilters filters) {
+                validateMinRating(filters.minRating());
 
-                List<TutorSubject> subjectMatches = tutorSubjectRepository
-                                .findBySubject_NameContainingIgnoreCase(query);
+                Specification<TutorSubject> subjectSpec = TutorSearchSpecifications.subjectNameContains(query);
+                if (filters.hasModality()) {
+                        subjectSpec = subjectSpec.and(TutorSearchSpecifications.modalityIn(filters.modality()));
+                }
+                if (filters.hasCompensation()) {
+                        subjectSpec = subjectSpec.and(TutorSearchSpecifications.compensationIn(filters.compensation()));
+                }
+                if (Boolean.TRUE.equals(filters.verifiedOnly())) {
+                        subjectSpec = subjectSpec.and(TutorSearchSpecifications.tutorVerified());
+                }
+                if (filters.hasMinRating()) {
+                        subjectSpec = subjectSpec.and(TutorSearchSpecifications.minAverageRating(filters.minRating()));
+                }
 
-                Map<UUID, List<TutorSubject>> groupedResults = subjectMatches.stream()
-                                .collect(Collectors.groupingBy(
-                                                tutorSubject -> tutorSubject.getTutorProfile().getUser().getUserId()));
+                // Tutores que matchean por materia: la query dinámica combina la búsqueda
+                // base de US-06A con los filtros presentes (AND). Los filtros de
+                // verified/minRating se evalúan contra el tutor de la materia matcheada,
+                // por lo que "verificado" cruza contra la materia buscada. La disponibilidad
+                // se filtra en memoria (DAYOFWEEK difiere entre MySQL y H2, ver
+                // TutorSearchSpecifications), con la misma semántica para ambas rutas.
+                Map<UUID, List<TutorSubject>> groupedResults = new LinkedHashMap<>();
+                for (TutorSubject tutorSubject : tutorSubjectRepository.findAll(subjectSpec)) {
+                        TutorProfile tutorProfile = tutorSubject.getTutorProfile();
+                        if (filters.hasAvailability()
+                                        && !tutorHasAvailability(tutorProfile, filters.dayOfWeek())) {
+                                continue;
+                        }
+                        groupedResults.computeIfAbsent(tutorProfile.getUser().getUserId(), k -> new ArrayList<>())
+                                        .add(tutorSubject);
+                }
 
                 List<TutorProfile> nameMatches = tutorProfileRepository
                                 .findByUser_FullNameContainingIgnoreCase(query);
@@ -135,13 +168,61 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                         if (tutorProfile.getSubjects().isEmpty()) {
                                 continue;
                         }
-                        groupedResults.putIfAbsent(tutorProfile.getUser().getUserId(), tutorProfile.getSubjects());
+                        if (Boolean.TRUE.equals(filters.verifiedOnly()) && !tutorProfile.isVerified()) {
+                                continue;
+                        }
+                        if (filters.hasMinRating()
+                                        && (tutorProfile.getAverageRating() == null
+                                                        || tutorProfile.getAverageRating() < filters.minRating())) {
+                                continue;
+                        }
+                        if (filters.hasAvailability()
+                                        && !tutorHasAvailability(tutorProfile, filters.dayOfWeek())) {
+                                continue;
+                        }
+
+                        List<TutorSubject> subjects = tutorProfile.getSubjects();
+                        if (filters.hasModality() || filters.hasCompensation()) {
+                                subjects = subjects.stream()
+                                                .filter(ts -> TutorSearchSpecifications.matchesModality(
+                                                                ts.getModality(), filters.modality()))
+                                                .filter(ts -> TutorSearchSpecifications.matchesCompensation(
+                                                                ts.getCompensationType(), filters.compensation()))
+                                                .toList();
+                                if (subjects.isEmpty()) {
+                                        continue;
+                                }
+                        }
+
+                        groupedResults.putIfAbsent(tutorProfile.getUser().getUserId(), subjects);
                 }
 
                 return groupedResults.values()
                                 .stream()
-                                .map(TutorSearchMapper::from)
+                                .map(subjects -> {
+                                        UUID tutorUserId = subjects.get(0).getTutorProfile().getUser().getUserId();
+                                        int totalReviews = ratingRepository.findVisibleByRatedUserId(tutorUserId).size();
+                                        return TutorSearchMapper.from(subjects, totalReviews);
+                                })
                                 .toList();
+        }
+
+        private boolean tutorHasAvailability(TutorProfile tutorProfile, DayOfWeek dayOfWeek) {
+                return availabilityBlockRepository.findAvailableByTutorProfileId(tutorProfile.getTutorProfileId())
+                                .stream()
+                                .anyMatch(block -> TutorSearchSpecifications.matchesAvailability(
+                                                block, dayOfWeek, null));
+        }
+
+        /**
+         * Estrategia definida para el edge case de calificacionMinima fuera de rango:
+         * se devuelve 400 (Bad Request), no se clampea al rango válido. Documentado
+         * también en Swagger.
+         */
+        private void validateMinRating(Double minRating) {
+                if (minRating != null && (minRating < 1 || minRating > 5)) {
+                        throw new ValidationException("La calificación mínima debe estar entre 1 y 5.");
+                }
         }
 
         @Override

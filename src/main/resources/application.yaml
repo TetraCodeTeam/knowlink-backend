@@ -20,8 +20,8 @@ spring:
 
   servlet:
     multipart:
-      max-file-size: 8MB
-      max-request-size: 40MB
+      max-file-size: 20MB
+      max-request-size: 20MB
 
   cache:
     type: caffeine
@@ -57,6 +57,10 @@ frontend:
 
 app:
   url: ${APP_URL}
+
+supabase:
+  url: ${SUPABASE_URL}
+  service-role-key: ${SUPABASE_SERVICE_ROLE_KEY}
 
 management:
   endpoints:
