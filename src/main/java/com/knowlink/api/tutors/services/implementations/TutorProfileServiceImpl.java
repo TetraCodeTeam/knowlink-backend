@@ -193,7 +193,11 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
 
                 return groupedResults.values()
                                 .stream()
-                                .map(TutorSearchMapper::from)
+                                .map(subjects -> {
+                                        UUID tutorUserId = subjects.get(0).getTutorProfile().getUser().getUserId();
+                                        int totalReviews = ratingRepository.findVisibleByRatedUserId(tutorUserId).size();
+                                        return TutorSearchMapper.from(subjects, totalReviews);
+                                })
                                 .toList();
         }
 

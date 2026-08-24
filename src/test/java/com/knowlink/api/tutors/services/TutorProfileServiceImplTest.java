@@ -122,6 +122,7 @@ class TutorProfileServiceImplTest {
                 .thenReturn(List.of(tutorSubject("Ana García", "Álgebra", "Ingeniería en Sistemas")));
         when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("Algebra"))
                 .thenReturn(List.of());
+        when(ratingRepository.findVisibleByRatedUserId(any())).thenReturn(List.of());
 
         List<TutorSearchResponse> result = service.searchTutor("Algebra", UUID.randomUUID(), NO_FILTERS);
 
@@ -140,6 +141,7 @@ class TutorProfileServiceImplTest {
                 .thenReturn(List.of());
         when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("Ana"))
                 .thenReturn(List.of(tutorProfile("Ana García", "Ingeniería en Sistemas", List.of("Álgebra"))));
+        when(ratingRepository.findVisibleByRatedUserId(any())).thenReturn(List.of());
 
         List<TutorSearchResponse> result = service.searchTutor("Ana", UUID.randomUUID(), NO_FILTERS);
 
@@ -158,6 +160,7 @@ class TutorProfileServiceImplTest {
                 .thenReturn(List.of(bySubject));
         when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("Ana"))
                 .thenReturn(List.of(byName));
+        when(ratingRepository.findVisibleByRatedUserId(any())).thenReturn(List.of());
 
         List<TutorSearchResponse> result = service.searchTutor("Ana", UUID.randomUUID(), NO_FILTERS);
 
@@ -201,6 +204,7 @@ class TutorProfileServiceImplTest {
                 .thenReturn(List.of(tutorSubject("Ana Garc\u00eda", "\u00c1lgebra", "Ingenier\u00eda en Sistemas")));
         when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("algebra"))
                 .thenReturn(List.of());
+        when(ratingRepository.findVisibleByRatedUserId(any())).thenReturn(List.of());
 
         List<TutorSearchResponse> result = service.searchTutor("algebra", UUID.randomUUID(), NO_FILTERS);
 
@@ -235,11 +239,30 @@ class TutorProfileServiceImplTest {
                 .thenReturn(List.of(algebra, fisica));
         when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("a"))
                 .thenReturn(List.of());
+        when(ratingRepository.findVisibleByRatedUserId(any())).thenReturn(List.of());
 
         List<TutorSearchResponse> result = service.searchTutor("a", UUID.randomUUID(), NO_FILTERS);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).subjects()).extracting(SubjectSummary::name)
                 .containsExactlyInAnyOrder("\u00c1lgebra", "F\u00edsica");
+    }
+
+    @Test
+    @DisplayName("CP-003.08 - totalReviews refleja la cantidad real de reseñas visibles del tutor")
+    void searchTutor_totalReviewsComesFromVisibleRatings() {
+        when(subjectTutorRepository.findAll(any(Specification.class)))
+                .thenReturn(List.of(tutorSubject("Ana García", "Álgebra", "Ingeniería en Sistemas")));
+        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("Algebra"))
+                .thenReturn(List.of());
+        when(ratingRepository.findVisibleByRatedUserId(tutorUserId))
+                .thenReturn(List.of(
+                        com.knowlink.api.tutors.data.models.Rating.builder().build(),
+                        com.knowlink.api.tutors.data.models.Rating.builder().build()));
+
+        List<TutorSearchResponse> result = service.searchTutor("Algebra", UUID.randomUUID(), NO_FILTERS);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).totalReviews()).isEqualTo(2);
     }
 }

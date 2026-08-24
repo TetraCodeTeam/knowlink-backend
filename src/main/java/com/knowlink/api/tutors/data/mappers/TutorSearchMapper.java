@@ -14,21 +14,21 @@ public final class TutorSearchMapper {
     private TutorSearchMapper() {
     }
 
-    public static TutorSearchResponse from(List<TutorSubject> TutorSubjectList) {
+    public static TutorSearchResponse from(List<TutorSubject> tutorSubjectList, int totalReviews) {
 
-        if (TutorSubjectList == null || TutorSubjectList.isEmpty()) {
+        if (tutorSubjectList == null || tutorSubjectList.isEmpty()) {
             throw new IllegalArgumentException("La lista de materias del tutor no puede estar vacía.");
         }
 
-        TutorProfile tutorProfile = TutorSubjectList.get(0).getTutorProfile();
+        TutorProfile tutorProfile = tutorSubjectList.get(0).getTutorProfile();
 
         return new TutorSearchResponse(
                 tutorProfile.getUser().getUserId(),
                 tutorProfile.getUser().getFullName(),
                 tutorProfile.getProfilePictureUrl(),
                 tutorProfile.getAverageRating(),
-                4, // o getTotalReviews() según tu entidad
-                TutorSubjectList.stream()
+                totalReviews,
+                tutorSubjectList.stream()
                         .map(mt -> new SubjectSummary(
                                 mt.getSubject().getName(),
                                 mt.getSubject().getCareer().getName()))
