@@ -49,6 +49,6 @@ public interface IStudentController {
     @ResponseStatus(OK)
     @PreAuthorize("hasRole('STUDENT')")
     ActivateTutorRoleResponse activateTutorRole(
-            @RequestBody @Valid ActivateTutorRoleRequest request,
+            @RequestBody(required = false) @Valid ActivateTutorRoleRequest request,
             @AuthenticationPrincipal UserPrincipal principal);
 }
