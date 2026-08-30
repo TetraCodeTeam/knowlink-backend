@@ -11,6 +11,7 @@ public record TutorProfileResponse(
         String biography,
         String career,
         String profilePictureUrl,
+        String address,
         boolean verified,
         Double averageRating,
         List<TutorSubjectResponse> subjects,

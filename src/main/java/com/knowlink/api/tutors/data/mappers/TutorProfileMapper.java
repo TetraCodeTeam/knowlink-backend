@@ -95,6 +95,7 @@ public class TutorProfileMapper {
                 tutorProfile.getBiography(),
                 tutorProfile.getCareer().getName(),
                 tutorProfile.getProfilePictureUrl(),
+                tutorProfile.getAddress(),
                 tutorProfile.isVerified(),
                 tutorProfile.getAverageRating(),
                 subjectResponses,
