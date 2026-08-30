@@ -43,7 +43,7 @@ public interface IStudentController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Rol tutor activado"),
-            @ApiResponse(responseCode = "400", description = "Sin perfil de tutor previo"),
+            @ApiResponse(responseCode = "400", description = "Materias requeridas en la primera activación"),
             @ApiResponse(responseCode = "403", description = "Acceso denegado")
     })
     @ResponseStatus(OK)
