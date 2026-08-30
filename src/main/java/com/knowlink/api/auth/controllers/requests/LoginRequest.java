@@ -1,5 +1,6 @@
 package com.knowlink.api.auth.controllers.requests;
 
+import com.knowlink.api.security.enums.Role;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
@@ -9,5 +10,7 @@ public record LoginRequest(
         String email,
 
         @NotBlank(message = "La contraseña es requerida")
-        String password
+        String password,
+
+        Role targetRole
 ) {}

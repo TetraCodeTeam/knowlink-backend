@@ -34,6 +34,6 @@ public class UserNotificationListener {
     @Async("taskExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handlePasswordReset(PasswordResetRequestedEvent event) {
-        emailService.sendResetPasswordEmail(event.user().getEmail(), event.tokenId());
+        emailService.sendResetPasswordEmail(event.user(), event.tokenId());
     }
 }

@@ -1,6 +1,5 @@
 package com.knowlink.api.recursos.services;
 
-import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.recursos.dto.MaterialUploadRequest;
 import com.knowlink.api.recursos.exception.FormatNotAllowedException;

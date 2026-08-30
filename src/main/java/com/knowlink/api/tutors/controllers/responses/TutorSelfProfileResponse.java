@@ -14,5 +14,6 @@ public record TutorSelfProfileResponse(
         String address,
         boolean mercadoPagoLinked,
         Double averageRating,
+        boolean hasStudentProfile,
         List<TutorSubjectResponse> subjects
 ) {}

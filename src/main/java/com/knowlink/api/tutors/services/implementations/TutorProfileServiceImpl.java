@@ -1,9 +1,12 @@
 package com.knowlink.api.tutors.services.implementations;
 
+import com.knowlink.api.security.enums.Role;
+import com.knowlink.api.security.services.JwtService;
+import com.knowlink.api.students.services.interfaces.IStudentProfileService;
+import com.knowlink.api.users.services.interfaces.IUserProfileLookupService;
+import com.knowlink.api.users.services.interfaces.IUserService;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
-import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
-import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.tutors.availability.controllers.responses.AvailabilityBlockResponse;
 import com.knowlink.api.tutors.availability.repositories.IAvailabilityBlockRepository;
@@ -17,6 +20,7 @@ import com.knowlink.api.tutors.repositories.*;
 import com.knowlink.api.tutors.services.interfaces.ICareerService;
 import com.knowlink.api.tutors.services.interfaces.ISubjectService;
 import com.knowlink.api.tutors.services.interfaces.ITutorProfileService;
+import com.knowlink.api.tutors.services.interfaces.ITutorSubjectAssemblyService;
 import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
 import com.knowlink.api.users.data.models.User;
 import lombok.RequiredArgsConstructor;
@@ -45,7 +49,11 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         private final ITutorProfileValidationService tutorProfileValidationService;
         private final TutorProfileMapper tutorProfileMapper;
         private final TutorSubjectMapper tutorSubjectMapper;
-        private final ITutorSubjectRepository subjectTutorRepository;
+        private final ITutorSubjectAssemblyService tutorSubjectAssemblyService;
+        private final IStudentProfileService studentProfileService;
+        private final IUserService userService;
+        private final JwtService jwtService;
+        private final IUserProfileLookupService userProfileLookupService;
 
         @Override
         @Transactional(readOnly = true)
@@ -78,22 +86,17 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         }
 
         @Override
+        @Transactional
         public TutorProfile createProfile(User user, TutorRegistrationRequest request) {
                 tutorProfileValidationService.ifTutorProfileAlreadyExistsThrowException(user);
 
                 Career career = careerService.findByNameOrThrowException(request.career());
-
                 TutorProfile tutorProfile = tutorProfileMapper.toEntity(user, career, request);
 
-                List<TutorSubject> tutorSubjects = request.subjects().stream()
-                                .map(subjectRequest -> {
-                                        Subject subject = subjectService.findByNameAndCareerOrThrowException(
-                                                        subjectRequest.subjectName(), career);
-                                        return tutorSubjectMapper.toEntity(subjectRequest, tutorProfile, subject);
-                                })
-                                .toList();
+                tutorProfile.getSubjects().addAll(
+                                tutorSubjectAssemblyService.buildTutorSubjects(tutorProfile, career,
+                                                request.subjects()));
 
-                tutorProfile.getSubjects().addAll(tutorSubjects);
                 return tutorProfileRepository.save(tutorProfile);
         }
 
@@ -101,7 +104,8 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         @Transactional(readOnly = true)
         public TutorSelfProfileResponse getSelfProfile(UUID tutorUserId) {
                 TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
-                return tutorProfileMapper.toSelfProfileResponse(tutorProfile);
+                boolean hasStudentProfile = userProfileLookupService.hasStudentProfile(tutorUserId);
+                return tutorProfileMapper.toSelfProfileResponse(tutorProfile, hasStudentProfile);
         }
 
         @Override
@@ -145,7 +149,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                 // se filtra en memoria (DAYOFWEEK difiere entre MySQL y H2, ver
                 // TutorSearchSpecifications), con la misma semántica para ambas rutas.
                 Map<UUID, List<TutorSubject>> groupedResults = new LinkedHashMap<>();
-                for (TutorSubject tutorSubject : subjectTutorRepository.findAll(subjectSpec)) {
+                for (TutorSubject tutorSubject : tutorSubjectRepository.findAll(subjectSpec)) {
                         TutorProfile tutorProfile = tutorSubject.getTutorProfile();
                         if (filters.hasAvailability()
                                         && !tutorHasAvailability(tutorProfile, filters.dayOfWeek())) {
@@ -224,6 +228,8 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         public TutorSubjectResponse createTutorSubject(UUID tutorUserId, TutorSubjectRequest request) {
                 TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
 
+                tutorProfileValidationService.ifPaidSubjectHasInvalidPriceThrowException(request);
+
                 Subject subject = subjectService.findByNameAndCareerOrThrowException(
                                 request.subjectName(), tutorProfile.getCareer());
 
@@ -233,5 +239,18 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                 TutorSubject saved = tutorSubjectRepository.save(tutorSubject);
 
                 return tutorProfileMapper.toSubjectResponse(saved);
+        }
+
+        @Override
+        @Transactional
+        public ActivateStudentRoleResponse activateStudentRole(UUID tutorUserId) {
+                TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
+                User user = tutorProfile.getUser();
+
+                studentProfileService.createProfileFromTutorData(user, tutorProfile);
+
+                user = userService.updateUserRole(tutorUserId, Role.STUDENT);
+
+                return new ActivateStudentRoleResponse(jwtService.generateToken(user));
         }
 }

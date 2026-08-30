@@ -3,6 +3,7 @@ package com.knowlink.api.tutors.controllers.interfaces;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.tutors.controllers.requests.UpdateMinNoticeMinutesRequest;
+import com.knowlink.api.tutors.controllers.responses.ActivateStudentRoleResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSubjectResponse;
@@ -118,4 +119,18 @@ public interface ITutorController {
         @Operation(summary = "Obtener la antelación mínima (en minutos) configurada por el tutor autenticado")
         @ResponseStatus(OK)
         UpdateMinNoticeMinutesRequest getMinNoticeMinutes(@AuthenticationPrincipal UserPrincipal principal);
+
+        @PostMapping("/me/activate-student-role")
+        @Operation(
+                summary = "Activar rol alumno",
+                description = "Crea el perfil de alumno si no existe y cambia el rol activo a STUDENT. Devuelve un nuevo JWT con rol STUDENT."
+        )
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Rol alumno activado"),
+                        @ApiResponse(responseCode = "400", description = "Datos inválidos"),
+                        @ApiResponse(responseCode = "403", description = "Acceso denegado")
+        })
+        @ResponseStatus(OK)
+        @PreAuthorize("hasRole('TUTOR')")
+        ActivateStudentRoleResponse activateStudentRole(@AuthenticationPrincipal UserPrincipal principal);
 }
