@@ -1,6 +1,8 @@
 package com.knowlink.api.tutors.data.mappers;
 
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
+import com.knowlink.api.students.controllers.requests.ActivateTutorRoleRequest;
+import com.knowlink.api.students.data.models.StudentProfile;
 import com.knowlink.api.tutors.availability.controllers.responses.AvailabilityBlockResponse;
 import com.knowlink.api.tutors.availability.data.models.AvailabilityBlock;
 import com.knowlink.api.tutors.controllers.responses.TutorMaterialResponse;
@@ -28,6 +30,19 @@ public class TutorProfileMapper {
                 .biography(request.biography())
                 .profilePictureUrl(request.profilePictureUrl())
                 .institutionalId(request.institutionalId())
+                .address(request.address())
+                .mercadoPagoLinked(false)
+                .build();
+    }
+
+    public TutorProfile toEntityFromStudentActivation(User user, StudentProfile studentProfile,
+            ActivateTutorRoleRequest request) {
+        return TutorProfile.builder()
+                .user(user)
+                .career(studentProfile.getCareer())
+                .profilePictureUrl(studentProfile.getProfilePictureUrl())
+                .institutionalId(studentProfile.getInstitutionalId())
+                .biography(request.biography())
                 .address(request.address())
                 .mercadoPagoLinked(false)
                 .build();
@@ -88,7 +103,7 @@ public class TutorProfileMapper {
                 materialResponses);
     }
 
-    public TutorSelfProfileResponse toSelfProfileResponse(TutorProfile tutorProfile) {
+    public TutorSelfProfileResponse toSelfProfileResponse(TutorProfile tutorProfile, boolean hasStudentProfile) {
         List<TutorSubjectResponse> subjects = tutorProfile.getSubjects().stream()
                 .map(this::toSubjectResponse)
                 .toList();
@@ -104,6 +119,7 @@ public class TutorProfileMapper {
                 tutorProfile.getAddress(),
                 tutorProfile.isMercadoPagoLinked(),
                 tutorProfile.getAverageRating(),
+                hasStudentProfile,
                 subjects);
     }
 }

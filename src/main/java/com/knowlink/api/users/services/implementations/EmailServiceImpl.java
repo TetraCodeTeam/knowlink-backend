@@ -36,9 +36,9 @@ public class EmailServiceImpl implements IEmailService {
     }
 
     @Override
-    public void sendResetPasswordEmail(String email, UUID token) {
-        String htmlContent = emailBuilder.buildResetPassword(email, token);
-        sendEmail(email, "Restablecé tu contraseña ✔", htmlContent);
+    public void sendResetPasswordEmail(User user, UUID token) {
+        String htmlContent = emailBuilder.buildResetPassword(user, token);
+        sendEmail(user.getEmail(), "Restablecé tu contraseña ✔", htmlContent);
     }
 
     private void sendEmail(String to, String subject, String htmlContent) {

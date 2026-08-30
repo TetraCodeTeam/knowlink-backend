@@ -10,5 +10,5 @@ public interface IEmailService {
 
     void sendResendConfirmAccountEmail(User user, UUID token);
 
-    void sendResetPasswordEmail(String email, UUID token);
+    void sendResetPasswordEmail(User user, UUID token);
 }

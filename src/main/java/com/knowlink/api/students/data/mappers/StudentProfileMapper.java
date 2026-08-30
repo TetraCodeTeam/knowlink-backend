@@ -4,6 +4,7 @@ import com.knowlink.api.auth.controllers.requests.StudentRegistrationRequest;
 import com.knowlink.api.students.controllers.responses.StudentSelfProfileResponse;
 import com.knowlink.api.students.data.models.StudentProfile;
 import com.knowlink.api.tutors.data.models.Career;
+import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.users.data.models.User;
 import org.springframework.stereotype.Component;
 
@@ -16,6 +17,15 @@ public class StudentProfileMapper {
                 .career(career)
                 .profilePictureUrl(request.profilePictureUrl())
                 .institutionalId(request.institutionalId())
+                .build();
+    }
+
+    public StudentProfile toEntityFromTutorProfile(User user, TutorProfile tutorProfile) {
+        return StudentProfile.builder()
+                .user(user)
+                .career(tutorProfile.getCareer())
+                .profilePictureUrl(tutorProfile.getProfilePictureUrl())
+                .institutionalId(tutorProfile.getInstitutionalId())
                 .build();
     }
 
