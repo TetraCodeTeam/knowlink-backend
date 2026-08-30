@@ -1,6 +1,6 @@
 package com.knowlink.api.tutors.availability.data.enums;
 
-import com.knowlink.api.tutors.data.enums.BookingStatus;
+import com.knowlink.api.bookings.data.enums.BookingStatus;
 
 import java.util.Arrays;
 import java.util.List;
