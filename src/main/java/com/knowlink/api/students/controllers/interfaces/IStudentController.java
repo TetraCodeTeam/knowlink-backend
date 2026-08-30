@@ -43,12 +43,12 @@ public interface IStudentController {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "Rol tutor activado"),
-            @ApiResponse(responseCode = "400", description = "Sin perfil de tutor previo"),
+            @ApiResponse(responseCode = "400", description = "Materias requeridas en la primera activación"),
             @ApiResponse(responseCode = "403", description = "Acceso denegado")
     })
     @ResponseStatus(OK)
     @PreAuthorize("hasRole('STUDENT')")
     ActivateTutorRoleResponse activateTutorRole(
-            @RequestBody @Valid ActivateTutorRoleRequest request,
+            @RequestBody(required = false) @Valid ActivateTutorRoleRequest request,
             @AuthenticationPrincipal UserPrincipal principal);
 }
