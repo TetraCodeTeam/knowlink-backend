@@ -16,11 +16,14 @@ public final class ReservationWindowUtil {
     // Mismo criterio que getReservationWindows() del frontend: ventanas de 1h,
     // en pasos de 30 min, dentro del rango del bloque.
     public static List<LocalTime[]> getWindows(LocalTime blockStart, LocalTime blockEnd) {
+        if (blockStart == null || blockEnd == null || !blockEnd.isAfter(blockStart)) {
+            return List.of();
+        }
         List<LocalTime[]> windows = new ArrayList<>();
         LocalTime windowStart = blockStart;
 
         while (!windowStart.plus(WINDOW_DURATION).isAfter(blockEnd)) {
-            windows.add(new LocalTime[]{windowStart, windowStart.plus(WINDOW_DURATION)});
+            windows.add(new LocalTime[] { windowStart, windowStart.plus(WINDOW_DURATION) });
             windowStart = windowStart.plus(STEP);
         }
 
