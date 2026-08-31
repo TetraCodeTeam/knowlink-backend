@@ -1,6 +1,7 @@
 package com.knowlink.api.bookings.validations;
 
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
+import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.timeslot.data.models.TimeSlot;
 import com.knowlink.api.bookings.data.models.Hold;
 import com.knowlink.api.bookings.repositories.IHoldRepository;
@@ -50,7 +51,7 @@ public class HoldValidationServiceImpl implements IHoldValidationService {
         }
 
         LocalDateTime sessionStart = LocalDateTime.of(timeSlot.getDate(), startTime);
-        if (sessionStart.isBefore(LocalDateTime.now().plusMinutes(minNoticeMinutes))) {
+        if (sessionStart.isBefore(LocalDateTime.now(AppTimeZone.ZONE).plusMinutes(minNoticeMinutes))) {
             double hours = minNoticeMinutes / 60.0;
             String hoursLabel = hours == Math.floor(hours) ? String.valueOf((int) hours) : String.valueOf(hours);
             throw new ValidationException(
@@ -65,7 +66,8 @@ public class HoldValidationServiceImpl implements IHoldValidationService {
             throw new ValidationException("Este horario ya fue seleccionado por otro alumno.");
         }
 
-        List<Booking> overlappingBookings = bookingRepository.findActiveByTimeSlotId(timeSlotId, BookingStatusGroups.ACTIVE)
+        List<Booking> overlappingBookings = bookingRepository
+                .findActiveByTimeSlotId(timeSlotId, BookingStatusGroups.ACTIVE)
                 .stream()
                 .filter(b -> startTime.isBefore(b.getEndTime()) && endTime.isAfter(b.getStartTime()))
                 .toList();
@@ -77,7 +79,7 @@ public class HoldValidationServiceImpl implements IHoldValidationService {
 
     @Override
     public void validateSingleActiveHold(User student) {
-        if (holdRepository.existsByStudent_UserId(student.getUserId())) {
+        if (holdRepository.existsActiveHoldForStudent(student.getUserId(), LocalDateTime.now(AppTimeZone.ZONE))) {
             throw new ValidationException(
                     "Ya tenés una selección de horario en curso. Completá o cancelá esa reserva antes de elegir otra.");
         }

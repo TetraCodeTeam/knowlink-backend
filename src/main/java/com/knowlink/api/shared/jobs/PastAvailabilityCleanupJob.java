@@ -1,5 +1,6 @@
 package com.knowlink.api.shared.jobs;
 
+import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.timeslot.repositories.ITimeSlotRepository;
 import com.knowlink.api.tutors.availability.repositories.IAvailabilityBlockRepository;
 
@@ -20,7 +21,7 @@ public class PastAvailabilityCleanupJob {
     @Scheduled(cron = "0 0 3 * * *") // una vez al día, sin urgencia de tiempo real
     @Transactional
     public void cleanupPastAvailability() {
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(AppTimeZone.ZONE);
         timeSlotRepository.deletePastUnbooked(now.toLocalDate(), now.toLocalTime());
         availabilityBlockRepository.deletePastOrphaned(now.toLocalDate(), now.toLocalTime());
     }

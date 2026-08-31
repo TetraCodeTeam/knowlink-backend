@@ -63,7 +63,7 @@ public class BookingServiceImpl implements IBookingService {
                                                 "No active hold for student " + studentUserId + " on timeSlot "
                                                                 + timeSlotId));
 
-                if (hold.getExpiresAt().isBefore(LocalDateTime.now())) {
+                if (hold.getExpiresAt().isBefore(LocalDateTime.now(AppTimeZone.ZONE))) {
                         holdRepository.delete(hold);
                         throw new ValidationException(
                                         "Tu tiempo para completar la reserva expiró. Elegí un horario nuevamente.");

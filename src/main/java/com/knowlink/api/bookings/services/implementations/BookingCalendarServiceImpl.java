@@ -10,6 +10,7 @@ import com.knowlink.api.bookings.repositories.IBookingRepository;
 import com.knowlink.api.bookings.repositories.IHoldRepository;
 import com.knowlink.api.bookings.services.interfaces.IBookingCalendarService;
 import com.knowlink.api.bookings.utils.ReservationWindowUtil;
+import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.shared.utils.PastTimeUtil;
 import com.knowlink.api.timeslot.data.models.TimeSlot;
 import com.knowlink.api.timeslot.repositories.ITimeSlotRepository;
@@ -45,7 +46,7 @@ public class BookingCalendarServiceImpl implements IBookingCalendarService {
     public BookingCalendarResponse getCalendar(UUID tutorUserId, LocalDate from, LocalDate to) {
         TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
         UUID tutorProfileId = tutorProfile.getTutorProfileId();
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(AppTimeZone.ZONE);
 
         List<TimeSlot> timeSlots = timeSlotRepository.findInRange(
                 tutorProfileId, from, to, now.toLocalDate(), now.toLocalTime());

@@ -70,7 +70,7 @@ public class HoldServiceImpl implements IHoldService {
                 .student(student)
                 .startTime(startTime)
                 .endTime(endTime)
-                .expiresAt(LocalDateTime.now().plusMinutes(BookingConstants.HOLD_MINUTES))
+                .expiresAt(LocalDateTime.now(AppTimeZone.ZONE).plusMinutes(BookingConstants.HOLD_MINUTES))
                 .build();
 
         holdRepository.save(hold);
@@ -102,7 +102,7 @@ public class HoldServiceImpl implements IHoldService {
     @Override
     @Transactional
     public void expireOverdueHolds() {
-        List<Hold> expired = holdRepository.findExpired(LocalDateTime.now());
+        List<Hold> expired = holdRepository.findExpired(LocalDateTime.now(AppTimeZone.ZONE));
 
         for (Hold expiredHold : expired) {
             // Vuelve a leer con lock, por si otra transacción (createBooking) ya la está
