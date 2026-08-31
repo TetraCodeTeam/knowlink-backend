@@ -6,6 +6,7 @@ import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
 import com.knowlink.api.auth.controllers.responses.AuthResponse;
 import com.knowlink.api.auth.services.interfaces.IAuthService;
 import com.knowlink.api.auth.validations.IAuthValidationService;
+import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.security.services.JwtService;
 import com.knowlink.api.security.services.TokenBlacklistService;
@@ -20,7 +21,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.UUID;
 
 @Service
@@ -68,7 +68,7 @@ public class AuthServiceImpl implements IAuthService {
         UUID userId = jwtService.extractUserId(token);
         LocalDateTime expiresAt = jwtService.extractExpiration(token)
                 .toInstant()
-                .atZone(ZoneId.systemDefault())
+                .atZone(AppTimeZone.ZONE)
                 .toLocalDateTime();
         tokenBlacklistService.blacklist(jti, userId, expiresAt);
     }

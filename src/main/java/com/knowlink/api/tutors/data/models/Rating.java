@@ -6,6 +6,7 @@ import lombok.*;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.users.data.models.User;
 
 @Entity

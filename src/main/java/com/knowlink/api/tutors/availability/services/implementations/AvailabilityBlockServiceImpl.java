@@ -5,6 +5,8 @@ import com.knowlink.api.tutors.availability.controllers.responses.AvailabilityBl
 import com.knowlink.api.tutors.availability.data.mappers.AvailabilityBlockMapper;
 import com.knowlink.api.tutors.availability.data.models.AvailabilityBlock;
 import com.knowlink.api.tutors.availability.data.models.AvailabilityWeekCustomization;
+import com.knowlink.api.shared.utils.PastTimeUtil;
+import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.timeslot.data.mappers.TimeSlotGenerator;
 import com.knowlink.api.timeslot.data.models.TimeSlot;
 import com.knowlink.api.timeslot.repositories.ITimeSlotRepository;
@@ -21,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -55,7 +58,7 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
         boolean anyRepeat = blocks.stream().anyMatch(request -> Boolean.TRUE.equals(request.repeatWeekly()));
 
         List<Integer> protectedWeekOffsets = anyRepeat
-                ? clearNonProtectedFutureWeeks(tutorUserId,tutorProfileId, weekStart, weekEnd)
+                ? clearNonProtectedFutureWeeks(tutorUserId, tutorProfileId, weekStart, weekEnd)
                 : List.of();
 
         timeSlotRepository.deleteAvailableInRange(tutorProfileId, weekStart, weekEnd);
@@ -71,13 +74,11 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
 
         markWeekAsCustomized(tutorProfile, weekStart);
 
-        return availabilityBlockRepository.findInRange(tutorProfileId, weekStart, weekEnd)
-                .stream()
-                .map(availabilityBlockMapper::toResponse)
-                .toList();
+        return findResponsesInRange(tutorProfileId, weekStart, weekEnd);
     }
 
-    private List<Integer> clearNonProtectedFutureWeeks(UUID tutorUserId, UUID tutorProfileId, LocalDate weekStart, LocalDate weekEnd) {
+    private List<Integer> clearNonProtectedFutureWeeks(
+            UUID tutorUserId, UUID tutorProfileId, LocalDate weekStart, LocalDate weekEnd) {
         List<Integer> protectedWeekOffsets = new ArrayList<>();
 
         for (int i = 1; i <= AvailabilityConstants.REPEAT_WEEKS_AHEAD; i++) {
@@ -93,7 +94,7 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
             }
 
             availabilityBlockValidationService.validateNoActiveBookingsInRange(
-                tutorUserId, futureWeekStart, futureWeekEnd);
+                    tutorUserId, futureWeekStart, futureWeekEnd);
 
             timeSlotRepository.deleteAvailableInRange(tutorProfileId, futureWeekStart, futureWeekEnd);
             availabilityBlockRepository.deleteInRange(tutorProfileId, futureWeekStart, futureWeekEnd);
@@ -157,10 +158,20 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
     @Transactional(readOnly = true)
     public List<AvailabilityBlockResponse> getBlocksInRange(UUID tutorUserId, LocalDate from, LocalDate to) {
         TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
+        return findResponsesInRange(tutorProfile.getTutorProfileId(), from, to);
+    }
 
-        return availabilityBlockRepository.findInRange(tutorProfile.getTutorProfileId(), from, to)
+    // Centraliza la lectura + truncado de bloques pasados, para no repetir el
+    // mismo patrón (now, filtro por fecha/hora, effectiveStartTime) en los dos
+    // lugares que devuelven el calendario: acá y al final de replaceWeekBlocks.
+    private List<AvailabilityBlockResponse> findResponsesInRange(UUID tutorProfileId, LocalDate from, LocalDate to) {
+        LocalDateTime now = LocalDateTime.now(AppTimeZone.ZONE);
+
+        return availabilityBlockRepository
+                .findInRange(tutorProfileId, from, to, now.toLocalDate(), now.toLocalTime())
                 .stream()
-                .map(availabilityBlockMapper::toResponse)
+                .map(block -> availabilityBlockMapper.toResponse(
+                        block, PastTimeUtil.effectiveStartTime(block.getDate(), block.getStartTime(), now)))
                 .toList();
     }
 }

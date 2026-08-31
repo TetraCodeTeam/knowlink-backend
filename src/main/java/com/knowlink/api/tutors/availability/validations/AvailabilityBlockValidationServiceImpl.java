@@ -3,7 +3,7 @@ package com.knowlink.api.tutors.availability.validations;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.tutors.availability.controllers.requests.AvailabilityBlockRequest;
 import com.knowlink.api.tutors.availability.data.enums.BookingStatusGroups;
-import com.knowlink.api.tutors.repositories.IBookingRepository;
+import com.knowlink.api.bookings.repositories.IBookingRepository;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;

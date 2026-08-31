@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 import com.knowlink.api.tutors.availability.data.models.AvailabilityBlock;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -17,12 +18,15 @@ public interface IAvailabilityBlockRepository extends JpaRepository<Availability
                         SELECT ab FROM AvailabilityBlock ab
                         WHERE ab.tutorProfile.tutorProfileId = :tutorProfileId
                         AND ab.date BETWEEN :from AND :to
+                        AND (ab.date > :today OR (ab.date = :today AND ab.endTime > :nowTime))
                         ORDER BY ab.date, ab.startTime
                         """)
         List<AvailabilityBlock> findInRange(
                         @Param("tutorProfileId") UUID tutorProfileId,
                         @Param("from") LocalDate from,
-                        @Param("to") LocalDate to);
+                        @Param("to") LocalDate to,
+                        @Param("today") LocalDate today,
+                        @Param("nowTime") LocalTime nowTime);
 
         @Modifying(clearAutomatically = true)
         @Query("""
@@ -53,4 +57,12 @@ public interface IAvailabilityBlockRepository extends JpaRepository<Availability
                         """)
         List<AvailabilityBlock> findAvailableByTutorProfileId(
                         @Param("tutorProfileId") UUID tutorProfileId);
+
+        @Modifying(clearAutomatically = true)
+        @Query("""
+                        DELETE FROM AvailabilityBlock ab
+                        WHERE (ab.date < :today OR (ab.date = :today AND ab.endTime <= :nowTime))
+                        AND NOT EXISTS (SELECT 1 FROM TimeSlot ts WHERE ts.assignedBlock = ab)
+                        """)
+        void deletePastOrphaned(@Param("today") LocalDate today, @Param("nowTime") LocalTime nowTime);
 }
