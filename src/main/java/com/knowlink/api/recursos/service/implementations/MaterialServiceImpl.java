@@ -99,20 +99,24 @@ public class MaterialServiceImpl implements IMaterialService {
     @Override
     @Transactional(readOnly = true)
     public List<MaterialResponse> listBySubject(UUID subjectId, UUID userId, String role) {
+        List<AcademicMaterial> materials = materialRepository.findActiveBySubjectId(subjectId);
+
         if (role.equals(Role.STUDENT.name())) {
             if (!reservationService.tieneAlgunaReservaEnMateria(userId, subjectId)) {
                 throw new SinReservaActivaException("El alumno no tiene reserva activa con este tutor");
             }
-        }
 
-        List<AcademicMaterial> materials = materialRepository.findActiveBySubjectId(subjectId);
-
-        if (role.equals(Role.STUDENT.name())) {
             materials = materials.stream()
                     .filter(m -> {
                         UUID tutorUserId = m.getTutorSubject().getTutorProfile().getUser().getUserId();
                         return reservationService.tieneReservaConTutorEnMateria(userId, tutorUserId, subjectId);
                     })
+                    .toList();
+        } else if (role.equals(Role.TUTOR.name())) {
+            // Un tutor solo ve el material que él mismo cargó para esta materia,
+            // no el de otros tutores que también la dictan.
+            materials = materials.stream()
+                    .filter(m -> m.getTutorSubject().getTutorProfile().getUser().getUserId().equals(userId))
                     .toList();
         }
 
