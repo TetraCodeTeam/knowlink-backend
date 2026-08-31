@@ -11,11 +11,11 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import static org.springframework.http.HttpStatus.OK;
 
 @RequestMapping("/api/v1/bookings/config")
-@Tag(name = "Reservas", description = "Configuración pública del módulo de reservas")
+@Tag(name = "Reservas", description = "Configuración del módulo de reservas")
 public interface IBookingConfigController {
 
     @GetMapping
-    @Operation(summary = "Obtener parámetros públicos de configuración de reservas (ej. tarifa de servicio)")
+    @Operation(summary = "Obtener parámetros de configuración de reservas (ej. tarifa de servicio)")
     @ResponseStatus(OK)
     BookingConfigResponse getConfig();
 }

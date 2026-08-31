@@ -4,6 +4,8 @@ import com.knowlink.api.events.services.BookingEventPublisher;
 import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
@@ -23,6 +25,11 @@ public class BookingEventsController {
 
     @GetMapping(path = "/events", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     @Operation(summary = "Suscribirse a los cambios en tiempo real del calendario de un tutor")
+    @ApiResponses({
+             @ApiResponse(responseCode = "200", description = "Suscripción SSE iniciada"),
+             @ApiResponse(responseCode = "403", description = "Acceso denegado"),
+             @ApiResponse(responseCode = "404", description = "Tutor no encontrado")
+     })
     public SseEmitter subscribe(@PathVariable UUID tutorId) {
         var tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorId);
         return eventPublisher.subscribe(tutorProfile.getTutorProfileId());

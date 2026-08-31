@@ -3,6 +3,8 @@ package com.knowlink.api.bookings.controllers.interfaces;
 import com.knowlink.api.bookings.controllers.responses.BookingCalendarResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,10 +24,14 @@ public interface IBookingCalendarController {
 
     @GetMapping
     @Operation(summary = "Obtener los horarios reservables de un tutor en un rango de fechas")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Calendario obtenido"),
+            @ApiResponse(responseCode = "400", description = "Parámetros inválidos"),
+            @ApiResponse(responseCode = "404", description = "Tutor no encontrado")
+    })
     @ResponseStatus(OK)
     BookingCalendarResponse getCalendar(
             @PathVariable UUID tutorId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
-    );
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to);
 }
