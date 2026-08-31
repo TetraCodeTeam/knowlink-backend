@@ -1,6 +1,7 @@
 package com.knowlink.api.bookings.validations;
 
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
+import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.timeslot.data.models.TimeSlot;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.tutors.data.enums.Modality;
@@ -61,7 +62,7 @@ public class BookingValidationServiceImpl implements IBookingValidationService {
         }
 
         LocalDateTime sessionStart = LocalDateTime.of(timeSlot.getDate(), startTime);
-        LocalDateTime earliestBookable = LocalDateTime.now().plusMinutes(minNoticeMinutes);
+        LocalDateTime earliestBookable = LocalDateTime.now(AppTimeZone.ZONE).plusMinutes(minNoticeMinutes);
 
         if (sessionStart.isBefore(earliestBookable)) {
             double hours = minNoticeMinutes / 60.0;

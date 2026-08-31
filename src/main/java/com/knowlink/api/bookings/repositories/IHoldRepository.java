@@ -74,4 +74,14 @@ public interface IHoldRepository extends JpaRepository<Hold, UUID> {
                         @Param("tutorProfileId") UUID tutorProfileId,
                         @Param("from") LocalDate from,
                         @Param("to") LocalDate to);
+
+        @Query("""
+                        SELECT CASE WHEN COUNT(h) > 0 THEN true ELSE false END
+                        FROM Hold h
+                        WHERE h.student.userId = :studentUserId
+                        AND h.expiresAt > :now
+                        """)
+        boolean existsActiveHoldForStudent(
+                        @Param("studentUserId") UUID studentUserId,
+                        @Param("now") LocalDateTime now);
 }
