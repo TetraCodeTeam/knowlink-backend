@@ -1,8 +1,10 @@
 package com.knowlink.api.recursos.controller.implementations;
 
 import com.knowlink.api.recursos.controller.interfaces.IMaterialController;
+import com.knowlink.api.recursos.dto.AccessCheckResponse;
 import com.knowlink.api.recursos.dto.MaterialResponse;
 import com.knowlink.api.recursos.dto.MaterialUploadRequest;
+import com.knowlink.api.recursos.service.interfaces.IMaterialAccessService;
 import com.knowlink.api.recursos.service.interfaces.IMaterialService;
 import com.knowlink.api.security.models.UserPrincipal;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +23,7 @@ import java.util.UUID;
 public class MaterialControllerImpl implements IMaterialController {
 
     private final IMaterialService materialService;
+    private final IMaterialAccessService materialAccessService;
 
     @Override
     @PreAuthorize("hasRole('TUTOR')")
@@ -66,5 +69,33 @@ public class MaterialControllerImpl implements IMaterialController {
 
         String signedUrl = materialService.getDownloadUrl(id, userId, role);
         return ResponseEntity.ok(signedUrl);
+    }
+
+    @Override
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<AccessCheckResponse> checkAccess(
+            @PathVariable UUID tutorId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        UserPrincipal principal = (UserPrincipal) userDetails;
+        UUID studentId = principal.getUser().getUserId();
+
+        boolean accesoHabilitado = materialAccessService.tieneAcceso(studentId, tutorId);
+        return ResponseEntity.ok(new AccessCheckResponse(accesoHabilitado));
+    }
+
+    @Override
+    @PreAuthorize("hasRole('STUDENT')")
+    public ResponseEntity<List<MaterialResponse>> listAccessibleMaterials(
+            @PathVariable UUID tutorId,
+            @RequestParam(required = false) UUID subjectId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+
+        UserPrincipal principal = (UserPrincipal) userDetails;
+        UUID studentId = principal.getUser().getUserId();
+
+        List<MaterialResponse> materials = materialAccessService
+                .listarMaterialesAccesibles(studentId, tutorId, subjectId);
+        return ResponseEntity.ok(materials);
     }
 }

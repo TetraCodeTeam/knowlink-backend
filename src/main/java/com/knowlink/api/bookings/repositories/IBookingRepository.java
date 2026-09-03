@@ -60,4 +60,14 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
                         @Param("from") LocalDate from,
                         @Param("to") LocalDate to,
                         @Param("activeStatuses") List<BookingStatus> activeStatuses);
+
+        @Query("""
+                        SELECT DISTINCT b.tutorSubject.subject.subjectId FROM Booking b
+                        WHERE b.student.userId = :studentId
+                        AND b.tutor.userId = :tutorUserId
+                        AND b.bookingStatus = com.knowlink.api.bookings.data.enums.BookingStatus.COMPLETED
+                        """)
+        List<UUID> findCompletedSubjectIdsByStudentAndTutor(
+                        @Param("studentId") UUID studentId,
+                        @Param("tutorUserId") UUID tutorUserId);
 }
