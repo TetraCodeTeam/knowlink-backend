@@ -4,10 +4,13 @@ import com.knowlink.api.bookings.data.enums.CancellationRole;
 import com.knowlink.api.bookings.data.enums.RefundDestination;
 import com.knowlink.api.bookings.data.enums.RefundPolicy;
 
+import org.springframework.stereotype.Component;
+
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
+@Component
 public class RefundPolicyCalculator {
 
     private static final long UMBRAL_HORAS = 12;
