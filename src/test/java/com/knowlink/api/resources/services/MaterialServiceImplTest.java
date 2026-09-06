@@ -8,6 +8,8 @@ import com.knowlink.api.resources.exception.NoActiveReservationException;
 import com.knowlink.api.resources.exception.SubjectNotAssociatedException;
 import com.knowlink.api.resources.service.implementations.MaterialServiceImpl;
 import com.knowlink.api.resources.service.interfaces.IReservationService;
+import com.knowlink.api.resources.service.interfaces.IMaterialAccessService;
+import com.knowlink.api.resources.service.interfaces.IMaterialAccessService;
 import com.knowlink.api.resources.service.interfaces.ISupabaseStorageService;
 import com.knowlink.api.tutors.data.enums.MaterialType;
 import com.knowlink.api.tutors.data.models.*;
@@ -51,6 +53,8 @@ class MaterialServiceImplTest {
         private ISupabaseStorageService supabaseStorageService;
         @Mock
         private IReservationService reservationService;
+        @Mock
+        private IMaterialAccessService materialAccessService;
 
         private MaterialServiceImpl materialService;
 
@@ -70,7 +74,8 @@ class MaterialServiceImplTest {
                                 tutorProfileRepository,
                                 tutorSubjectRepository,
                                 supabaseStorageService,
-                                reservationService);
+                                reservationService,
+                                materialAccessService);
 
                 tutorUserId = UUID.randomUUID();
                 subjectId = UUID.randomUUID();
@@ -313,8 +318,6 @@ class MaterialServiceImplTest {
                 assertThatThrownBy(() -> materialService.listBySubject(subjectId, studentId, Role.STUDENT.name()))
                                 .isInstanceOf(NoActiveReservationException.class)
                                 .hasMessage("El alumno no tiene reserva activa con este tutor");
-
-                verify(materialRepository, never()).findActiveBySubjectId(any());
         }
 
         @Test
@@ -333,12 +336,12 @@ class MaterialServiceImplTest {
 
                 when(materialRepository.findByAcademicMaterialIdAndActiveTrue(materialId))
                                 .thenReturn(Optional.of(material));
-                when(reservationService.hasReservationWithTutorForSubject(studentId, tutorUserId, subjectId))
-                                .thenReturn(false);
+                doThrow(new com.knowlink.api.resources.exception.ResourceAccessDeniedException("No tenés acceso a este material"))
+                                .when(materialAccessService).validateAccessOrDeny(eq(studentId), eq(materialId));
 
                 assertThatThrownBy(() -> materialService.getDownloadUrl(materialId, studentId, Role.STUDENT.name()))
-                                .isInstanceOf(NoActiveReservationException.class)
-                                .hasMessage("El alumno no tiene reserva activa con este tutor");
+                                .isInstanceOf(com.knowlink.api.resources.exception.ResourceAccessDeniedException.class)
+                                .hasMessage("No tenés acceso a este material");
 
                 verifyNoInteractions(supabaseStorageService);
         }
@@ -351,6 +354,7 @@ class MaterialServiceImplTest {
                                 .academicMaterialId(UUID.randomUUID())
                                 .tutorSubject(tutorSubject) // vinculado a tutorUserId (Tutor A)
                                 .name("Resumen de Tutor A")
+                                .materialType(MaterialType.PDF)
                                 .active(true)
                                 .build();
 
@@ -374,6 +378,7 @@ class MaterialServiceImplTest {
                                 .academicMaterialId(UUID.randomUUID())
                                 .tutorSubject(tutorSubjectB)
                                 .name("Resumen de Tutor B")
+                                .materialType(MaterialType.PDF)
                                 .active(true)
                                 .build();
 

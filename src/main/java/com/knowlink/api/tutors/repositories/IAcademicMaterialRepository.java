@@ -18,4 +18,12 @@ public interface IAcademicMaterialRepository extends JpaRepository<AcademicMater
     List<AcademicMaterial> findActiveBySubjectId(@Param("subjectId") UUID subjectId);
 
     Optional<AcademicMaterial> findByAcademicMaterialIdAndActiveTrue(UUID id);
+
+    @Query("SELECT m FROM AcademicMaterial m " +
+           "WHERE m.tutorSubject.tutorProfile.user.userId = :tutorUserId " +
+           "AND m.tutorSubject.subject.subjectId IN :subjectIds " +
+           "AND m.active = true AND m.available = true")
+    List<AcademicMaterial> findAccessibleByTutorAndSubjectIds(
+            @Param("tutorUserId") UUID tutorUserId,
+            @Param("subjectIds") List<UUID> subjectIds);
 }

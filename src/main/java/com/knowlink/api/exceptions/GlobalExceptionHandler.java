@@ -4,6 +4,7 @@ import com.knowlink.api.exceptions.custom_exceptions.*;
 import com.knowlink.api.resources.exception.FormatNotAllowedException;
 import com.knowlink.api.resources.exception.NoActiveReservationException;
 import com.knowlink.api.resources.exception.SubjectNotAssociatedException;
+import com.knowlink.api.resources.exception.ResourceAccessDeniedException;
 import io.jsonwebtoken.JwtException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,6 +64,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(NoActiveReservationException.class)
     public ResponseEntity<ApiError> handleNoActiveReservation(NoActiveReservationException ex) {
         ApiError error = new ApiError(HttpStatus.FORBIDDEN.value(), ex.getMessage(), "NO_ACTIVE_RESERVATION");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+    }
+
+    @ExceptionHandler(ResourceAccessDeniedException.class)
+    public ResponseEntity<ApiError> handleResourceAccessDenied(ResourceAccessDeniedException ex) {
+        logger.warn(ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.FORBIDDEN.value(), ex.getMessage(), "ACCESS_DENIED");
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
     }
 

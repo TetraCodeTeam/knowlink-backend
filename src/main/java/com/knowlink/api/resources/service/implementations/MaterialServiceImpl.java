@@ -7,6 +7,7 @@ import com.knowlink.api.resources.dto.MaterialUploadRequest;
 import com.knowlink.api.resources.exception.FormatNotAllowedException;
 import com.knowlink.api.resources.exception.NoActiveReservationException;
 import com.knowlink.api.resources.exception.SubjectNotAssociatedException;
+import com.knowlink.api.resources.service.interfaces.IMaterialAccessService;
 import com.knowlink.api.resources.service.interfaces.IMaterialService;
 import com.knowlink.api.resources.service.interfaces.IReservationService;
 import com.knowlink.api.resources.service.interfaces.ISupabaseStorageService;
@@ -51,6 +52,7 @@ public class MaterialServiceImpl implements IMaterialService {
     private final ITutorSubjectRepository tutorSubjectRepository;
     private final ISupabaseStorageService supabaseStorageService;
     private final IReservationService reservationService;
+    private final IMaterialAccessService materialAccessService;
 
     @Override
     @Transactional
@@ -136,9 +138,7 @@ public class MaterialServiceImpl implements IMaterialService {
         UUID tutorUserId = material.getTutorSubject().getTutorProfile().getUser().getUserId();
 
         if (role.equals(Role.STUDENT.name())) {
-            if (!reservationService.hasReservationWithTutorForSubject(userId, tutorUserId, subjectId)) {
-                throw new NoActiveReservationException("El alumno no tiene reserva activa con este tutor");
-            }
+            materialAccessService.validateAccessOrDeny(userId, materialId);
         }
 
         return supabaseStorageService.generateSignedUrl(material.getStoragePath(), 3600);
