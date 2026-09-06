@@ -1,5 +1,6 @@
 package com.knowlink.api.recursos.controller.interfaces;
 
+import com.knowlink.api.recursos.dto.AccessCheckResponse;
 import com.knowlink.api.recursos.dto.MaterialResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -46,5 +47,23 @@ public interface IMaterialController {
     @GetMapping("/{id}/download")
     ResponseEntity<String> download(
             @Parameter(description = "Material ID") @PathVariable UUID id,
+            @AuthenticationPrincipal UserDetails userDetails);
+
+    @Operation(summary = "Check material access for student",
+               description = "Returns whether the student has access to tutor's materials based on completed sessions")
+    @ApiResponse(responseCode = "200", description = "Access status returned")
+    @GetMapping("/tutores/{tutorId}/acceso")
+    ResponseEntity<AccessCheckResponse> checkAccess(
+            @Parameter(description = "Tutor user ID") @PathVariable UUID tutorId,
+            @AuthenticationPrincipal UserDetails userDetails);
+
+    @Operation(summary = "List accessible materials for student",
+               description = "List materials from tutor where student has completed sessions, optionally filtered by subject")
+    @ApiResponse(responseCode = "200", description = "Materials retrieved successfully")
+    @ApiResponse(responseCode = "403", description = "Access denied")
+    @GetMapping("/tutores/{tutorId}/materiales")
+    ResponseEntity<List<MaterialResponse>> listAccessibleMaterials(
+            @Parameter(description = "Tutor user ID") @PathVariable UUID tutorId,
+            @Parameter(description = "Subject ID filter (optional)") @RequestParam(required = false) UUID subjectId,
             @AuthenticationPrincipal UserDetails userDetails);
 }

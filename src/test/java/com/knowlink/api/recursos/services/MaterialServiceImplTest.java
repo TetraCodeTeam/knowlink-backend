@@ -7,6 +7,7 @@ import com.knowlink.api.recursos.exception.FormatNotAllowedException;
 import com.knowlink.api.recursos.exception.SinReservaActivaException;
 import com.knowlink.api.recursos.exception.SubjectNotAssociatedException;
 import com.knowlink.api.recursos.service.implementations.MaterialServiceImpl;
+import com.knowlink.api.recursos.service.interfaces.IMaterialAccessService;
 import com.knowlink.api.recursos.service.interfaces.IReservationService;
 import com.knowlink.api.recursos.service.interfaces.ISupabaseStorageService;
 import com.knowlink.api.tutors.data.enums.MaterialType;
@@ -51,6 +52,8 @@ class MaterialServiceImplTest {
         private ISupabaseStorageService supabaseStorageService;
         @Mock
         private IReservationService reservationService;
+        @Mock
+        private IMaterialAccessService materialAccessService;
 
         private MaterialServiceImpl materialService;
 
@@ -70,7 +73,8 @@ class MaterialServiceImplTest {
                                 tutorProfileRepository,
                                 tutorSubjectRepository,
                                 supabaseStorageService,
-                                reservationService);
+                                reservationService,
+                                materialAccessService);
 
                 tutorUserId = UUID.randomUUID();
                 subjectId = UUID.randomUUID();
