@@ -1,14 +1,14 @@
-package com.knowlink.api.recursos.services;
+package com.knowlink.api.resources.services;
 
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
-import com.knowlink.api.recursos.dto.MaterialResponse;
-import com.knowlink.api.recursos.dto.MaterialUploadRequest;
-import com.knowlink.api.recursos.exception.FormatNotAllowedException;
-import com.knowlink.api.recursos.exception.SinReservaActivaException;
-import com.knowlink.api.recursos.exception.SubjectNotAssociatedException;
-import com.knowlink.api.recursos.service.implementations.MaterialServiceImpl;
-import com.knowlink.api.recursos.service.interfaces.IReservationService;
-import com.knowlink.api.recursos.service.interfaces.ISupabaseStorageService;
+import com.knowlink.api.resources.dto.MaterialResponse;
+import com.knowlink.api.resources.dto.MaterialUploadRequest;
+import com.knowlink.api.resources.exception.FormatNotAllowedException;
+import com.knowlink.api.resources.exception.NoActiveReservationException;
+import com.knowlink.api.resources.exception.SubjectNotAssociatedException;
+import com.knowlink.api.resources.service.implementations.MaterialServiceImpl;
+import com.knowlink.api.resources.service.interfaces.IReservationService;
+import com.knowlink.api.resources.service.interfaces.ISupabaseStorageService;
 import com.knowlink.api.tutors.data.enums.MaterialType;
 import com.knowlink.api.tutors.data.models.*;
 import com.knowlink.api.tutors.repositories.IAcademicMaterialRepository;
@@ -305,21 +305,21 @@ class MaterialServiceImplTest {
         // ==================== AC2 — Reserva validation ====================
 
         @Test
-        @DisplayName("AC2: student without any reservation gets SinReservaActivaException on listBySubject")
-        void listByStudentWithoutReservation_throwsSinReservaActivaException() {
+        @DisplayName("AC2: student without any reservation gets NoActiveReservationException on listBySubject")
+        void listByStudentWithoutReservation_throwsNoActiveReservationException() {
                 UUID studentId = UUID.randomUUID();
-                when(reservationService.tieneAlgunaReservaEnMateria(studentId, subjectId)).thenReturn(false);
+                when(reservationService.hasAnyReservationForSubject(studentId, subjectId)).thenReturn(false);
 
                 assertThatThrownBy(() -> materialService.listBySubject(subjectId, studentId, Role.STUDENT.name()))
-                                .isInstanceOf(SinReservaActivaException.class)
+                                .isInstanceOf(NoActiveReservationException.class)
                                 .hasMessage("El alumno no tiene reserva activa con este tutor");
 
                 verify(materialRepository, never()).findActiveBySubjectId(any());
         }
 
         @Test
-        @DisplayName("AC2: student without reservation for specific tutor gets SinReservaActivaException on download")
-        void downloadByStudentWithoutReservation_throwsSinReservaActivaException() {
+        @DisplayName("AC2: student without reservation for specific tutor gets NoActiveReservationException on download")
+        void downloadByStudentWithoutReservation_throwsNoActiveReservationException() {
                 UUID studentId = UUID.randomUUID();
                 UUID materialId = UUID.randomUUID();
 
@@ -333,11 +333,11 @@ class MaterialServiceImplTest {
 
                 when(materialRepository.findByAcademicMaterialIdAndActiveTrue(materialId))
                                 .thenReturn(Optional.of(material));
-                when(reservationService.tieneReservaConTutorEnMateria(studentId, tutorUserId, subjectId))
+                when(reservationService.hasReservationWithTutorForSubject(studentId, tutorUserId, subjectId))
                                 .thenReturn(false);
 
                 assertThatThrownBy(() -> materialService.getDownloadUrl(materialId, studentId, Role.STUDENT.name()))
-                                .isInstanceOf(SinReservaActivaException.class)
+                                .isInstanceOf(NoActiveReservationException.class)
                                 .hasMessage("El alumno no tiene reserva activa con este tutor");
 
                 verifyNoInteractions(supabaseStorageService);

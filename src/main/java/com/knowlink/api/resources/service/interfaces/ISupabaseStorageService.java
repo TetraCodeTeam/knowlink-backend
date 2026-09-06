@@ -1,4 +1,4 @@
-package com.knowlink.api.recursos.service.interfaces;
+package com.knowlink.api.resources.service.interfaces;
 
 import org.springframework.web.multipart.MultipartFile;
 

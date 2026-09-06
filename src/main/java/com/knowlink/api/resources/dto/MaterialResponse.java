@@ -1,4 +1,4 @@
-package com.knowlink.api.recursos.dto;
+package com.knowlink.api.resources.dto;
 
 import java.time.LocalDateTime;
 import java.util.UUID;

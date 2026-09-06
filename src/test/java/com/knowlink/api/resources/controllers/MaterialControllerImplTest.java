@@ -1,6 +1,6 @@
-package com.knowlink.api.recursos.controllers;
+package com.knowlink.api.resources.controllers;
 
-import com.knowlink.api.recursos.service.interfaces.IReservationService;
+import com.knowlink.api.resources.service.interfaces.IReservationService;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.tutors.data.enums.CompensationType;
@@ -240,7 +240,7 @@ class MaterialControllerImplTest {
     @Test
     @DisplayName("AC2: student without any reservation gets 403 on listBySubject")
     void studentWithoutReservation_gets403OnList() throws Exception {
-        when(reservationService.tieneAlgunaReservaEnMateria(any(UUID.class), any(UUID.class)))
+        when(reservationService.hasAnyReservationForSubject(any(UUID.class), any(UUID.class)))
                 .thenReturn(false);
 
         mockMvc.perform(get("/api/v1/materials")
@@ -253,7 +253,7 @@ class MaterialControllerImplTest {
     @Test
     @DisplayName("AC2: student without reservation gets 403 on download")
     void studentWithoutReservation_gets403OnDownload() throws Exception {
-        when(reservationService.tieneReservaConTutorEnMateria(any(UUID.class), any(UUID.class), any(UUID.class)))
+        when(reservationService.hasReservationWithTutorForSubject(any(UUID.class), any(UUID.class), any(UUID.class)))
                 .thenReturn(false);
 
         mockMvc.perform(get("/api/v1/materials/" + existingMaterial.getAcademicMaterialId() + "/download")

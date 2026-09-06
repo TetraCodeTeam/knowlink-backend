@@ -125,7 +125,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
 
         @Override
         @Transactional(readOnly = true)
-        public List<TutorSearchResponse> searchTutor(String query, UUID alumnoUserId, TutorSearchFilters filters) {
+        public List<TutorSearchResponse> searchTutor(String query, UUID studentUserId, TutorSearchFilters filters) {
                 validateMinRating(filters.minRating());
 
                 Specification<TutorSubject> subjectSpec = TutorSearchSpecifications.subjectNameContains(query);

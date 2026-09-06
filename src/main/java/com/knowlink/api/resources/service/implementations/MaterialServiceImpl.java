@@ -1,15 +1,15 @@
-package com.knowlink.api.recursos.service.implementations;
+package com.knowlink.api.resources.service.implementations;
 
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
-import com.knowlink.api.recursos.dto.MaterialResponse;
-import com.knowlink.api.recursos.dto.MaterialUploadRequest;
-import com.knowlink.api.recursos.exception.FormatNotAllowedException;
-import com.knowlink.api.recursos.exception.SinReservaActivaException;
-import com.knowlink.api.recursos.exception.SubjectNotAssociatedException;
-import com.knowlink.api.recursos.service.interfaces.IMaterialService;
-import com.knowlink.api.recursos.service.interfaces.IReservationService;
-import com.knowlink.api.recursos.service.interfaces.ISupabaseStorageService;
+import com.knowlink.api.resources.dto.MaterialResponse;
+import com.knowlink.api.resources.dto.MaterialUploadRequest;
+import com.knowlink.api.resources.exception.FormatNotAllowedException;
+import com.knowlink.api.resources.exception.NoActiveReservationException;
+import com.knowlink.api.resources.exception.SubjectNotAssociatedException;
+import com.knowlink.api.resources.service.interfaces.IMaterialService;
+import com.knowlink.api.resources.service.interfaces.IReservationService;
+import com.knowlink.api.resources.service.interfaces.ISupabaseStorageService;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.tutors.data.enums.MaterialType;
 import com.knowlink.api.tutors.data.enums.CompensationType;
@@ -102,14 +102,14 @@ public class MaterialServiceImpl implements IMaterialService {
         List<AcademicMaterial> materials = materialRepository.findActiveBySubjectId(subjectId);
 
         if (role.equals(Role.STUDENT.name())) {
-            if (!reservationService.tieneAlgunaReservaEnMateria(userId, subjectId)) {
-                throw new SinReservaActivaException("El alumno no tiene reserva activa con este tutor");
+            if (!reservationService.hasAnyReservationForSubject(userId, subjectId)) {
+                throw new NoActiveReservationException("El alumno no tiene reserva activa con este tutor");
             }
 
             materials = materials.stream()
                     .filter(m -> {
                         UUID tutorUserId = m.getTutorSubject().getTutorProfile().getUser().getUserId();
-                        return reservationService.tieneReservaConTutorEnMateria(userId, tutorUserId, subjectId);
+                        return reservationService.hasReservationWithTutorForSubject(userId, tutorUserId, subjectId);
                     })
                     .toList();
         } else if (role.equals(Role.TUTOR.name())) {
@@ -136,8 +136,8 @@ public class MaterialServiceImpl implements IMaterialService {
         UUID tutorUserId = material.getTutorSubject().getTutorProfile().getUser().getUserId();
 
         if (role.equals(Role.STUDENT.name())) {
-            if (!reservationService.tieneReservaConTutorEnMateria(userId, tutorUserId, subjectId)) {
-                throw new SinReservaActivaException("El alumno no tiene reserva activa con este tutor");
+            if (!reservationService.hasReservationWithTutorForSubject(userId, tutorUserId, subjectId)) {
+                throw new NoActiveReservationException("El alumno no tiene reserva activa con este tutor");
             }
         }
 

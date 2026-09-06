@@ -1,9 +1,9 @@
-package com.knowlink.api.recursos.controller.implementations;
+package com.knowlink.api.resources.controller.implementations;
 
-import com.knowlink.api.recursos.controller.interfaces.IMaterialController;
-import com.knowlink.api.recursos.dto.MaterialResponse;
-import com.knowlink.api.recursos.dto.MaterialUploadRequest;
-import com.knowlink.api.recursos.service.interfaces.IMaterialService;
+import com.knowlink.api.resources.controller.interfaces.IMaterialController;
+import com.knowlink.api.resources.dto.MaterialResponse;
+import com.knowlink.api.resources.dto.MaterialUploadRequest;
+import com.knowlink.api.resources.service.interfaces.IMaterialService;
 import com.knowlink.api.security.models.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

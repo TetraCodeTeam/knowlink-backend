@@ -1,4 +1,4 @@
-package com.knowlink.api.recursos.dto;
+package com.knowlink.api.resources.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;

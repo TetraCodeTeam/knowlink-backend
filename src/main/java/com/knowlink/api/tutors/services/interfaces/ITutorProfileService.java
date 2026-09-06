@@ -18,7 +18,7 @@ public interface ITutorProfileService {
 
     TutorProfile createProfile(User user, TutorRegistrationRequest request);
 
-    TutorProfileResponse getTutorProfile(UUID tutorUserId, UUID alumnoUserId);
+    TutorProfileResponse getTutorProfile(UUID tutorUserId, UUID studentUserId);
 
     TutorSelfProfileResponse getSelfProfile(UUID tutorUserId);
 
@@ -26,7 +26,7 @@ public interface ITutorProfileService {
 
     Integer getMinNoticeMinutes(UUID tutorUserId);
 
-    List<TutorSearchResponse> searchTutor(String query, UUID alumnoUserId, TutorSearchFilters filters);
+    List<TutorSearchResponse> searchTutor(String query, UUID studentUserId, TutorSearchFilters filters);
 
     TutorSubjectResponse createTutorSubject(UUID tutorUserId, TutorSubjectRequest request);
 

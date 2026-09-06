@@ -1,9 +1,9 @@
 package com.knowlink.api.exceptions;
 
 import com.knowlink.api.exceptions.custom_exceptions.*;
-import com.knowlink.api.recursos.exception.FormatNotAllowedException;
-import com.knowlink.api.recursos.exception.SinReservaActivaException;
-import com.knowlink.api.recursos.exception.SubjectNotAssociatedException;
+import com.knowlink.api.resources.exception.FormatNotAllowedException;
+import com.knowlink.api.resources.exception.NoActiveReservationException;
+import com.knowlink.api.resources.exception.SubjectNotAssociatedException;
 import io.jsonwebtoken.JwtException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,8 +60,8 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
-    @ExceptionHandler(SinReservaActivaException.class)
-    public ResponseEntity<ApiError> handleSinReservaActiva(SinReservaActivaException ex) {
+    @ExceptionHandler(NoActiveReservationException.class)
+    public ResponseEntity<ApiError> handleNoActiveReservation(NoActiveReservationException ex) {
         ApiError error = new ApiError(HttpStatus.FORBIDDEN.value(), ex.getMessage(), "NO_ACTIVE_RESERVATION");
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
     }

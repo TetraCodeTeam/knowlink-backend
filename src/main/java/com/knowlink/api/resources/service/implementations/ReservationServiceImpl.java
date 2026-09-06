@@ -1,6 +1,6 @@
-package com.knowlink.api.recursos.service.implementations;
+package com.knowlink.api.resources.service.implementations;
 
-import com.knowlink.api.recursos.service.interfaces.IReservationService;
+import com.knowlink.api.resources.service.interfaces.IReservationService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
@@ -21,15 +21,15 @@ public class ReservationServiceImpl implements IReservationService {
 
     // TODO(US-26): Implement real reservation check using BookingRepository
     @Override
-    public boolean tieneAlgunaReservaEnMateria(UUID usuarioId, UUID materiaId) {
-        log.warn("ReservationService.tieneAlgunaReservaEnMateria stub called - TODO(US-26) implement real check");
+    public boolean hasAnyReservationForSubject(UUID userId, UUID subjectId) {
+        log.warn("ReservationService.hasAnyReservationForSubject stub called - TODO(US-26) implement real check");
         return true;
     }
 
     // TODO(US-26): Implement real reservation check using BookingRepository
     @Override
-    public boolean tieneReservaConTutorEnMateria(UUID usuarioId, UUID tutorId, UUID materiaId) {
-        log.warn("ReservationService.tieneReservaConTutorEnMateria stub called - TODO(US-26) implement real check");
+    public boolean hasReservationWithTutorForSubject(UUID userId, UUID tutorId, UUID subjectId) {
+        log.warn("ReservationService.hasReservationWithTutorForSubject stub called - TODO(US-26) implement real check");
         return true;
     }
 }

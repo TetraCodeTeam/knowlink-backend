@@ -1,7 +1,7 @@
-package com.knowlink.api.recursos.service.interfaces;
+package com.knowlink.api.resources.service.interfaces;
 
-import com.knowlink.api.recursos.dto.MaterialResponse;
-import com.knowlink.api.recursos.dto.MaterialUploadRequest;
+import com.knowlink.api.resources.dto.MaterialResponse;
+import com.knowlink.api.resources.dto.MaterialUploadRequest;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;

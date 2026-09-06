@@ -1,6 +1,6 @@
-package com.knowlink.api.recursos.controller.interfaces;
+package com.knowlink.api.resources.controller.interfaces;
 
-import com.knowlink.api.recursos.dto.MaterialResponse;
+import com.knowlink.api.resources.dto.MaterialResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;

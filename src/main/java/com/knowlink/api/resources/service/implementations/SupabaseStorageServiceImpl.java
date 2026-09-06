@@ -1,6 +1,6 @@
-package com.knowlink.api.recursos.service.implementations;
+package com.knowlink.api.resources.service.implementations;
 
-import com.knowlink.api.recursos.service.interfaces.ISupabaseStorageService;
+import com.knowlink.api.resources.service.interfaces.ISupabaseStorageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -16,7 +16,7 @@ import java.util.UUID;
 @Slf4j
 public class SupabaseStorageServiceImpl implements ISupabaseStorageService {
 
-    private static final String BUCKET = "materiales";
+    private static final String BUCKET = "materials";
 
     @Value("${supabase.url}")
     private String supabaseUrl;
