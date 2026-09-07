@@ -7,6 +7,7 @@ import com.knowlink.api.students.controllers.responses.StudentSelfProfileRespons
 import com.knowlink.api.students.data.models.StudentProfile;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.users.data.models.User;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
@@ -14,6 +15,10 @@ public interface IStudentProfileService {
     StudentProfile createProfile(User user, StudentRegistrationRequest request);
 
     StudentSelfProfileResponse getSelfProfile(UUID userId);
+
+    StudentSelfProfileResponse uploadProfilePicture(UUID userId, MultipartFile file);
+
+    void syncProfilePicture(UUID userId, String profilePictureUrl);
 
     StudentProfile createProfileFromTutorData(User user, TutorProfile tutorProfile);
 

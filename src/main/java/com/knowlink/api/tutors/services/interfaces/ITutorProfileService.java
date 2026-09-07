@@ -13,6 +13,7 @@ import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.data.models.TutorSearchFilters;
 import com.knowlink.api.tutors.data.models.TutorSearchResponse;
 import com.knowlink.api.users.data.models.User;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface ITutorProfileService {
 
@@ -21,6 +22,8 @@ public interface ITutorProfileService {
     TutorProfileResponse getTutorProfile(UUID tutorUserId, UUID studentUserId);
 
     TutorSelfProfileResponse getSelfProfile(UUID tutorUserId);
+
+    TutorSelfProfileResponse uploadProfilePicture(UUID tutorUserId, MultipartFile file);
 
     void updateMinNoticeMinutes(UUID tutorUserId, Integer minNoticeMinutes);
 

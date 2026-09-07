@@ -3,6 +3,7 @@ package com.knowlink.api.students.services.implementations;
 import com.knowlink.api.auth.controllers.requests.StudentRegistrationRequest;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
+import com.knowlink.api.resources.service.interfaces.IProfileImageService;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.security.services.JwtService;
 import com.knowlink.api.students.controllers.requests.ActivateTutorRoleRequest;
@@ -26,6 +27,7 @@ import com.knowlink.api.users.services.interfaces.IUserProfileLookupService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.UUID;
 
@@ -43,6 +45,7 @@ public class StudentProfileServiceImpl implements IStudentProfileService {
     private final TutorProfileMapper tutorProfileMapper;
     private final ITutorSubjectAssemblyService tutorSubjectAssemblyService;
     private final IUserProfileLookupService userProfileLookupService;
+    private final IProfileImageService profileImageService;
 
     @Override
     @Transactional
@@ -63,6 +66,37 @@ public class StudentProfileServiceImpl implements IStudentProfileService {
         boolean hasTutorProfile = userProfileLookupService.hasTutorProfile(userId);
 
         return studentProfileMapper.toSelfProfileResponse(user, profile, hasTutorProfile);
+    }
+
+    @Override
+    @Transactional
+    public StudentSelfProfileResponse uploadProfilePicture(UUID userId, MultipartFile file) {
+        StudentProfile studentProfile = studentProfileValidationService.getStudentProfileOrThrow(userId);
+
+        profileImageService.deleteByUserId(userId);
+
+        String imagePath = profileImageService.upload(file, userId);
+        studentProfile.setProfilePictureUrl(imagePath);
+        studentProfileRepository.save(studentProfile);
+
+        if (userProfileLookupService.hasTutorProfile(userId)) {
+            tutorProfileRepository.findByUserId(userId).ifPresent(tutorProfile -> {
+                tutorProfile.setProfilePictureUrl(imagePath);
+                tutorProfileRepository.save(tutorProfile);
+            });
+        }
+
+        boolean hasTutorProfile = userProfileLookupService.hasTutorProfile(userId);
+        return studentProfileMapper.toSelfProfileResponse(studentProfile.getUser(), studentProfile, hasTutorProfile);
+    }
+
+    @Override
+    @Transactional
+    public void syncProfilePicture(UUID userId, String profilePictureUrl) {
+        studentProfileRepository.findByUserId(userId).ifPresent(studentProfile -> {
+            studentProfile.setProfilePictureUrl(profilePictureUrl);
+            studentProfileRepository.save(studentProfile);
+        });
     }
 
     @Override

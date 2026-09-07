@@ -8,6 +8,7 @@ import com.knowlink.api.users.services.interfaces.IUserService;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
+import com.knowlink.api.resources.service.interfaces.IProfileImageService;
 import com.knowlink.api.tutors.availability.controllers.responses.AvailabilityBlockResponse;
 import com.knowlink.api.tutors.availability.repositories.IAvailabilityBlockRepository;
 import com.knowlink.api.tutors.controllers.responses.*;
@@ -27,6 +28,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.DayOfWeek;
 import java.util.ArrayList;
@@ -54,6 +56,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         private final IUserService userService;
         private final JwtService jwtService;
         private final IUserProfileLookupService userProfileLookupService;
+        private final IProfileImageService profileImageService;
 
         @Override
         @Transactional(readOnly = true)
@@ -104,6 +107,23 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         @Transactional(readOnly = true)
         public TutorSelfProfileResponse getSelfProfile(UUID tutorUserId) {
                 TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
+                boolean hasStudentProfile = userProfileLookupService.hasStudentProfile(tutorUserId);
+                return tutorProfileMapper.toSelfProfileResponse(tutorProfile, hasStudentProfile);
+        }
+
+        @Override
+        @Transactional
+        public TutorSelfProfileResponse uploadProfilePicture(UUID tutorUserId, MultipartFile file) {
+                TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
+
+                profileImageService.deleteByUserId(tutorUserId);
+
+                String imagePath = profileImageService.upload(file, tutorUserId);
+                tutorProfile.setProfilePictureUrl(imagePath);
+                tutorProfileRepository.save(tutorProfile);
+
+                studentProfileService.syncProfilePicture(tutorUserId, imagePath);
+
                 boolean hasStudentProfile = userProfileLookupService.hasStudentProfile(tutorUserId);
                 return tutorProfileMapper.toSelfProfileResponse(tutorProfile, hasStudentProfile);
         }
