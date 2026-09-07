@@ -63,7 +63,7 @@ public class SupabaseStorageServiceImpl implements ISupabaseStorageService {
                 .retrieve()
                 .body(SignedUrlResponse.class);
 
-        return supabaseUrl + response.signedURL();
+        return supabaseUrl + "/storage/v1" + response.signedURL();
     }
 
     @Override
