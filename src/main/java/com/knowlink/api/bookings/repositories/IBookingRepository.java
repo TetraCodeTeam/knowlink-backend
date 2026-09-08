@@ -2,6 +2,9 @@ package com.knowlink.api.bookings.repositories;
 
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.models.Booking;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -60,6 +63,18 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
                         @Param("from") LocalDate from,
                         @Param("to") LocalDate to,
                         @Param("activeStatuses") List<BookingStatus> activeStatuses);
+
+        Page<Booking> findByStudent_UserIdAndBookingStatusInOrderBySessionDateAscStartTimeAsc(
+                        UUID studentUserId, List<BookingStatus> statuses, Pageable pageable);
+
+        Page<Booking> findByStudent_UserIdAndBookingStatusInOrderBySessionDateDescStartTimeDesc(
+                        UUID studentUserId, List<BookingStatus> statuses, Pageable pageable);
+
+        Page<Booking> findByTutor_UserIdAndBookingStatusInOrderBySessionDateAscStartTimeAsc(
+                        UUID tutorUserId, List<BookingStatus> statuses, Pageable pageable);
+
+        Page<Booking> findByTutor_UserIdAndBookingStatusInOrderBySessionDateDescStartTimeDesc(
+                        UUID tutorUserId, List<BookingStatus> statuses, Pageable pageable);
 
         @Query("""
                         SELECT DISTINCT b.tutorSubject.subject.subjectId FROM Booking b

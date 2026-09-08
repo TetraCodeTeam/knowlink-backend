@@ -4,13 +4,20 @@ import com.knowlink.api.events.services.BookingEventPublisher;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.bookings.controllers.requests.CreateBookingRequest;
+import com.knowlink.api.bookings.controllers.responses.BookingHistoryDetailResponse;
+import com.knowlink.api.bookings.controllers.responses.BookingHistoryItemResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingResponse;
+import com.knowlink.api.bookings.data.enums.BookingHistoryCategory;
+import com.knowlink.api.bookings.data.enums.BookingStatus;
+import com.knowlink.api.bookings.data.mappers.BookingHistoryCategoryMapper;
+import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.bookings.data.mappers.BookingMapper;
 import com.knowlink.api.bookings.data.models.Hold;
 import com.knowlink.api.bookings.repositories.IHoldRepository;
 import com.knowlink.api.bookings.services.interfaces.IBookingService;
 import com.knowlink.api.bookings.utils.BookingConstants;
 import com.knowlink.api.bookings.validations.IBookingValidationService;
+import com.knowlink.api.shared.responses.PagedResponse;
 import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.tutors.data.enums.CompensationType;
 import com.knowlink.api.bookings.data.models.Booking;
@@ -21,6 +28,10 @@ import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.services.interfaces.IUserService;
 
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +40,7 @@ import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -105,5 +117,66 @@ public class BookingServiceImpl implements IBookingService {
                 BigDecimal base = tutorSubject.getPricePerHour().multiply(hours);
                 return base.multiply(BigDecimal.ONE.add(BookingConstants.SERVICE_FEE_RATE)).setScale(2,
                                 RoundingMode.HALF_UP);
+        }
+
+        @Override
+        @Transactional(readOnly = true)
+        public PagedResponse<BookingHistoryItemResponse> getHistory(UUID userId, Role role,
+                        BookingHistoryCategory category, int page, int size) {
+                List<BookingStatus> statuses = BookingHistoryCategoryMapper.toStatuses(category);
+                boolean upcoming = category.isUpcoming();
+                int safePage = Math.max(page, 0);
+                int safeSize = Math.min(Math.max(size, 1), BookingConstants.MAX_HISTORY_PAGE_SIZE);
+                Pageable pageable = PageRequest.of(safePage, safeSize);
+
+                Page<Booking> bookings;
+                if (role == Role.STUDENT) {
+                        bookings = upcoming
+                                        ? bookingRepository
+                                                        .findByStudent_UserIdAndBookingStatusInOrderBySessionDateAscStartTimeAsc(
+                                                                        userId, statuses, pageable)
+                                        : bookingRepository
+                                                        .findByStudent_UserIdAndBookingStatusInOrderBySessionDateDescStartTimeDesc(
+                                                                        userId, statuses, pageable);
+                } else {
+                        bookings = upcoming
+                                        ? bookingRepository
+                                                        .findByTutor_UserIdAndBookingStatusInOrderBySessionDateAscStartTimeAsc(
+                                                                        userId, statuses, pageable)
+                                        : bookingRepository
+                                                        .findByTutor_UserIdAndBookingStatusInOrderBySessionDateDescStartTimeDesc(
+                                                                        userId, statuses, pageable);
+                }
+
+                return PagedResponse.from(bookings.map(booking -> bookingMapper.toListItem(booking, userId)));
+        }
+
+        @Override
+        @Transactional(readOnly = true)
+        public BookingHistoryDetailResponse getDetail(UUID userId, UUID bookingId) {
+                Booking booking = findBookingOrThrow(bookingId);
+                bookingValidationService.validateOwnership(booking, userId);
+                return bookingMapper.toDetail(booking, userId);
+        }
+
+        @Override
+        @Transactional
+        public BookingHistoryDetailResponse setVirtualLink(UUID tutorUserId, UUID bookingId,
+                        String virtualSessionLink) {
+                Booking booking = findBookingOrThrow(bookingId);
+                bookingValidationService.validateCanSetVirtualLink(booking, tutorUserId);
+
+                booking.setVirtualSessionLink(virtualSessionLink);
+                bookingRepository.save(booking);
+
+                return bookingMapper.toDetail(booking, tutorUserId);
+        }
+
+        private Booking findBookingOrThrow(UUID bookingId) {
+                return bookingRepository.findById(bookingId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "BOOKING_NOT_FOUND",
+                                                "La reserva no existe.",
+                                                "Booking not found for id: " + bookingId));
         }
 }
