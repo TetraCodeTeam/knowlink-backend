@@ -21,88 +21,84 @@ import java.util.UUID;
 @Component
 public class BookingMapper {
 
-    public Booking toEntity(
-            Hold hold, TutorSubject tutorSubject, User student, LocalTime startTime, LocalTime endTime,
-            BigDecimal amount, CreateBookingRequest request) {
+        public Booking toEntity(
+                        Hold hold, TutorSubject tutorSubject, User student, LocalTime startTime, LocalTime endTime,
+                        BigDecimal amount, CreateBookingRequest request) {
 
-        return Booking.builder()
-                .sessionDate(hold.getTimeSlot().getDate())
-                .startTime(startTime)
-                .endTime(endTime)
-                .amount(amount)
-                .modality(request.modality())
-                .topic(request.topic())
-                .bookingStatus(BookingStatus.BOOKED)
-                .timeSlot(hold.getTimeSlot())
-                .tutorSubject(tutorSubject)
-                .student(student)
-                .tutor(tutorSubject.getTutorProfile().getUser())
-                .build();
-    }
+                return Booking.builder()
+                                .sessionDate(hold.getTimeSlot().getDate())
+                                .startTime(startTime)
+                                .endTime(endTime)
+                                .amount(amount)
+                                .modality(request.modality())
+                                .topic(request.topic())
+                                .bookingStatus(BookingStatus.BOOKED)
+                                .timeSlot(hold.getTimeSlot())
+                                .tutorSubject(tutorSubject)
+                                .student(student)
+                                .tutor(tutorSubject.getTutorProfile().getUser())
+                                .build();
+        }
 
-    public BookingResponse toResponse(Booking booking) {
-        return new BookingResponse(
-                booking.getBookingId(),
-                booking.getSessionDate(),
-                booking.getStartTime(),
-                booking.getEndTime(),
-                booking.getAmount(),
-                booking.getModality(),
-                booking.getTopic(),
-                booking.getBookingStatus(),
-                booking.getTutorSubject().getSubject().getName(),
-                booking.getTutor().getFullName(),
-                booking.getStudent().getFullName());
-    }
+        public BookingResponse toResponse(Booking booking) {
+                return new BookingResponse(
+                                booking.getBookingId(),
+                                booking.getSessionDate(),
+                                booking.getStartTime(),
+                                booking.getEndTime(),
+                                booking.getAmount(),
+                                booking.getModality(),
+                                booking.getTopic(),
+                                booking.getBookingStatus(),
+                                booking.getTutorSubject().getSubject().getName(),
+                                booking.getTutor().getFullName(),
+                                booking.getStudent().getFullName());
+        }
 
-    public BookingHistoryItemResponse toListItem(Booking booking, UUID viewerUserId,
-            Map<UUID, String> studentProfilePictureByUserId) {
-        boolean viewerIsStudent = booking.getStudent().getUserId().equals(viewerUserId);
-        User otherParty = viewerIsStudent ? booking.getTutor() : booking.getStudent();
-        String otherPartyProfilePictureUrl = viewerIsStudent
-                ? booking.getTutorSubject().getTutorProfile().getProfilePictureUrl()
-                : studentProfilePictureByUserId.get(booking.getStudent().getUserId());
+        public BookingHistoryItemResponse toListItem(Booking booking, UUID viewerUserId,
+                        Map<UUID, String> studentProfilePictureByUserId) {
+                User otherParty = resolveOtherParty(booking, viewerUserId);
+                boolean viewerIsStudent = booking.getStudent().getUserId().equals(viewerUserId);
+                String otherPartyProfilePictureUrl = viewerIsStudent
+                                ? booking.getTutorSubject().getTutorProfile().getProfilePictureUrl()
+                                : studentProfilePictureByUserId.get(booking.getStudent().getUserId());
 
-        return new BookingHistoryItemResponse(
-                booking.getBookingId(),
-                otherParty.getFullName(),
-                otherPartyProfilePictureUrl,
-                booking.getTutorSubject().getSubject().getName(),
-                booking.getSessionDate(),
-                booking.getStartTime(),
-                booking.getEndTime(),
-                booking.getModality(),
-                booking.getBookingStatus());
-    }
+                return new BookingHistoryItemResponse(
+                                booking.getBookingId(),
+                                otherParty.getFullName(),
+                                otherPartyProfilePictureUrl,
+                                booking.getTutorSubject().getSubject().getName(),
+                                booking.getSessionDate(),
+                                booking.getStartTime(),
+                                booking.getEndTime(),
+                                booking.getModality(),
+                                booking.getBookingStatus());
+        }
 
-    public BookingHistoryDetailResponse toDetail(Booking booking, UUID viewerUserId,
-            String otherPartyProfilePictureUrl) {
-        boolean viewerIsStudent = booking.getStudent().getUserId().equals(viewerUserId);
-        User otherParty = viewerIsStudent ? booking.getTutor() : booking.getStudent();
-        boolean isVirtual = booking.getModality() == Modality.VIRTUAL;
+        public BookingHistoryDetailResponse toDetail(Booking booking, UUID viewerUserId,
+                        String otherPartyProfilePictureUrl) {
+                User otherParty = resolveOtherParty(booking, viewerUserId);
+                boolean isVirtual = booking.getModality() == Modality.VIRTUAL;
 
-        return new BookingHistoryDetailResponse(
-                booking.getBookingId(),
-                otherParty.getFullName(),
-                otherPartyProfilePictureUrl,
-                booking.getTutorSubject().getSubject().getName(),
-                booking.getSessionDate(),
-                booking.getStartTime(),
-                booking.getEndTime(),
-                booking.getModality(),
-                booking.getBookingStatus(),
-                booking.getAmount(),
-                booking.getTopic(),
-                isVirtual ? booking.getVirtualSessionLink() : null,
-                isVirtual ? null : booking.getTutorSubject().getTutorProfile().getAddress(),
-                booking.getCreatedAt());
-    }
+                return new BookingHistoryDetailResponse(
+                                booking.getBookingId(),
+                                otherParty.getFullName(),
+                                otherPartyProfilePictureUrl,
+                                booking.getTutorSubject().getSubject().getName(),
+                                booking.getSessionDate(),
+                                booking.getStartTime(),
+                                booking.getEndTime(),
+                                booking.getModality(),
+                                booking.getBookingStatus(),
+                                booking.getAmount(),
+                                booking.getTopic(),
+                                isVirtual ? booking.getVirtualSessionLink() : null,
+                                isVirtual ? null : booking.getTutorSubject().getTutorProfile().getAddress(),
+                                booking.getCreatedAt());
+        }
 
-    /*
-     * private User resolveOtherParty(Booking booking, UUID viewerUserId) {
-     * boolean viewerIsStudent =
-     * booking.getStudent().getUserId().equals(viewerUserId);
-     * return viewerIsStudent ? booking.getTutor() : booking.getStudent();
-     * }
-     */
+        private User resolveOtherParty(Booking booking, UUID viewerUserId) {
+                boolean viewerIsStudent = booking.getStudent().getUserId().equals(viewerUserId);
+                return viewerIsStudent ? booking.getTutor() : booking.getStudent();
+        }
 }
