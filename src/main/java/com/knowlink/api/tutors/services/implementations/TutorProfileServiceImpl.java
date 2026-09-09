@@ -4,9 +4,11 @@ import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.security.services.JwtService;
 import com.knowlink.api.students.services.interfaces.IStudentProfileService;
 import com.knowlink.api.users.services.interfaces.IUserProfileLookupService;
+import com.knowlink.api.users.repositories.IUserRepository;
 import com.knowlink.api.users.services.interfaces.IUserService;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
+import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.resources.service.interfaces.IProfileImageService;
 import com.knowlink.api.tutors.availability.controllers.responses.AvailabilityBlockResponse;
@@ -57,6 +59,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         private final JwtService jwtService;
         private final IUserProfileLookupService userProfileLookupService;
         private final IProfileImageService profileImageService;
+        private final IUserRepository userRepository;
 
         @Override
         @Transactional(readOnly = true)
@@ -119,10 +122,19 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                 profileImageService.deleteByUserId(tutorUserId);
 
                 String imagePath = profileImageService.upload(file, tutorUserId);
-                tutorProfile.setProfilePictureUrl(imagePath);
-                tutorProfileRepository.save(tutorProfile);
+                String signedUrl = profileImageService.generateSignedUrl(imagePath, 60 * 60 * 24 * 7);
 
-                studentProfileService.syncProfilePicture(tutorUserId, imagePath);
+                User user = userRepository.findById(tutorUserId)
+                        .orElseThrow(() -> new ResourceNotFoundException(
+                                "USER_NOT_FOUND", "Usuario no encontrado.",
+                                String.format("User con id '%s' no existe", tutorUserId)));
+                user.setProfilePictureUrl(signedUrl);
+                userRepository.save(user);
+
+                tutorProfile.setProfilePictureUrl(signedUrl);
+                tutorProfile = tutorProfileRepository.save(tutorProfile);
+
+                studentProfileService.syncProfilePicture(tutorUserId, signedUrl);
 
                 boolean hasStudentProfile = userProfileLookupService.hasStudentProfile(tutorUserId);
                 return tutorProfileMapper.toSelfProfileResponse(tutorProfile, hasStudentProfile);

@@ -8,6 +8,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -52,6 +53,24 @@ public class ProfileImageServiceImpl implements IProfileImageService {
 
         log.info("Profile image uploaded to Supabase Storage: {}", path);
         return path;
+    }
+
+    @Override
+    public String generateSignedUrl(String path, int expirationSeconds) {
+        if (path == null || path.isBlank()) {
+            return null;
+        }
+        String signUrl = supabaseUrl + "/storage/v1/object/sign/" + BUCKET + "/" + path;
+
+        SignedUrlResponse response = restClient.post()
+                .uri(signUrl)
+                .header("Authorization", "Bearer " + serviceRoleKey)
+                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                .body(Map.of("expiresIn", expirationSeconds))
+                .retrieve()
+                .body(SignedUrlResponse.class);
+
+        return supabaseUrl + "/storage/v1" + response.signedURL();
     }
 
     @Override
@@ -115,4 +134,6 @@ public class ProfileImageServiceImpl implements IProfileImageService {
     }
 
     private record ListRequest(String prefix, int limit, int offset) {}
+
+    private record SignedUrlResponse(String signedURL) {}
 }

@@ -76,18 +76,27 @@ public class StudentProfileServiceImpl implements IStudentProfileService {
         profileImageService.deleteByUserId(userId);
 
         String imagePath = profileImageService.upload(file, userId);
-        studentProfile.setProfilePictureUrl(imagePath);
-        studentProfileRepository.save(studentProfile);
+        String signedUrl = profileImageService.generateSignedUrl(imagePath, 60 * 60 * 24 * 7);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "USER_NOT_FOUND", "Usuario no encontrado.",
+                        String.format("User con id '%s' no existe", userId)));
+        user.setProfilePictureUrl(signedUrl);
+        user = userRepository.save(user);
+
+        studentProfile.setProfilePictureUrl(signedUrl);
+        studentProfile = studentProfileRepository.save(studentProfile);
 
         if (userProfileLookupService.hasTutorProfile(userId)) {
             tutorProfileRepository.findByUserId(userId).ifPresent(tutorProfile -> {
-                tutorProfile.setProfilePictureUrl(imagePath);
+                tutorProfile.setProfilePictureUrl(signedUrl);
                 tutorProfileRepository.save(tutorProfile);
             });
         }
 
         boolean hasTutorProfile = userProfileLookupService.hasTutorProfile(userId);
-        return studentProfileMapper.toSelfProfileResponse(studentProfile.getUser(), studentProfile, hasTutorProfile);
+        return studentProfileMapper.toSelfProfileResponse(user, studentProfile, hasTutorProfile);
     }
 
     @Override
