@@ -12,6 +12,7 @@ import java.util.UUID;
 public record BookingHistoryDetailResponse(
         UUID bookingId,
         String otherPartyFullName,
+        String otherPartyProfilePictureUrl,
         String subjectName,
         LocalDate sessionDate,
         LocalTime startTime,

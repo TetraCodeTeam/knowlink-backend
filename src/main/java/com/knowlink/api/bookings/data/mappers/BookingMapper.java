@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.time.LocalTime;
+import java.util.Map;
 import java.util.UUID;
 
 @Component
@@ -51,48 +52,57 @@ public class BookingMapper {
                 booking.getBookingStatus(),
                 booking.getTutorSubject().getSubject().getName(),
                 booking.getTutor().getFullName(),
-                booking.getStudent().getFullName()
-        );
+                booking.getStudent().getFullName());
     }
 
-    public BookingHistoryItemResponse toListItem(Booking booking, UUID viewerUserId) {
-    User otherParty = resolveOtherParty(booking, viewerUserId);
+    public BookingHistoryItemResponse toListItem(Booking booking, UUID viewerUserId,
+            Map<UUID, String> studentProfilePictureByUserId) {
+        boolean viewerIsStudent = booking.getStudent().getUserId().equals(viewerUserId);
+        User otherParty = viewerIsStudent ? booking.getTutor() : booking.getStudent();
+        String otherPartyProfilePictureUrl = viewerIsStudent
+                ? booking.getTutorSubject().getTutorProfile().getProfilePictureUrl()
+                : studentProfilePictureByUserId.get(booking.getStudent().getUserId());
 
-    return new BookingHistoryItemResponse(
-            booking.getBookingId(),
-            otherParty.getFullName(),
-            booking.getTutorSubject().getSubject().getName(),
-            booking.getSessionDate(),
-            booking.getStartTime(),
-            booking.getEndTime(),
-            booking.getModality(),
-            booking.getBookingStatus()
-    );
-}
+        return new BookingHistoryItemResponse(
+                booking.getBookingId(),
+                otherParty.getFullName(),
+                otherPartyProfilePictureUrl,
+                booking.getTutorSubject().getSubject().getName(),
+                booking.getSessionDate(),
+                booking.getStartTime(),
+                booking.getEndTime(),
+                booking.getModality(),
+                booking.getBookingStatus());
+    }
 
-public BookingHistoryDetailResponse toDetail(Booking booking, UUID viewerUserId) {
-    User otherParty = resolveOtherParty(booking, viewerUserId);
-    boolean isVirtual = booking.getModality() == Modality.VIRTUAL;
+    public BookingHistoryDetailResponse toDetail(Booking booking, UUID viewerUserId,
+            String otherPartyProfilePictureUrl) {
+        boolean viewerIsStudent = booking.getStudent().getUserId().equals(viewerUserId);
+        User otherParty = viewerIsStudent ? booking.getTutor() : booking.getStudent();
+        boolean isVirtual = booking.getModality() == Modality.VIRTUAL;
 
-    return new BookingHistoryDetailResponse(
-            booking.getBookingId(),
-            otherParty.getFullName(),
-            booking.getTutorSubject().getSubject().getName(),
-            booking.getSessionDate(),
-            booking.getStartTime(),
-            booking.getEndTime(),
-            booking.getModality(),
-            booking.getBookingStatus(),
-            booking.getAmount(),
-            booking.getTopic(),
-            isVirtual ? booking.getVirtualSessionLink() : null,
-            isVirtual ? null : booking.getTutorSubject().getTutorProfile().getAddress(),
-            booking.getCreatedAt()
-    );
-}
+        return new BookingHistoryDetailResponse(
+                booking.getBookingId(),
+                otherParty.getFullName(),
+                otherPartyProfilePictureUrl,
+                booking.getTutorSubject().getSubject().getName(),
+                booking.getSessionDate(),
+                booking.getStartTime(),
+                booking.getEndTime(),
+                booking.getModality(),
+                booking.getBookingStatus(),
+                booking.getAmount(),
+                booking.getTopic(),
+                isVirtual ? booking.getVirtualSessionLink() : null,
+                isVirtual ? null : booking.getTutorSubject().getTutorProfile().getAddress(),
+                booking.getCreatedAt());
+    }
 
-private User resolveOtherParty(Booking booking, UUID viewerUserId) {
-    boolean viewerIsStudent = booking.getStudent().getUserId().equals(viewerUserId);
-    return viewerIsStudent ? booking.getTutor() : booking.getStudent();
-}
+    /*
+     * private User resolveOtherParty(Booking booking, UUID viewerUserId) {
+     * boolean viewerIsStudent =
+     * booking.getStudent().getUserId().equals(viewerUserId);
+     * return viewerIsStudent ? booking.getTutor() : booking.getStudent();
+     * }
+     */
 }

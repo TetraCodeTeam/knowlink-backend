@@ -26,6 +26,8 @@ import com.knowlink.api.bookings.repositories.IBookingRepository;
 import com.knowlink.api.tutors.repositories.ITutorSubjectRepository;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.services.interfaces.IUserService;
+import com.knowlink.api.students.repositories.IStudentProfileRepository;
+import com.knowlink.api.students.data.models.StudentProfile;
 
 import lombok.RequiredArgsConstructor;
 
@@ -40,8 +42,11 @@ import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -54,6 +59,7 @@ public class BookingServiceImpl implements IBookingService {
         private final IUserService userService;
         private final BookingMapper bookingMapper;
         private final BookingEventPublisher eventPublisher;
+        private final IStudentProfileRepository studentProfileRepository;
 
         @Override
         @Transactional
@@ -129,26 +135,25 @@ public class BookingServiceImpl implements IBookingService {
                 int safeSize = Math.min(Math.max(size, 1), BookingConstants.MAX_HISTORY_PAGE_SIZE);
                 Pageable pageable = PageRequest.of(safePage, safeSize);
 
-                Page<Booking> bookings;
-                if (role == Role.STUDENT) {
-                        bookings = upcoming
-                                        ? bookingRepository
-                                                        .findByStudent_UserIdAndBookingStatusInOrderBySessionDateAscStartTimeAsc(
-                                                                        userId, statuses, pageable)
-                                        : bookingRepository
-                                                        .findByStudent_UserIdAndBookingStatusInOrderBySessionDateDescStartTimeDesc(
-                                                                        userId, statuses, pageable);
-                } else {
-                        bookings = upcoming
-                                        ? bookingRepository
-                                                        .findByTutor_UserIdAndBookingStatusInOrderBySessionDateAscStartTimeAsc(
-                                                                        userId, statuses, pageable)
-                                        : bookingRepository
-                                                        .findByTutor_UserIdAndBookingStatusInOrderBySessionDateDescStartTimeDesc(
-                                                                        userId, statuses, pageable);
-                }
+                Page<Booking> bookings = role == Role.STUDENT
+                                ? (upcoming ? bookingRepository.findHistoryByStudentAsc(userId, statuses, pageable)
+                                                : bookingRepository.findHistoryByStudentDesc(userId, statuses,
+                                                                pageable))
+                                : (upcoming ? bookingRepository.findHistoryByTutorAsc(userId, statuses, pageable)
+                                                : bookingRepository.findHistoryByTutorDesc(userId, statuses, pageable));
 
-                return PagedResponse.from(bookings.map(booking -> bookingMapper.toListItem(booking, userId)));
+                Map<UUID, String> studentProfilePictureByUserId = role == Role.TUTOR
+                                ? studentProfileRepository.findByUserIdIn(
+                                                bookings.getContent().stream().map(b -> b.getStudent().getUserId())
+                                                                .collect(Collectors.toSet()))
+                                                .stream().collect(HashMap::new,
+                                                                (map, sp) -> map.put(sp.getUser().getUserId(),
+                                                                                sp.getProfilePictureUrl()),
+                                                                (map, other) -> map.putAll(other))
+                                : Map.of();
+
+                return PagedResponse.from(bookings.map(
+                                booking -> bookingMapper.toListItem(booking, userId, studentProfilePictureByUserId)));
         }
 
         @Override
@@ -156,7 +161,9 @@ public class BookingServiceImpl implements IBookingService {
         public BookingHistoryDetailResponse getDetail(UUID userId, UUID bookingId) {
                 Booking booking = findBookingOrThrow(bookingId);
                 bookingValidationService.validateOwnership(booking, userId);
-                return bookingMapper.toDetail(booking, userId);
+
+                String otherPartyProfilePictureUrl = resolveOtherPartyProfilePicture(booking, userId);
+                return bookingMapper.toDetail(booking, userId, otherPartyProfilePictureUrl);
         }
 
         @Override
@@ -165,11 +172,23 @@ public class BookingServiceImpl implements IBookingService {
                         String virtualSessionLink) {
                 Booking booking = findBookingOrThrow(bookingId);
                 bookingValidationService.validateCanSetVirtualLink(booking, tutorUserId);
-
                 booking.setVirtualSessionLink(virtualSessionLink);
                 bookingRepository.save(booking);
 
-                return bookingMapper.toDetail(booking, tutorUserId);
+                // acá el viewer siempre es el tutor (la validación de arriba lo exige), así que
+                // la otra parte siempre es el alumno
+                String otherPartyProfilePictureUrl = resolveOtherPartyProfilePicture(booking, tutorUserId);
+                return bookingMapper.toDetail(booking, tutorUserId, otherPartyProfilePictureUrl);
+        }
+
+        private String resolveOtherPartyProfilePicture(Booking booking, UUID viewerUserId) {
+                boolean viewerIsStudent = booking.getStudent().getUserId().equals(viewerUserId);
+                if (viewerIsStudent) {
+                        return booking.getTutorSubject().getTutorProfile().getProfilePictureUrl();
+                }
+                return studentProfileRepository.findByUserId(booking.getStudent().getUserId())
+                                .map(StudentProfile::getProfilePictureUrl)
+                                .orElse(null);
         }
 
         private Booking findBookingOrThrow(UUID bookingId) {
