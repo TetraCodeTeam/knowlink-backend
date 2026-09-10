@@ -16,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.UUID;
 
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -32,6 +33,10 @@ public class BookingControllerImpl implements IBookingController {
     @Override
     public PagedResponse<BookingHistoryItemResponse> getHistory(UserPrincipal principal, Role role,
             BookingHistoryCategory category, int page, int size) {
+        if (role != principal.getUser().getRole()) {
+            throw new AccessDeniedException(
+                    "No tenés permiso para consultar el historial con un rol distinto al de tu cuenta.");
+        }
         return bookingService.getHistory(principal.getUser().getUserId(), role, category, page, size);
     }
 
