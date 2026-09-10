@@ -13,6 +13,8 @@ import com.knowlink.api.bookings.repositories.IBookingRepository;
 import com.knowlink.api.users.data.models.User;
 
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -138,7 +140,8 @@ public class BookingValidationServiceImpl implements IBookingValidationService {
     @Override
     public void validateCanSetVirtualLink(Booking booking, UUID tutorUserId) {
         if (!booking.getTutor().getUserId().equals(tutorUserId)) {
-            throw new UnauthorizedException("No tenés permiso para modificar esta reserva.");
+            throw new AccessDeniedException(
+                    "No tenés permiso para modificar esta reserva.");
         }
         if (booking.getModality() != Modality.VIRTUAL) {
             throw new ValidationException("No se puede cargar un link de videollamada para una clase presencial.");
