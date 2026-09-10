@@ -46,6 +46,8 @@ public interface IBookingController {
 
         @GetMapping("/mine")
         @Operation(summary = "Listar mis reservas por categoría (Reservadas/En Curso/Realizadas/Canceladas), paginado")
+        @ApiResponse(responseCode = "200", description = "Listado paginado de reservas")
+        @ApiResponse(responseCode = "403", description = "El rol solicitado no coincide con el de la cuenta autenticada")
         @ResponseStatus(OK)
         PagedResponse<BookingHistoryItemResponse> getHistory(
                         @AuthenticationPrincipal UserPrincipal principal,
@@ -56,6 +58,8 @@ public interface IBookingController {
 
         @GetMapping("/{bookingId}")
         @Operation(summary = "Ver el detalle completo de una reserva")
+        @ApiResponse(responseCode = "200", description = "Detalle de la reserva")
+        @ApiResponse(responseCode = "404", description = "La reserva no existe o no pertenece al usuario autenticado")
         @ResponseStatus(OK)
         BookingHistoryDetailResponse getDetail(
                         @AuthenticationPrincipal UserPrincipal principal,
@@ -63,6 +67,10 @@ public interface IBookingController {
 
         @PatchMapping("/{bookingId}/virtual-link")
         @Operation(summary = "Cargar o actualizar el link de la videollamada de una clase virtual")
+        @ApiResponse(responseCode = "200", description = "Link actualizado")
+        @ApiResponse(responseCode = "400", description = "La reserva no es virtual, o ya finalizó/fue cancelada")
+        @ApiResponse(responseCode = "403", description = "El usuario autenticado no es el tutor de esta reserva")
+        @ApiResponse(responseCode = "404", description = "La reserva no existe")
         @ResponseStatus(OK)
         BookingHistoryDetailResponse setVirtualLink(
                         @AuthenticationPrincipal UserPrincipal principal,
