@@ -134,9 +134,6 @@ public class MaterialServiceImpl implements IMaterialService {
                         "Material not found",
                         "Material not found with id: " + materialId));
 
-        UUID subjectId = material.getTutorSubject().getSubject().getSubjectId();
-        UUID tutorUserId = material.getTutorSubject().getTutorProfile().getUser().getUserId();
-
         if (role.equals(Role.STUDENT.name())) {
             materialAccessService.validarAccesoODenegar(userId, materialId);
         }

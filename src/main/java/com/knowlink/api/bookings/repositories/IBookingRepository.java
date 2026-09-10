@@ -2,12 +2,17 @@ package com.knowlink.api.bookings.repositories;
 
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.models.Booking;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface IBookingRepository extends JpaRepository<Booking, UUID> {
@@ -62,6 +67,66 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
                         @Param("activeStatuses") List<BookingStatus> activeStatuses);
 
         @Query("""
+                        SELECT b FROM Booking b
+                        JOIN FETCH b.student
+                        JOIN FETCH b.tutor
+                        JOIN FETCH b.tutorSubject ts
+                        JOIN FETCH ts.subject
+                        JOIN FETCH ts.tutorProfile
+                        WHERE b.student.userId = :studentUserId
+                        AND b.bookingStatus IN :statuses
+                        ORDER BY b.sessionDate ASC, b.startTime ASC
+                        """)
+        Page<Booking> findHistoryByStudentAsc(
+                        @Param("studentUserId") UUID studentUserId, @Param("statuses") List<BookingStatus> statuses,
+                        Pageable pageable);
+
+        @Query("""
+                        SELECT b FROM Booking b
+                        JOIN FETCH b.student
+                        JOIN FETCH b.tutor
+                        JOIN FETCH b.tutorSubject ts
+                        JOIN FETCH ts.subject
+                        JOIN FETCH ts.tutorProfile
+                        WHERE b.student.userId = :studentUserId
+                        AND b.bookingStatus IN :statuses
+                        ORDER BY b.sessionDate DESC, b.startTime DESC
+                        """)
+        Page<Booking> findHistoryByStudentDesc(
+                        @Param("studentUserId") UUID studentUserId, @Param("statuses") List<BookingStatus> statuses,
+                        Pageable pageable);
+
+        @Query("""
+                        SELECT b FROM Booking b
+                        JOIN FETCH b.student
+                        JOIN FETCH b.tutor
+                        JOIN FETCH b.tutorSubject ts
+                        JOIN FETCH ts.subject
+                        JOIN FETCH ts.tutorProfile
+                        WHERE b.tutor.userId = :tutorUserId
+                        AND b.bookingStatus IN :statuses
+                        ORDER BY b.sessionDate ASC, b.startTime ASC
+                        """)
+        Page<Booking> findHistoryByTutorAsc(
+                        @Param("tutorUserId") UUID tutorUserId, @Param("statuses") List<BookingStatus> statuses,
+                        Pageable pageable);
+
+        @Query("""
+                        SELECT b FROM Booking b
+                        JOIN FETCH b.student
+                        JOIN FETCH b.tutor
+                        JOIN FETCH b.tutorSubject ts
+                        JOIN FETCH ts.subject
+                        JOIN FETCH ts.tutorProfile
+                        WHERE b.tutor.userId = :tutorUserId
+                        AND b.bookingStatus IN :statuses
+                        ORDER BY b.sessionDate DESC, b.startTime DESC
+                        """)
+        Page<Booking> findHistoryByTutorDesc(
+                        @Param("tutorUserId") UUID tutorUserId, @Param("statuses") List<BookingStatus> statuses,
+                        Pageable pageable);
+
+        @Query("""
                         SELECT DISTINCT b.tutorSubject.subject.subjectId FROM Booking b
                         WHERE b.student.userId = :studentId
                         AND b.tutor.userId = :tutorUserId
@@ -70,4 +135,8 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
         List<UUID> findCompletedSubjectIdsByStudentAndTutor(
                         @Param("studentId") UUID studentId,
                         @Param("tutorUserId") UUID tutorUserId);
+
+        @Override
+        @EntityGraph(attributePaths = { "student", "tutor", "tutorSubject.subject", "tutorSubject.tutorProfile" })
+        Optional<Booking> findById(UUID bookingId);
 }
