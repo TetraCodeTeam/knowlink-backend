@@ -5,7 +5,6 @@ import com.knowlink.api.timeslot.data.models.TimeSlot;
 import com.knowlink.api.tutors.data.enums.Modality;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.users.data.models.User;
-
 import java.time.LocalTime;
 import java.util.UUID;
 
@@ -26,4 +25,6 @@ public interface IBookingValidationService {
     void validateOwnership(Booking booking, UUID userId);
 
     void validateCanSetVirtualLink(Booking booking, UUID tutorUserId);
+    
+    void validateCanConfirmSession(Booking booking, UUID tutorUserId);
 }

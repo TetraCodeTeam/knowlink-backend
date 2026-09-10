@@ -3,10 +3,12 @@ package com.knowlink.api.bookings.validations;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.UnauthorizedException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
+import com.knowlink.api.exceptions.custom_exceptions.UnauthorizedException;
 import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.timeslot.data.models.TimeSlot;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.tutors.data.enums.Modality;
+import com.knowlink.api.bookings.utils.BookingConstants;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
@@ -22,6 +24,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.UUID;
 
 @Service
@@ -150,6 +153,30 @@ public class BookingValidationServiceImpl implements IBookingValidationService {
                 && booking.getBookingStatus() != BookingStatus.IN_PROGRESS) {
             throw new ValidationException(
                     "No se puede modificar el link de una clase que ya finalizó o fue cancelada.");
+        }
+    }
+
+    @Override
+    public void validateCanConfirmSession(Booking booking, UUID tutorUserId) {
+        if (!booking.getTutor().getUserId().equals(tutorUserId)) {
+            throw new UnauthorizedException("No tenés permiso para confirmar esta reserva.");
+        }
+        if (booking.getBookingStatus() != BookingStatus.BOOKED
+                && booking.getBookingStatus() != BookingStatus.IN_PROGRESS) {
+            throw new ValidationException("Esta reserva ya no admite confirmación por token.");
+        }
+        if (booking.getConfirmationToken() == null) {
+            throw new ValidationException("Todavía no se generó el código de confirmación para esta clase.");
+        }
+
+        LocalDateTime now = LocalDateTime.now(AppTimeZone.ZONE);
+        LocalDateTime sessionStart = LocalDateTime.of(booking.getSessionDate(), booking.getStartTime());
+
+        if (now.isBefore(sessionStart) || now.isAfter(booking.getConfirmationTokenExpiration())) {
+            throw new ValidationException("El código de confirmación no está disponible en este momento.");
+        }
+        if (booking.getConfirmationTokenAttempts() >= BookingConstants.CONFIRMATION_TOKEN_MAX_ATTEMPTS) {
+            throw new ValidationException("Se superó el máximo de intentos para este código. Contactá a soporte.");
         }
     }
 }
