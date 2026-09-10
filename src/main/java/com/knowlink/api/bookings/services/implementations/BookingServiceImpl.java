@@ -142,15 +142,18 @@ public class BookingServiceImpl implements IBookingService {
                                 : (upcoming ? bookingRepository.findHistoryByTutorAsc(userId, statuses, pageable)
                                                 : bookingRepository.findHistoryByTutorDesc(userId, statuses, pageable));
 
-                Map<UUID, String> studentProfilePictureByUserId = role == Role.TUTOR
-                                ? studentProfileRepository.findByUserIdIn(
-                                                bookings.getContent().stream().map(b -> b.getStudent().getUserId())
-                                                                .collect(Collectors.toSet()))
-                                                .stream().collect(HashMap::new,
-                                                                (map, sp) -> map.put(sp.getUser().getUserId(),
-                                                                                sp.getProfilePictureUrl()),
-                                                                (map, other) -> map.putAll(other))
-                                : Map.of();
+                Map<UUID, String> studentProfilePictureByUserId = (role == Role.TUTOR
+                                && !bookings.getContent().isEmpty())
+                                                ? studentProfileRepository.findByUserIdIn(
+                                                                bookings.getContent().stream()
+                                                                                .map(b -> b.getStudent().getUserId())
+                                                                                .collect(Collectors.toSet()))
+                                                                .stream().collect(HashMap::new,
+                                                                                (map, sp) -> map.put(sp.getUser()
+                                                                                                .getUserId(),
+                                                                                                sp.getProfilePictureUrl()),
+                                                                                (map, other) -> map.putAll(other))
+                                                : Map.of();
 
                 return PagedResponse.from(bookings.map(
                                 booking -> bookingMapper.toListItem(booking, userId, studentProfilePictureByUserId)));
