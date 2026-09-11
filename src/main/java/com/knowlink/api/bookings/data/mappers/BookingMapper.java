@@ -1,6 +1,7 @@
 package com.knowlink.api.bookings.data.mappers;
 
 import com.knowlink.api.bookings.controllers.requests.CreateBookingRequest;
+import com.knowlink.api.bookings.controllers.responses.BookingConfirmationResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryItemResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryDetailResponse;
@@ -101,4 +102,11 @@ public class BookingMapper {
                 boolean viewerIsStudent = booking.getStudent().getUserId().equals(viewerUserId);
                 return viewerIsStudent ? booking.getTutor() : booking.getStudent();
         }
+
+        public BookingConfirmationResponse toConfirmationResponse(Booking booking) {
+        return new BookingConfirmationResponse(
+                booking.getBookingId(),
+                booking.getBookingStatus(),
+                booking.getConfirmedAt());
+    }
 }

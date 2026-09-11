@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -139,4 +140,13 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
         @Override
         @EntityGraph(attributePaths = { "student", "tutor", "tutorSubject.subject", "tutorSubject.tutorProfile" })
         Optional<Booking> findById(UUID bookingId);
+
+        List<Booking> findByBookingStatusAndConfirmationTokenIsNull(BookingStatus status);
+
+        List<Booking> findByBookingStatusInAndConfirmedAtIsNull(List<BookingStatus> statuses);
+
+        List<Booking> findByCompletionNotificationSentFalseAndBookingStatusNot(BookingStatus excludedStatus);
+
+        List<Booking> findByBookingStatusInAndConfirmedAtIsNullAndConfirmationTokenExpirationBefore(
+        List<BookingStatus> statuses, LocalDateTime now);
 }

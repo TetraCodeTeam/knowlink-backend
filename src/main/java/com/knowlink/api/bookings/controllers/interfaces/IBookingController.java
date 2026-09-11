@@ -3,7 +3,9 @@ package com.knowlink.api.bookings.controllers.interfaces;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.shared.responses.PagedResponse;
+import com.knowlink.api.bookings.controllers.requests.ConfirmSessionTokenRequest;
 import com.knowlink.api.bookings.controllers.requests.CreateBookingRequest;
+import com.knowlink.api.bookings.controllers.responses.BookingConfirmationResponse;
 import com.knowlink.api.bookings.controllers.requests.VirtualSessionLinkRequest;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryDetailResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryItemResponse;
@@ -76,4 +78,13 @@ public interface IBookingController {
                         @AuthenticationPrincipal UserPrincipal principal,
                         @PathVariable UUID bookingId,
                         @Valid @RequestBody VirtualSessionLinkRequest request);
+
+        @PatchMapping("/{bookingId}/confirmation")
+        @Operation(summary = "Confirmar la sesión ingresando el código de 4 dígitos (US-41)")
+        @ApiResponse(responseCode = "400", description = "Código incorrecto, expirado, o fuera de la ventana válida")
+        @ResponseStatus(OK)
+        BookingConfirmationResponse confirmSession(
+                        @AuthenticationPrincipal UserPrincipal principal,
+                        @PathVariable UUID bookingId,
+                        @Valid @RequestBody ConfirmSessionTokenRequest request);
 }

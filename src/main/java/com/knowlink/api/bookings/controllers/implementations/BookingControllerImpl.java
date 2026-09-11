@@ -4,7 +4,9 @@ import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.shared.responses.PagedResponse;
 import com.knowlink.api.bookings.controllers.interfaces.IBookingController;
+import com.knowlink.api.bookings.controllers.requests.ConfirmSessionTokenRequest;
 import com.knowlink.api.bookings.controllers.requests.CreateBookingRequest;
+import com.knowlink.api.bookings.controllers.responses.BookingConfirmationResponse;
 import com.knowlink.api.bookings.controllers.requests.VirtualSessionLinkRequest;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryDetailResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryItemResponse;
@@ -49,5 +51,11 @@ public class BookingControllerImpl implements IBookingController {
     public BookingHistoryDetailResponse setVirtualLink(UserPrincipal principal, UUID bookingId,
             VirtualSessionLinkRequest request) {
         return bookingService.setVirtualLink(principal.getUser().getUserId(), bookingId, request.virtualSessionLink());
+    }
+
+    @Override
+    public BookingConfirmationResponse confirmSession(UserPrincipal principal, UUID bookingId,
+            ConfirmSessionTokenRequest request) {
+        return bookingService.confirmSession(principal.getUser().getUserId(), bookingId, request.token());
     }
 }
