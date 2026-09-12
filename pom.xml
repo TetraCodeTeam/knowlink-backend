@@ -109,10 +109,16 @@
 			<scope>runtime</scope>
 		</dependency>
 
-		<!-- Mail -->
+		<!-- Mail (SMTP) -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-mail</artifactId>
+		</dependency>
+
+		<!-- WebFlux (WebClient for Gmail API) -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webflux</artifactId>
 		</dependency>
 
 		<!-- Testing -->
