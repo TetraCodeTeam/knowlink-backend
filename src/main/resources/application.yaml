@@ -58,11 +58,10 @@ frontend:
 app:
   url: ${APP_URL}
 
-gmail:
-  client-id: ${GMAIL_CLIENT_ID:}
-  client-secret: ${GMAIL_CLIENT_SECRET:}
-  refresh-token: ${GMAIL_REFRESH_TOKEN:}
-  sender-address: ${GMAIL_SENDER_ADDRESS:}
+brevo:
+  api-key: ${BREVO_API_KEY}
+  sender-address: ${BREVO_SENDER_ADDRESS}
+  sender-name: ${BREVO_SENDER_NAME:KnowLink}
 
 supabase:
   url: ${SUPABASE_URL}

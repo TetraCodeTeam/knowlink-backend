@@ -10,13 +10,13 @@ import org.springframework.stereotype.Service;
 @Slf4j
 public class EmailServiceImpl implements EmailService {
 
-    private final GmailApiClient gmailApiClient;
+    private final BrevoApiClient brevoApiClient;
 
     @Async("taskExecutor")
     @Override
     public void enviarCorreo(String destinatario, String asunto, String cuerpoHtml) {
         try {
-            gmailApiClient.sendEmail(destinatario, asunto, cuerpoHtml);
+            brevoApiClient.sendEmail(destinatario, asunto, cuerpoHtml);
         } catch (Exception e) {
             log.error("Unexpected error sending email to {}: {}", destinatario, e.getMessage());
         }

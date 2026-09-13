@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: knowlink-backend
+    runtime: image
+    image:
+      url: Dockerfile
+    envVars:
+      - key: SPRING_PROFILE
+        value: production
+      - key: DDL_AUTO
+        value: validate
+      - key: APP_URL
+        value: https://knowlink-backend.onrender.com
+      - key: JWT_EXPIRATION
+        value: "86400000"
+      - key: BREVO_SENDER_ADDRESS
+        value: tetracodeteam@gmail.com
+      - key: BREVO_SENDER_NAME
+        value: KnowLink
+      - key: JWT_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

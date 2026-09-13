@@ -10,35 +10,26 @@ import org.springframework.stereotype.Component;
 @Getter
 @Setter
 @Component
-@ConfigurationProperties(prefix = "gmail")
+@ConfigurationProperties(prefix = "brevo")
 @Slf4j
 public class EmailProperties {
 
-    private String clientId;
-    private String clientSecret;
-    private String refreshToken;
+    private String apiKey;
     private String senderAddress;
+    private String senderName;
 
     @PostConstruct
     public void validate() {
-        if (clientId == null || clientId.isBlank()) {
-            log.warn("GMAIL_CLIENT_ID is not configured. Email sending via Gmail API will be unavailable.");
-        }
-        if (clientSecret == null || clientSecret.isBlank()) {
-            log.warn("GMAIL_CLIENT_SECRET is not configured. Email sending via Gmail API will be unavailable.");
-        }
-        if (refreshToken == null || refreshToken.isBlank()) {
-            log.warn("GMAIL_REFRESH_TOKEN is not configured. Email sending via Gmail API will be unavailable.");
+        if (apiKey == null || apiKey.isBlank()) {
+            log.warn("BREVO_API_KEY is not configured. Email sending via Brevo will be unavailable.");
         }
         if (senderAddress == null || senderAddress.isBlank()) {
-            log.warn("GMAIL_SENDER_ADDRESS is not configured. Email sending via Gmail API will be unavailable.");
+            log.warn("BREVO_SENDER_ADDRESS is not configured. Email sending via Brevo will be unavailable.");
         }
     }
 
     public boolean isConfigured() {
-        return clientId != null && !clientId.isBlank()
-                && clientSecret != null && !clientSecret.isBlank()
-                && refreshToken != null && !refreshToken.isBlank()
+        return apiKey != null && !apiKey.isBlank()
                 && senderAddress != null && !senderAddress.isBlank();
     }
 }
