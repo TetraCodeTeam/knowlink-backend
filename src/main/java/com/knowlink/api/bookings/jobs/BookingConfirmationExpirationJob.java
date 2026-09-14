@@ -4,7 +4,6 @@ import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.bookings.events.SessionNotConfirmedEvent;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
-import com.knowlink.api.bookings.utils.BookingConstants;
 import com.knowlink.api.shared.utils.AppTimeZone;
 
 import lombok.RequiredArgsConstructor;
