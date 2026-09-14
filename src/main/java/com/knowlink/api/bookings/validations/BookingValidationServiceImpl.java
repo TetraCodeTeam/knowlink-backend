@@ -3,7 +3,6 @@ package com.knowlink.api.bookings.validations;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.UnauthorizedException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
-import com.knowlink.api.exceptions.custom_exceptions.UnauthorizedException;
 import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.timeslot.data.models.TimeSlot;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
@@ -12,6 +11,7 @@ import com.knowlink.api.bookings.utils.BookingConstants;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
+import com.knowlink.api.bookings.services.interfaces.IStudentScheduleValidationService;
 import com.knowlink.api.users.data.models.User;
 
 import lombok.RequiredArgsConstructor;
@@ -25,18 +25,13 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class BookingValidationServiceImpl implements IBookingValidationService {
 
-    private static final List<BookingStatus> ACTIVE_STATUSES = List.of(BookingStatus.PENDING, BookingStatus.BOOKED,
-            BookingStatus.IN_PROGRESS);
-
-    private static final Duration MAX_DAILY_SUBJECT_DURATION = Duration.ofHours(3);
-
     private final IBookingRepository bookingRepository;
+    private final IStudentScheduleValidationService studentScheduleValidationService;
 
     @Override
     public void validateModality(Modality requested, Modality subjectModality) {
@@ -84,7 +79,7 @@ public class BookingValidationServiceImpl implements IBookingValidationService {
 
     @Override
     public void validateNoOverlap(UUID timeSlotId, LocalTime startTime, LocalTime endTime) {
-        List<Booking> activeBookings = bookingRepository.findActiveByTimeSlotId(timeSlotId, ACTIVE_STATUSES);
+        List<Booking> activeBookings = bookingRepository.findActiveByTimeSlotId(timeSlotId, BookingConstants.ACTIVE_STATUSES);
 
         boolean overlaps = activeBookings.stream()
                 .anyMatch(b -> startTime.isBefore(b.getEndTime()) && endTime.isAfter(b.getStartTime()));
@@ -110,7 +105,7 @@ public class BookingValidationServiceImpl implements IBookingValidationService {
             User student, UUID tutorSubjectId, LocalDate date, LocalTime startTime, LocalTime endTime) {
 
         List<Booking> sameDaySubjectBookings = bookingRepository.findActiveByStudentSubjectAndDate(
-                student.getUserId(), tutorSubjectId, date, ACTIVE_STATUSES);
+                student.getUserId(), tutorSubjectId, date, BookingConstants.ACTIVE_STATUSES);
 
         Duration existing = sameDaySubjectBookings.stream()
                 .map(b -> Duration.between(b.getStartTime(), b.getEndTime()))
@@ -118,7 +113,7 @@ public class BookingValidationServiceImpl implements IBookingValidationService {
 
         Duration requested = Duration.between(startTime, endTime);
 
-        if (existing.plus(requested).compareTo(MAX_DAILY_SUBJECT_DURATION) > 0) {
+        if (existing.plus(requested).compareTo(BookingConstants.MAX_DAILY_SUBJECT_DURATION) > 0) {
             throw new ValidationException(
                     "Superaste el máximo de 3 horas diarias de reserva para esta materia con este tutor.");
         }
@@ -194,5 +189,10 @@ public class BookingValidationServiceImpl implements IBookingValidationService {
         if (!stillOpen) {
             throw new ValidationException("El código de confirmación ya no está disponible para esta clase.");
         }
+    }
+
+    @Override
+    public void validateNoStudentTimeConflict(User student, LocalDate date, LocalTime startTime, LocalTime endTime) {
+        studentScheduleValidationService.validateNoTimeConflict(student, date, startTime, endTime);
     }
 }

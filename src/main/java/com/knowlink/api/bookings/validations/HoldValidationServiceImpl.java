@@ -5,6 +5,7 @@ import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.timeslot.data.models.TimeSlot;
 import com.knowlink.api.bookings.data.models.Hold;
 import com.knowlink.api.bookings.repositories.IHoldRepository;
+import com.knowlink.api.bookings.services.interfaces.IStudentScheduleValidationService;
 import com.knowlink.api.tutors.availability.data.enums.BookingStatusGroups;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.tutors.data.models.TutorProfile;
@@ -15,6 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
@@ -28,6 +30,7 @@ public class HoldValidationServiceImpl implements IHoldValidationService {
 
     private final IHoldRepository holdRepository;
     private final IBookingRepository bookingRepository;
+    private final IStudentScheduleValidationService studentScheduleValidationService;
 
     @Override
     public void validateExactDuration(LocalTime startTime, LocalTime endTime) {
@@ -83,5 +86,10 @@ public class HoldValidationServiceImpl implements IHoldValidationService {
             throw new ValidationException(
                     "Ya tenés una selección de horario en curso. Completá o cancelá esa reserva antes de elegir otra.");
         }
+    }
+
+    @Override
+    public void validateNoStudentTimeConflict(User student, LocalDate date, LocalTime startTime, LocalTime endTime) {
+        studentScheduleValidationService.validateNoTimeConflict(student, date, startTime, endTime);
     }
 }

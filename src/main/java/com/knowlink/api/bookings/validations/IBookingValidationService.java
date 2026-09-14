@@ -5,6 +5,8 @@ import com.knowlink.api.timeslot.data.models.TimeSlot;
 import com.knowlink.api.tutors.data.enums.Modality;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.users.data.models.User;
+
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.UUID;
 
@@ -29,4 +31,6 @@ public interface IBookingValidationService {
     void validateCanConfirmSession(Booking booking, UUID tutorUserId);
     
     void validateCanViewConfirmationToken(Booking booking, UUID studentUserId);
+
+    void validateNoStudentTimeConflict(User student, LocalDate date, LocalTime startTime, LocalTime endTime);
 }
