@@ -2,17 +2,30 @@ package com.knowlink.api.bookings.services.implementations;
 
 import com.knowlink.api.bookings.services.interfaces.IBookingConfirmationTokenService;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
+import javax.crypto.Cipher;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.util.Base64;
 
 @Service
 public class BookingConfirmationTokenServiceImpl implements IBookingConfirmationTokenService {
 
+    private static final String ALGORITHM = "AES/GCM/NoPadding";
+    private static final int GCM_IV_LENGTH = 12;
+    private static final int GCM_TAG_LENGTH_BITS = 128;
+
     private final SecureRandom secureRandom = new SecureRandom();
+    private final SecretKeySpec secretKey;
+
+    public BookingConfirmationTokenServiceImpl(
+            @Value("${confirmation-token.encryption-key}") String base64Key) {
+        this.secretKey = new SecretKeySpec(Base64.getDecoder().decode(base64Key), "AES");
+    }
 
     @Override
     public String generateToken() {
@@ -21,26 +34,43 @@ public class BookingConfirmationTokenServiceImpl implements IBookingConfirmation
     }
 
     @Override
-    public String hash(String rawToken) {
+    public String encrypt(String rawToken) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return bytesToHex(digest.digest(rawToken.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 no disponible", e);
+            byte[] iv = new byte[GCM_IV_LENGTH];
+            secureRandom.nextBytes(iv);
+
+            Cipher cipher = Cipher.getInstance(ALGORITHM);
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey, new GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv));
+            byte[] ciphertext = cipher.doFinal(rawToken.getBytes(StandardCharsets.UTF_8));
+
+            byte[] combined = new byte[iv.length + ciphertext.length];
+            System.arraycopy(iv, 0, combined, 0, iv.length);
+            System.arraycopy(ciphertext, 0, combined, iv.length, ciphertext.length);
+            return Base64.getEncoder().encodeToString(combined);
+        } catch (Exception e) {
+            throw new IllegalStateException("No se pudo cifrar el token de confirmación", e);
         }
     }
 
     @Override
-    public boolean matches(String rawToken, String hash) {
-        // comparación en tiempo constante — no evita la fuerza bruta por sí sola
-        // (para eso está el límite de intentos), pero evita filtrar por timing
-        // cuánto del hash coincide
-        return MessageDigest.isEqual(hash(rawToken).getBytes(StandardCharsets.UTF_8), hash.getBytes(StandardCharsets.UTF_8));
+    public String decrypt(String encryptedToken) {
+        try {
+            byte[] combined = Base64.getDecoder().decode(encryptedToken);
+            byte[] iv = new byte[GCM_IV_LENGTH];
+            byte[] ciphertext = new byte[combined.length - GCM_IV_LENGTH];
+            System.arraycopy(combined, 0, iv, 0, GCM_IV_LENGTH);
+            System.arraycopy(combined, GCM_IV_LENGTH, ciphertext, 0, ciphertext.length);
+
+            Cipher cipher = Cipher.getInstance(ALGORITHM);
+            cipher.init(Cipher.DECRYPT_MODE, secretKey, new GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv));
+            return new String(cipher.doFinal(ciphertext), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            throw new IllegalStateException("No se pudo descifrar el token de confirmación", e);
+        }
     }
 
-    private String bytesToHex(byte[] bytes) {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : bytes) sb.append(String.format("%02x", b));
-        return sb.toString();
+    @Override
+    public boolean matches(String rawToken, String encryptedToken) {
+        return decrypt(encryptedToken).equals(rawToken);
     }
 }

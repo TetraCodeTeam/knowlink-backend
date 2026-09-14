@@ -7,6 +7,7 @@ import com.knowlink.api.bookings.controllers.requests.CreateBookingRequest;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryDetailResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryItemResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingConfirmationResponse;
+import com.knowlink.api.bookings.controllers.responses.BookingConfirmationTokenResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingResponse;
 import com.knowlink.api.bookings.data.enums.BookingHistoryCategory;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
@@ -31,7 +32,6 @@ import com.knowlink.api.users.services.interfaces.IUserService;
 import com.knowlink.api.students.repositories.IStudentProfileRepository;
 import com.knowlink.api.students.data.models.StudentProfile;
 import com.knowlink.api.bookings.events.SessionConfirmedEvent;
-import com.knowlink.api.bookings.data.enums.BookingStatus;
 
 import lombok.RequiredArgsConstructor;
 
@@ -229,5 +229,14 @@ public class BookingServiceImpl implements IBookingService {
                 applicationEventPublisher.publishEvent(new SessionConfirmedEvent(booking));
 
                 return bookingMapper.toConfirmationResponse(booking);
+        }
+
+        @Override
+        @Transactional(readOnly = true)
+        public BookingConfirmationTokenResponse getConfirmationToken(UUID studentUserId, UUID bookingId) {
+                Booking booking = findBookingOrThrow(bookingId);
+                bookingValidationService.validateCanViewConfirmationToken(booking, studentUserId);
+                return new BookingConfirmationTokenResponse(
+                                confirmationTokenService.decrypt(booking.getConfirmationToken()));
         }
 }
