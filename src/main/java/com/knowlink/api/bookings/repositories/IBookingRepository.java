@@ -148,5 +148,16 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
         List<Booking> findByCompletionNotificationSentFalseAndBookingStatusNot(BookingStatus excludedStatus);
 
         List<Booking> findByBookingStatusInAndConfirmedAtIsNullAndConfirmationTokenExpirationBefore(
-        List<BookingStatus> statuses, LocalDateTime now);
+                        List<BookingStatus> statuses, LocalDateTime now);
+
+        @Query("""
+                        SELECT b FROM Booking b
+                        WHERE b.student.userId = :studentUserId
+                        AND b.sessionDate = :date
+                        AND b.bookingStatus IN :statuses
+                        """)
+        List<Booking> findActiveByStudentAndDate(
+                        @Param("studentUserId") UUID studentUserId,
+                        @Param("date") LocalDate date,
+                        @Param("statuses") List<BookingStatus> statuses);
 }
