@@ -6,6 +6,7 @@ import com.knowlink.api.shared.responses.PagedResponse;
 import com.knowlink.api.bookings.controllers.requests.ConfirmSessionTokenRequest;
 import com.knowlink.api.bookings.controllers.requests.CreateBookingRequest;
 import com.knowlink.api.bookings.controllers.responses.BookingConfirmationResponse;
+import com.knowlink.api.bookings.controllers.responses.BookingConfirmationTokenResponse;
 import com.knowlink.api.bookings.controllers.requests.VirtualSessionLinkRequest;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryDetailResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryItemResponse;
@@ -87,4 +88,14 @@ public interface IBookingController {
                         @AuthenticationPrincipal UserPrincipal principal,
                         @PathVariable UUID bookingId,
                         @Valid @RequestBody ConfirmSessionTokenRequest request);
+
+        @GetMapping("/{bookingId}/confirmation-token")
+        @Operation(summary = "Ver el código de confirmación de la sesión (solo alumno) — US-41")
+        @ApiResponse(responseCode = "200", description = "Código de confirmación vigente")
+        @ApiResponse(responseCode = "400", description = "El código todavía no se generó, o ya no está disponible")
+        @ApiResponse(responseCode = "403", description = "El usuario autenticado no es el alumno de esta reserva")
+        @ResponseStatus(OK)
+        BookingConfirmationTokenResponse getConfirmationToken(
+                        @AuthenticationPrincipal UserPrincipal principal,
+                        @PathVariable UUID bookingId);
 }

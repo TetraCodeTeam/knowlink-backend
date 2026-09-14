@@ -7,6 +7,7 @@ import com.knowlink.api.bookings.controllers.interfaces.IBookingController;
 import com.knowlink.api.bookings.controllers.requests.ConfirmSessionTokenRequest;
 import com.knowlink.api.bookings.controllers.requests.CreateBookingRequest;
 import com.knowlink.api.bookings.controllers.responses.BookingConfirmationResponse;
+import com.knowlink.api.bookings.controllers.responses.BookingConfirmationTokenResponse;
 import com.knowlink.api.bookings.controllers.requests.VirtualSessionLinkRequest;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryDetailResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryItemResponse;
@@ -57,5 +58,10 @@ public class BookingControllerImpl implements IBookingController {
     public BookingConfirmationResponse confirmSession(UserPrincipal principal, UUID bookingId,
             ConfirmSessionTokenRequest request) {
         return bookingService.confirmSession(principal.getUser().getUserId(), bookingId, request.token());
+    }
+
+    @Override
+    public BookingConfirmationTokenResponse getConfirmationToken(UserPrincipal principal, UUID bookingId) {
+        return bookingService.getConfirmationToken(principal.getUser().getUserId(), bookingId);
     }
 }
