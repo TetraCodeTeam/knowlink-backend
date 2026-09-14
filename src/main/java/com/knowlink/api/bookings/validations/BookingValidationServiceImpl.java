@@ -179,4 +179,20 @@ public class BookingValidationServiceImpl implements IBookingValidationService {
             throw new ValidationException("Se superó el máximo de intentos para este código. Contactá a soporte.");
         }
     }
+
+    @Override
+    public void validateCanViewConfirmationToken(Booking booking, UUID studentUserId) {
+        if (!booking.getStudent().getUserId().equals(studentUserId)) {
+            throw new AccessDeniedException("No tenés permiso para ver el código de esta reserva.");
+        }
+        if (booking.getConfirmationToken() == null) {
+            throw new ValidationException("Todavía no se generó el código de confirmación para esta clase.");
+        }
+        boolean stillOpen = booking.getConfirmedAt() == null
+                && (booking.getBookingStatus() == BookingStatus.BOOKED
+                        || booking.getBookingStatus() == BookingStatus.IN_PROGRESS);
+        if (!stillOpen) {
+            throw new ValidationException("El código de confirmación ya no está disponible para esta clase.");
+        }
+    }
 }

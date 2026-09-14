@@ -27,4 +27,6 @@ public interface IBookingValidationService {
     void validateCanSetVirtualLink(Booking booking, UUID tutorUserId);
     
     void validateCanConfirmSession(Booking booking, UUID tutorUserId);
+    
+    void validateCanViewConfirmationToken(Booking booking, UUID studentUserId);
 }
