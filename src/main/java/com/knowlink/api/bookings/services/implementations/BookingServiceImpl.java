@@ -95,6 +95,9 @@ public class BookingServiceImpl implements IBookingService {
                                         "Tu tiempo para completar la reserva expiró. Elegí un horario nuevamente.");
                 }
 
+                bookingValidationService.validateNoStudentTimeConflict(
+                                student, hold.getTimeSlot().getDate(), startTime, endTime);
+
                 TutorSubject tutorSubject = tutorSubjectRepository.findById(request.tutorSubjectId())
                                 .orElseThrow(() -> new ResourceNotFoundException(
                                                 "TUTOR_SUBJECT_NOT_FOUND",
