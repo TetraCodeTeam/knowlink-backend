@@ -45,11 +45,11 @@ public class BookingConfirmationTokenGenerationJob {
                 // NUNCA debe llegar a un ambiente de producción — loguear el código
                 // en texto plano anula la razón por la que lo hasheamos en la base.
                 log.info("[DEV] Token de confirmación para booking {}: {}", booking.getBookingId(), rawToken);
-                booking.setConfirmationToken(tokenService.hash(rawToken));
+                booking.setConfirmationToken(tokenService.encrypt(rawToken));
 
                 LocalDateTime sessionEnd = LocalDateTime.of(booking.getSessionDate(), booking.getEndTime());
 
-                booking.setConfirmationToken(tokenService.hash(rawToken));
+                booking.setConfirmationToken(tokenService.encrypt(rawToken));
                 booking.setConfirmationTokenExpiration(
                         sessionEnd.plus(BookingConstants.CONFIRMATION_WINDOW_GRACE_PERIOD));
                 bookingRepository.save(booking);
