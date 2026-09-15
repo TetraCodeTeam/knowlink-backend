@@ -79,7 +79,8 @@ public class BookingValidationServiceImpl implements IBookingValidationService {
 
     @Override
     public void validateNoOverlap(UUID timeSlotId, LocalTime startTime, LocalTime endTime) {
-        List<Booking> activeBookings = bookingRepository.findActiveByTimeSlotId(timeSlotId, BookingConstants.ACTIVE_STATUSES);
+        List<Booking> activeBookings = bookingRepository.findActiveByTimeSlotId(timeSlotId,
+                BookingConstants.ACTIVE_STATUSES);
 
         boolean overlaps = activeBookings.stream()
                 .anyMatch(b -> startTime.isBefore(b.getEndTime()) && endTime.isAfter(b.getStartTime()));
@@ -183,10 +184,12 @@ public class BookingValidationServiceImpl implements IBookingValidationService {
         if (booking.getConfirmationToken() == null) {
             throw new ValidationException("Todavía no se generó el código de confirmación para esta clase.");
         }
-        boolean stillOpen = booking.getConfirmedAt() == null
-                && (booking.getBookingStatus() == BookingStatus.BOOKED
-                        || booking.getBookingStatus() == BookingStatus.IN_PROGRESS);
-        if (!stillOpen) {
+        if (booking.getConfirmedAt() != null) {
+            throw new ValidationException("El código de confirmación ya no está disponible para esta clase.");
+        }
+
+        LocalDateTime now = LocalDateTime.now(AppTimeZone.ZONE);
+        if (now.isAfter(booking.getConfirmationTokenExpiration())) {
             throw new ValidationException("El código de confirmación ya no está disponible para esta clase.");
         }
     }
