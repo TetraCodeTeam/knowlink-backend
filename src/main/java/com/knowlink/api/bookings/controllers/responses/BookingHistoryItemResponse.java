@@ -4,6 +4,7 @@ import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.tutors.data.enums.Modality;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.UUID;
 
@@ -16,5 +17,6 @@ public record BookingHistoryItemResponse(
         LocalTime startTime,
         LocalTime endTime,
         Modality modality,
-        BookingStatus status
+        BookingStatus status,
+        LocalDateTime confirmationTokenExpiresAt
 ) {}

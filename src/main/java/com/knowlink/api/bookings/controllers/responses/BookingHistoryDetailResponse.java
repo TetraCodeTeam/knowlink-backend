@@ -23,5 +23,6 @@ public record BookingHistoryDetailResponse(
         String topic,
         String virtualSessionLink, // solo si modality == VIRTUAL
         String address,            // solo si modality == IN_PERSON
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        LocalDateTime confirmationTokenExpiresAt
 ) {}
