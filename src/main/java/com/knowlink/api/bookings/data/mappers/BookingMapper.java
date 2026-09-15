@@ -1,6 +1,7 @@
 package com.knowlink.api.bookings.data.mappers;
 
 import com.knowlink.api.bookings.controllers.requests.CreateBookingRequest;
+import com.knowlink.api.bookings.controllers.responses.BookingConfirmationResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryItemResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryDetailResponse;
@@ -20,6 +21,9 @@ import java.util.UUID;
 
 @Component
 public class BookingMapper {
+
+        private record OtherParty(User user, boolean isTutor) {
+        }
 
         public Booking toEntity(
                         Hold hold, TutorSubject tutorSubject, User student, LocalTime startTime, LocalTime endTime,
@@ -57,32 +61,32 @@ public class BookingMapper {
 
         public BookingHistoryItemResponse toListItem(Booking booking, UUID viewerUserId,
                         Map<UUID, String> studentProfilePictureByUserId) {
-                User otherParty = resolveOtherParty(booking, viewerUserId);
-                boolean viewerIsStudent = booking.getStudent().getUserId().equals(viewerUserId);
-                String otherPartyProfilePictureUrl = viewerIsStudent
+                OtherParty otherParty = resolveOtherParty(booking, viewerUserId);
+                String otherPartyProfilePictureUrl = otherParty.isTutor()
                                 ? booking.getTutorSubject().getTutorProfile().getProfilePictureUrl()
                                 : studentProfilePictureByUserId.get(booking.getStudent().getUserId());
 
                 return new BookingHistoryItemResponse(
                                 booking.getBookingId(),
-                                otherParty.getFullName(),
+                                otherParty.user().getFullName(),
                                 otherPartyProfilePictureUrl,
                                 booking.getTutorSubject().getSubject().getName(),
                                 booking.getSessionDate(),
                                 booking.getStartTime(),
                                 booking.getEndTime(),
                                 booking.getModality(),
-                                booking.getBookingStatus());
+                                booking.getBookingStatus(),
+                                booking.getConfirmationTokenExpiration());
         }
 
         public BookingHistoryDetailResponse toDetail(Booking booking, UUID viewerUserId,
                         String otherPartyProfilePictureUrl) {
-                User otherParty = resolveOtherParty(booking, viewerUserId);
+                OtherParty otherParty = resolveOtherParty(booking, viewerUserId);
                 boolean isVirtual = booking.getModality() == Modality.VIRTUAL;
 
                 return new BookingHistoryDetailResponse(
                                 booking.getBookingId(),
-                                otherParty.getFullName(),
+                                otherParty.user().getFullName(),
                                 otherPartyProfilePictureUrl,
                                 booking.getTutorSubject().getSubject().getName(),
                                 booking.getSessionDate(),
@@ -94,11 +98,21 @@ public class BookingMapper {
                                 booking.getTopic(),
                                 isVirtual ? booking.getVirtualSessionLink() : null,
                                 isVirtual ? null : booking.getTutorSubject().getTutorProfile().getAddress(),
-                                booking.getCreatedAt());
+                                booking.getCreatedAt(),
+                                booking.getConfirmationTokenExpiration());
         }
 
-        private User resolveOtherParty(Booking booking, UUID viewerUserId) {
+        private OtherParty resolveOtherParty(Booking booking, UUID viewerUserId) {
                 boolean viewerIsStudent = booking.getStudent().getUserId().equals(viewerUserId);
-                return viewerIsStudent ? booking.getTutor() : booking.getStudent();
+                return viewerIsStudent
+                                ? new OtherParty(booking.getTutor(), true)
+                                : new OtherParty(booking.getStudent(), false);
+        }
+
+        public BookingConfirmationResponse toConfirmationResponse(Booking booking) {
+                return new BookingConfirmationResponse(
+                                booking.getBookingId(),
+                                booking.getBookingStatus(),
+                                booking.getConfirmedAt());
         }
 }

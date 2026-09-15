@@ -64,6 +64,7 @@ public class HoldServiceImpl implements IHoldService {
         holdValidationService.validateMinNotice(tutorProfile, timeSlot, startTime);
         holdValidationService.validateNoOverlap(timeSlot.getTimeSlotId(), startTime, endTime);
         holdValidationService.validateSingleActiveHold(student);
+        holdValidationService.validateNoStudentTimeConflict(student, timeSlot.getDate(), startTime, endTime);                                                                                                      
 
         Hold hold = Hold.builder()
                 .timeSlot(timeSlot)

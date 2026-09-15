@@ -3,6 +3,8 @@ package com.knowlink.api.bookings.services.interfaces;
 import com.knowlink.api.bookings.controllers.requests.CreateBookingRequest;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryDetailResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryItemResponse;
+import com.knowlink.api.bookings.controllers.responses.BookingConfirmationResponse;
+import com.knowlink.api.bookings.controllers.responses.BookingConfirmationTokenResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingResponse;
 import com.knowlink.api.bookings.data.enums.BookingHistoryCategory;
 import com.knowlink.api.security.enums.Role;
@@ -19,4 +21,8 @@ public interface IBookingService {
     BookingHistoryDetailResponse getDetail(UUID userId, UUID bookingId);
 
     BookingHistoryDetailResponse setVirtualLink(UUID tutorUserId, UUID bookingId, String virtualSessionLink);
+
+    BookingConfirmationResponse confirmSession(UUID tutorUserId, UUID bookingId, String rawToken);
+
+    BookingConfirmationTokenResponse getConfirmationToken(UUID studentUserId, UUID bookingId);
 }

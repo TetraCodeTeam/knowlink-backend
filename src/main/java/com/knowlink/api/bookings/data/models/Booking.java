@@ -15,18 +15,16 @@ import java.time.LocalTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "booking", uniqueConstraints = @UniqueConstraint(
-        name = "uk_active_booking_slot_start",
-        columnNames = {"time_slot_id", "start_time"}
-))
-@Getter 
-@Setter 
-@NoArgsConstructor 
-@AllArgsConstructor 
+@Table(name = "booking", uniqueConstraints = @UniqueConstraint(name = "uk_active_booking_slot_start", columnNames = {
+        "time_slot_id", "start_time" }))
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Builder
 public class Booking {
 
-     @Id
+    @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "booking_id", updatable = false, nullable = false)
     private UUID bookingId;
@@ -53,14 +51,28 @@ public class Booking {
     @Column(name = "modality", nullable = false)
     private Modality modality;
 
-    @Column(name = "confirmation_token_expiration")
-    private LocalDateTime confirmationTokenExpiration;
-
     @Column(name = "virtual_session_link")
     private String virtualSessionLink;
 
-    @Column(name = "confirmation_token")
+    @Column(name = "confirmation_token") // guarda el HASH, no el token en texto plano — sin unique=true
     private String confirmationToken;
+
+    @Column(name = "confirmation_token_expiration")
+    private LocalDateTime confirmationTokenExpiration; // sin cambios — la sigo usando tal cual
+
+    @Column(name = "confirmation_token_attempts", nullable = false)
+    @Builder.Default
+    private int confirmationTokenAttempts = 0;
+
+    @Column(name = "confirmed_at")
+    private LocalDateTime confirmedAt;
+
+    @Column(name = "last_confirmation_reminder_at")
+    private LocalDateTime lastConfirmationReminderAt;
+
+    @Column(name = "completion_notification_sent", nullable = false)
+    @Builder.Default
+    private boolean completionNotificationSent = false;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "booking_status", nullable = false)
