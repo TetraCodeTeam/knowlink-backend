@@ -146,7 +146,7 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
 
         List<Booking> findByBookingStatusInAndConfirmedAtIsNull(List<BookingStatus> statuses);
 
-        List<Booking> findByCompletionNotificationSentFalseAndBookingStatusNot(BookingStatus excludedStatus);
+        List<Booking> findByCompletionNotificationSentFalseAndBookingStatusIn(List<BookingStatus> statuses);
 
         List<Booking> findByBookingStatusInAndConfirmedAtIsNullAndConfirmationTokenExpirationBefore(
                         List<BookingStatus> statuses, LocalDateTime now);

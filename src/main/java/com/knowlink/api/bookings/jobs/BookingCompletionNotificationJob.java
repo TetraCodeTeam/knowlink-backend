@@ -26,7 +26,8 @@ public class BookingCompletionNotificationJob {
     @Transactional
     public void run() {
         LocalDateTime now = LocalDateTime.now(AppTimeZone.ZONE);
-        List<Booking> candidates = bookingRepository.findByCompletionNotificationSentFalseAndBookingStatusNot(BookingStatus.CANCELLED);
+        List<Booking> candidates = bookingRepository.findByCompletionNotificationSentFalseAndBookingStatusIn(
+        List.of(BookingStatus.BOOKED, BookingStatus.IN_PROGRESS, BookingStatus.COMPLETED, BookingStatus.NOT_CONFIRMED));
 
         for (Booking booking : candidates) {
             LocalDateTime sessionEnd = LocalDateTime.of(booking.getSessionDate(), booking.getEndTime());
