@@ -7,6 +7,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -160,4 +161,8 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
                         @Param("studentUserId") UUID studentUserId,
                         @Param("date") LocalDate date,
                         @Param("statuses") List<BookingStatus> statuses);
+
+        @Modifying(clearAutomatically = true)
+        @Query("UPDATE Booking b SET b.confirmationTokenAttempts = b.confirmationTokenAttempts + 1 WHERE b.bookingId = :bookingId")
+        void incrementConfirmationTokenAttempts(@Param("bookingId") UUID bookingId);
 }
