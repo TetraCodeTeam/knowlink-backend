@@ -38,13 +38,13 @@ public class BookingConfirmationTokenGenerationJob {
         for (Booking booking : candidates) {
             LocalDateTime sessionStart = LocalDateTime.of(booking.getSessionDate(), booking.getStartTime());
 
-            if (sessionStart.isAfter(now)
-                    && sessionStart.isBefore(now.plus(BookingConstants.CONFIRMATION_TOKEN_LEAD_TIME))) {
+            if (!sessionStart.isAfter(now.plus(BookingConstants.CONFIRMATION_TOKEN_LEAD_TIME))
+                    && now.isBefore(LocalDateTime.of(booking.getSessionDate(), booking.getEndTime())
+                            .plus(BookingConstants.CONFIRMATION_WINDOW_GRACE_PERIOD))) {
                 String rawToken = tokenService.generateToken();
-                // TODO: sacar este log en cuanto exista el canal de notificación real.
-                // NUNCA debe llegar a un ambiente de producción — loguear el código
-                // en texto plano anula la razón por la que lo hasheamos en la base.
-                log.info("[DEV] Token de confirmación para booking {}: {}", booking.getBookingId(), rawToken);
+
+                // El token se entrega únicamente mediante
+                // SessionConfirmationTokenGeneratedEvent.
                 booking.setConfirmationToken(tokenService.encrypt(rawToken));
 
                 LocalDateTime sessionEnd = LocalDateTime.of(booking.getSessionDate(), booking.getEndTime());
