@@ -155,7 +155,7 @@ public class BookingValidationServiceImpl implements IBookingValidationService {
     @Override
     public void validateCanConfirmSession(Booking booking, UUID tutorUserId) {
         if (!booking.getTutor().getUserId().equals(tutorUserId)) {
-            throw new UnauthorizedException("No tenés permiso para confirmar esta reserva.");
+            throw new AccessDeniedException("No tenés permiso para confirmar esta reserva.");
         }
         if (booking.getBookingStatus() != BookingStatus.BOOKED
                 && booking.getBookingStatus() != BookingStatus.IN_PROGRESS) {
@@ -183,6 +183,9 @@ public class BookingValidationServiceImpl implements IBookingValidationService {
         }
         if (booking.getConfirmationToken() == null) {
             throw new ValidationException("Todavía no se generó el código de confirmación para esta clase.");
+        }
+        if (booking.getBookingStatus() == BookingStatus.CANCELLED) {
+            throw new ValidationException("El código de confirmación ya no está disponible para esta clase.");
         }
         if (booking.getConfirmedAt() != null) {
             throw new ValidationException("El código de confirmación ya no está disponible para esta clase.");
