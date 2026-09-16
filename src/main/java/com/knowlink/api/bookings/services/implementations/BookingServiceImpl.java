@@ -214,14 +214,13 @@ public class BookingServiceImpl implements IBookingService {
         }
 
         @Override
-        @Transactional
+        @Transactional(noRollbackFor = ValidationException.class)
         public BookingConfirmationResponse confirmSession(UUID tutorUserId, UUID bookingId, String rawToken) {
                 Booking booking = findBookingOrThrow(bookingId);
                 bookingValidationService.validateCanConfirmSession(booking, tutorUserId);
 
                 if (!confirmationTokenService.matches(rawToken, booking.getConfirmationToken())) {
-                        booking.setConfirmationTokenAttempts(booking.getConfirmationTokenAttempts() + 1);
-                        bookingRepository.save(booking);
+                        bookingRepository.incrementConfirmationTokenAttempts(booking.getBookingId());
                         throw new ValidationException("El código ingresado no es válido. Verificá con tu alumno");
                 }
 
