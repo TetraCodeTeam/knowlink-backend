@@ -54,11 +54,11 @@ public class Booking {
     @Column(name = "virtual_session_link")
     private String virtualSessionLink;
 
-    @Column(name = "confirmation_token") // guarda el HASH, no el token en texto plano — sin unique=true
+    @Column(name = "confirmation_token") // guarda el token cifrado con AES-GCM
     private String confirmationToken;
 
     @Column(name = "confirmation_token_expiration")
-    private LocalDateTime confirmationTokenExpiration; // sin cambios — la sigo usando tal cual
+    private LocalDateTime confirmationTokenExpiration; 
 
     @Column(name = "confirmation_token_attempts", nullable = false)
     @Builder.Default
