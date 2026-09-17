@@ -19,7 +19,6 @@ import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.timeslot.data.enums.SlotStatus;
 import com.knowlink.api.timeslot.data.models.TimeSlot;
 import com.knowlink.api.timeslot.repositories.ITimeSlotRepository;
-import com.knowlink.api.users.data.models.User;
 
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
@@ -30,8 +29,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.util.Optional;
 import java.util.UUID;
 
 @Service
