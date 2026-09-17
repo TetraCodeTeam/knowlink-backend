@@ -7,10 +7,12 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -139,4 +141,28 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
         @Override
         @EntityGraph(attributePaths = { "student", "tutor", "tutorSubject.subject", "tutorSubject.tutorProfile" })
         Optional<Booking> findById(UUID bookingId);
+
+        List<Booking> findByBookingStatusAndConfirmationTokenIsNull(BookingStatus status);
+
+        List<Booking> findByBookingStatusInAndConfirmedAtIsNull(List<BookingStatus> statuses);
+
+        List<Booking> findByCompletionNotificationSentFalseAndBookingStatusIn(List<BookingStatus> statuses);
+
+        List<Booking> findByBookingStatusInAndConfirmedAtIsNullAndConfirmationTokenExpirationBefore(
+                        List<BookingStatus> statuses, LocalDateTime now);
+
+        @Query("""
+                        SELECT b FROM Booking b
+                        WHERE b.student.userId = :studentUserId
+                        AND b.sessionDate = :date
+                        AND b.bookingStatus IN :statuses
+                        """)
+        List<Booking> findActiveByStudentAndDate(
+                        @Param("studentUserId") UUID studentUserId,
+                        @Param("date") LocalDate date,
+                        @Param("statuses") List<BookingStatus> statuses);
+
+        @Modifying(clearAutomatically = true)
+        @Query("UPDATE Booking b SET b.confirmationTokenAttempts = b.confirmationTokenAttempts + 1 WHERE b.bookingId = :bookingId")
+        void incrementConfirmationTokenAttempts(@Param("bookingId") UUID bookingId);
 }

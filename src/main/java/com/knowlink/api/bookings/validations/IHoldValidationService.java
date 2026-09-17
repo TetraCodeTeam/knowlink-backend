@@ -4,6 +4,7 @@ import com.knowlink.api.timeslot.data.models.TimeSlot;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.users.data.models.User;
 
+import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.UUID;
 
@@ -13,4 +14,5 @@ public interface IHoldValidationService {
     void validateMinNotice(TutorProfile tutorProfile, TimeSlot timeSlot, LocalTime startTime);
     void validateNoOverlap(UUID timeSlotId, LocalTime startTime, LocalTime endTime);
     void validateSingleActiveHold(User student);
+    void validateNoStudentTimeConflict(User student, LocalDate date, LocalTime startTime, LocalTime endTime);
 }

@@ -167,4 +167,14 @@ public class UserServiceImpl implements IUserService {
         Token token = tokenService.saveUserToken(user);
         eventPublisher.publishEvent(new PasswordResetRequestedEvent(user, token.getTokenId()));
     }
+
+    @Override
+    @Transactional
+    public User lockForUpdateOrThrowException(UUID userId) {
+        return userRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "USER_NOT_FOUND",
+                        "Usuario no encontrado.",
+                        String.format("user con id '%s' no existe", userId)));
+    }
 }
