@@ -13,15 +13,17 @@ services:
         value: https://knowlink-backend.onrender.com
       - key: JWT_EXPIRATION
         value: "86400000"
-      - key: BREVO_SENDER_ADDRESS
-        value: tetracodeteam@gmail.com
-      - key: BREVO_SENDER_NAME
-        value: KnowLink
+      - key: GMAIL_SENDER_ADDRESS
+        value: mrojaslopez03@gmail.com
       - key: JWT_SECRET
         sync: false
       - key: FRONTEND_URL
         sync: false
-      - key: BREVO_API_KEY
+      - key: GMAIL_CLIENT_ID
+        sync: false
+      - key: GMAIL_CLIENT_SECRET
+        sync: false
+      - key: GMAIL_REFRESH_TOKEN
         sync: false
       - key: DB_HOST
         sync: false
