@@ -2,6 +2,7 @@ package com.knowlink.api.bookings.jobs;
 
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.models.Booking;
+import com.knowlink.api.bookings.events.BookingConfirmationEventPayload;
 import com.knowlink.api.bookings.events.SessionConfirmationTokenGeneratedEvent;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
 import com.knowlink.api.bookings.services.interfaces.IBookingConfirmationTokenService;
@@ -53,7 +54,9 @@ public class BookingConfirmationTokenGenerationJob {
                 booking.setConfirmationTokenExpiration(
                         sessionEnd.plus(BookingConstants.CONFIRMATION_WINDOW_GRACE_PERIOD));
                 bookingRepository.save(booking);
-                eventPublisher.publishEvent(new SessionConfirmationTokenGeneratedEvent(booking, rawToken));
+                eventPublisher.publishEvent(new SessionConfirmationTokenGeneratedEvent(
+                        BookingConfirmationEventPayload.from(booking), rawToken));
+
             }
         }
     }

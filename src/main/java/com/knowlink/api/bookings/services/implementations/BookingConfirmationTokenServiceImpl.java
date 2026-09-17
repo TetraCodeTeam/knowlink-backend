@@ -1,6 +1,7 @@
 package com.knowlink.api.bookings.services.implementations;
 
 import com.knowlink.api.bookings.services.interfaces.IBookingConfirmationTokenService;
+import com.knowlink.api.bookings.utils.BookingConstants;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -29,8 +30,9 @@ public class BookingConfirmationTokenServiceImpl implements IBookingConfirmation
 
     @Override
     public String generateToken() {
-        int value = secureRandom.nextInt(10_000); // 0000 a 9999
-        return String.format("%04d", value);
+        int bound = (int) Math.pow(10, BookingConstants.CONFIRMATION_TOKEN_DIGITS);
+        int value = secureRandom.nextInt(bound);
+        return String.format("%0" + BookingConstants.CONFIRMATION_TOKEN_DIGITS + "d", value);
     }
 
     @Override

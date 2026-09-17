@@ -2,6 +2,7 @@ package com.knowlink.api.bookings.jobs;
 
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.models.Booking;
+import com.knowlink.api.bookings.events.BookingConfirmationEventPayload;
 import com.knowlink.api.bookings.events.SessionConfirmationReminderEvent;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
 import com.knowlink.api.bookings.utils.BookingConstants;
@@ -48,7 +49,8 @@ public class BookingConfirmationReminderJob {
             if (dueForReminder) {
                 booking.setLastConfirmationReminderAt(now);
                 bookingRepository.save(booking);
-                eventPublisher.publishEvent(new SessionConfirmationReminderEvent(booking));
+                eventPublisher.publishEvent(
+                        new SessionConfirmationReminderEvent(BookingConfirmationEventPayload.from(booking)));
             }
         }
     }

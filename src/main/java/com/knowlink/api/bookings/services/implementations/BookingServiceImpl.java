@@ -31,6 +31,7 @@ import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.services.interfaces.IUserService;
 import com.knowlink.api.students.repositories.IStudentProfileRepository;
 import com.knowlink.api.students.data.models.StudentProfile;
+import com.knowlink.api.bookings.events.BookingConfirmationEventPayload;
 import com.knowlink.api.bookings.events.SessionConfirmedEvent;
 
 import lombok.RequiredArgsConstructor;
@@ -237,7 +238,8 @@ public class BookingServiceImpl implements IBookingService {
                 booking.setConfirmedAt(LocalDateTime.now(AppTimeZone.ZONE));
                 bookingRepository.save(booking);
 
-                applicationEventPublisher.publishEvent(new SessionConfirmedEvent(booking));
+                applicationEventPublisher
+                                .publishEvent(new SessionConfirmedEvent(BookingConfirmationEventPayload.from(booking)));
 
                 return bookingMapper.toConfirmationResponse(booking);
         }

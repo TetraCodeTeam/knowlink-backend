@@ -2,6 +2,7 @@ package com.knowlink.api.bookings.jobs;
 
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.models.Booking;
+import com.knowlink.api.bookings.events.BookingConfirmationEventPayload;
 import com.knowlink.api.bookings.events.SessionCompletionNotificationEvent;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
 import com.knowlink.api.shared.utils.AppTimeZone;
@@ -15,6 +16,7 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
 @Component
 @RequiredArgsConstructor
 public class BookingCompletionNotificationJob {
@@ -27,15 +29,19 @@ public class BookingCompletionNotificationJob {
     public void run() {
         LocalDateTime now = LocalDateTime.now(AppTimeZone.ZONE);
         List<Booking> candidates = bookingRepository.findByCompletionNotificationSentFalseAndBookingStatusIn(
-        List.of(BookingStatus.BOOKED, BookingStatus.IN_PROGRESS, BookingStatus.COMPLETED, BookingStatus.NOT_CONFIRMED));
+                List.of(BookingStatus.BOOKED, BookingStatus.IN_PROGRESS, BookingStatus.COMPLETED,
+                        BookingStatus.NOT_CONFIRMED));
 
         for (Booking booking : candidates) {
             LocalDateTime sessionEnd = LocalDateTime.of(booking.getSessionDate(), booking.getEndTime());
-            if (now.isBefore(sessionEnd)) continue;
+            if (now.isBefore(sessionEnd))
+                continue;
 
             booking.setCompletionNotificationSent(true);
             bookingRepository.save(booking);
-            eventPublisher.publishEvent(new SessionCompletionNotificationEvent(booking));
+            eventPublisher.publishEvent(
+                    new SessionCompletionNotificationEvent(BookingConfirmationEventPayload.from(booking)));
+
         }
     }
 }
