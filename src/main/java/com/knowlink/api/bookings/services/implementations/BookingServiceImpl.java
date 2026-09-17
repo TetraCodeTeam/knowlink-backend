@@ -95,6 +95,15 @@ public class BookingServiceImpl implements IBookingService {
                                         "Tu tiempo para completar la reserva expiró. Elegí un horario nuevamente.");
                 }
 
+                // Lockeamos al alumno para serializar el chequeo de conflicto contra cualquier
+                // otro hold/booking que esté creándose en paralelo para el mismo alumno — sin
+                // esto, dos requests concurrentes en slots distintos pueden leer "sin
+                // conflicto" antes de que ninguna de las dos haya confirmado la suya.
+                userService.lockForUpdateOrThrowException(studentUserId);
+
+                bookingValidationService.validateNoStudentTimeConflict(
+                                student, hold.getTimeSlot().getDate(), startTime, endTime);
+
                 bookingValidationService.validateNoStudentTimeConflict(
                                 student, hold.getTimeSlot().getDate(), startTime, endTime);
 

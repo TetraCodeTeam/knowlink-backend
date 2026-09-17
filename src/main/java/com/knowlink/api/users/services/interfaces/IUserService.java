@@ -30,4 +30,6 @@ public interface IUserService {
     void resetPassword(UUID token, String newPassword, String confirmNewPassword);
 
     void sendResetPasswordEmail(String email);
+
+    User lockForUpdateOrThrowException(UUID userId);
 }

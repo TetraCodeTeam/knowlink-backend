@@ -1,7 +1,6 @@
 package com.knowlink.api.bookings.validations;
 
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
-import com.knowlink.api.exceptions.custom_exceptions.UnauthorizedException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.timeslot.data.models.TimeSlot;
