@@ -11,6 +11,7 @@ import com.knowlink.api.bookings.controllers.requests.VirtualSessionLinkRequest;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryDetailResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryItemResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingResponse;
+import com.knowlink.api.bookings.controllers.responses.ActiveHoldStatusResponse;
 import com.knowlink.api.bookings.data.enums.BookingHistoryCategory;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -98,4 +99,9 @@ public interface IBookingController {
         BookingConfirmationTokenResponse getConfirmationToken(
                         @AuthenticationPrincipal UserPrincipal principal,
                         @PathVariable UUID bookingId);
+
+        @GetMapping("/active-hold")
+        @Operation(summary = "Consultar si el alumno autenticado tiene una selección de horario en curso")
+        @ResponseStatus(OK)
+        ActiveHoldStatusResponse getActiveHold(@AuthenticationPrincipal UserPrincipal principal);
 }
