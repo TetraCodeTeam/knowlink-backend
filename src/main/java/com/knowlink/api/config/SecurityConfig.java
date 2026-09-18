@@ -16,6 +16,8 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import jakarta.servlet.DispatcherType;
+
 import static com.knowlink.api.security.utils.SecurityConstants.SWAGGER_WHITELIST;
 import static com.knowlink.api.security.utils.SecurityConstants.PUBLIC_WHITELIST;
 
@@ -32,20 +34,18 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(AbstractHttpConfigurer::disable)
-            .cors(Customizer.withDefaults())
-            .sessionManagement(session ->
-                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .exceptionHandling(ex ->
-                ex.authenticationEntryPoint(globalAuthenticationEntryPoint))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers(HttpMethod.OPTIONS).permitAll()
-                .requestMatchers(SWAGGER_WHITELIST).permitAll()
-                .requestMatchers(PUBLIC_WHITELIST).permitAll()
-                .anyRequest().authenticated()
-            )
-            .authenticationProvider(authenticationProvider)
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(Customizer.withDefaults())
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(globalAuthenticationEntryPoint))
+                .authorizeHttpRequests(auth -> auth
+                        .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.ASYNC).permitAll()
+                        .requestMatchers(HttpMethod.OPTIONS).permitAll()
+                        .requestMatchers(SWAGGER_WHITELIST).permitAll()
+                        .requestMatchers(PUBLIC_WHITELIST).permitAll()
+                        .anyRequest().authenticated())
+                .authenticationProvider(authenticationProvider)
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }

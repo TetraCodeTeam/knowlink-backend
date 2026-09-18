@@ -2,6 +2,7 @@ package com.knowlink.api.bookings.validations;
 
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.shared.utils.AppTimeZone;
+import com.knowlink.api.bookings.utils.HoldTutorResolver;
 import com.knowlink.api.timeslot.data.models.TimeSlot;
 import com.knowlink.api.bookings.data.models.Hold;
 import com.knowlink.api.bookings.repositories.IHoldRepository;
@@ -31,6 +32,7 @@ public class HoldValidationServiceImpl implements IHoldValidationService {
     private final IHoldRepository holdRepository;
     private final IBookingRepository bookingRepository;
     private final IStudentScheduleValidationService studentScheduleValidationService;
+    private final HoldTutorResolver holdTutorResolver;
 
     @Override
     public void validateExactDuration(LocalTime startTime, LocalTime endTime) {
@@ -82,10 +84,12 @@ public class HoldValidationServiceImpl implements IHoldValidationService {
 
     @Override
     public void validateSingleActiveHold(User student) {
-        if (holdRepository.existsActiveHoldForStudent(student.getUserId(), LocalDateTime.now(AppTimeZone.ZONE))) {
-            throw new ValidationException(
-                    "Ya tenés una selección de horario en curso. Completá o cancelá esa reserva antes de elegir otra.");
-        }
+        holdRepository.findByStudent_UserId(student.getUserId()).ifPresent(hold -> {
+            User tutor = holdTutorResolver.resolveTutor(hold.getTimeSlot());
+            throw new ValidationException(String.format(
+                    "Ya tenés una selección de horario en curso con %s. Completá o cancelá esa reserva antes de elegir otra.",
+                    tutor.getFullName()));
+        });
     }
 
     @Override

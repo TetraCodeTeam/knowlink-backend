@@ -50,6 +50,7 @@ public class BookingEventPublisher {
             } catch (Exception e) {
                 logger.warn("Failed to send SSE event, removing dead emitter", e);
                 emitters.remove(emitter);
+                 emitter.completeWithError(e);
             }
         }
     }

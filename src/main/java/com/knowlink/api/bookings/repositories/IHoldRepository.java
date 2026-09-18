@@ -20,6 +20,8 @@ public interface IHoldRepository extends JpaRepository<Hold, UUID> {
 
         boolean existsByStudent_UserId(UUID studentUserId);
 
+        Optional<Hold> findByStudent_UserId(UUID studentUserId);
+
         @Query("""
                         SELECT h FROM Hold h
                         WHERE h.timeSlot.timeSlotId = :timeSlotId
