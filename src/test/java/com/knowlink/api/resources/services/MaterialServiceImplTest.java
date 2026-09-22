@@ -94,7 +94,7 @@ class MaterialServiceImplTest {
 
                 subject = Subject.builder()
                                 .subjectId(subjectId)
-                                .name("AnÃ¡lisis MatemÃ¡tico II")
+                                .name("Análisis Matemático II")
                                 .build();
 
                 tutorSubject = TutorSubject.builder()
@@ -103,7 +103,7 @@ class MaterialServiceImplTest {
                                 .build();
         }
 
-        // ==================== AC3 â Materia obligatoria ====================
+        // ==================== AC3 — Materia obligatoria ====================
 
         @Test
         @DisplayName("AC3: upload without subjectId throws SubjectNotAssociatedException with Spanish message")
@@ -113,13 +113,13 @@ class MaterialServiceImplTest {
 
                 assertThatThrownBy(() -> materialService.upload(request, file, tutorUserId))
                                 .isInstanceOf(SubjectNotAssociatedException.class)
-                                .hasMessage("DebÃ©s asociar el material a una materia");
+                                .hasMessage("Debés asociar el material a una materia");
 
                 verifyNoInteractions(supabaseStorageService);
                 verifyNoInteractions(materialRepository);
         }
 
-        // ==================== AC1 â Nombre requerido ====================
+        // ==================== AC1 — Nombre requerido ====================
 
         @Test
         @DisplayName("AC1: upload with blank name throws ValidationException with Spanish message")
@@ -129,7 +129,7 @@ class MaterialServiceImplTest {
 
                 assertThatThrownBy(() -> materialService.upload(request, file, tutorUserId))
                                 .isInstanceOf(ValidationException.class)
-                                .hasMessage("DebÃ©s indicar un nombre para el material");
+                                .hasMessage("Debés indicar un nombre para el material");
 
                 verifyNoInteractions(supabaseStorageService);
                 verifyNoInteractions(materialRepository);
@@ -143,13 +143,13 @@ class MaterialServiceImplTest {
 
                 assertThatThrownBy(() -> materialService.upload(request, file, tutorUserId))
                                 .isInstanceOf(ValidationException.class)
-                                .hasMessage("DebÃ©s indicar un nombre para el material");
+                                .hasMessage("Debés indicar un nombre para el material");
 
                 verifyNoInteractions(supabaseStorageService);
                 verifyNoInteractions(materialRepository);
         }
 
-        // ==================== AC4 â Formatos no permitidos ====================
+        // ==================== AC4 — Formatos no permitidos ====================
 
         @Test
         @DisplayName("AC4: upload with .docx extension throws FormatNotAllowedException")
@@ -160,7 +160,7 @@ class MaterialServiceImplTest {
 
                 assertThatThrownBy(() -> materialService.upload(request, file, tutorUserId))
                                 .isInstanceOf(FormatNotAllowedException.class)
-                                .hasMessage("El formato del archivo no estÃ¡ permitido");
+                                .hasMessage("El formato del archivo no está permitido");
 
                 verifyNoInteractions(supabaseStorageService);
                 verifyNoInteractions(materialRepository);
@@ -175,7 +175,7 @@ class MaterialServiceImplTest {
 
                 assertThatThrownBy(() -> materialService.upload(request, file, tutorUserId))
                                 .isInstanceOf(FormatNotAllowedException.class)
-                                .hasMessage("El formato del archivo no estÃ¡ permitido");
+                                .hasMessage("El formato del archivo no está permitido");
 
                 verifyNoInteractions(supabaseStorageService);
                 verifyNoInteractions(materialRepository);
@@ -190,7 +190,7 @@ class MaterialServiceImplTest {
 
                 assertThatThrownBy(() -> materialService.upload(request, file, tutorUserId))
                                 .isInstanceOf(FormatNotAllowedException.class)
-                                .hasMessage("El formato del archivo no estÃ¡ permitido");
+                                .hasMessage("El formato del archivo no está permitido");
 
                 verifyNoInteractions(supabaseStorageService);
                 verifyNoInteractions(materialRepository);
@@ -205,7 +205,7 @@ class MaterialServiceImplTest {
 
                 assertThatThrownBy(() -> materialService.upload(request, file, tutorUserId))
                                 .isInstanceOf(FormatNotAllowedException.class)
-                                .hasMessage("El formato del archivo no estÃ¡ permitido");
+                                .hasMessage("El formato del archivo no está permitido");
 
                 verifyNoInteractions(supabaseStorageService);
                 verifyNoInteractions(materialRepository);
@@ -220,13 +220,13 @@ class MaterialServiceImplTest {
 
                 assertThatThrownBy(() -> materialService.upload(request, file, tutorUserId))
                                 .isInstanceOf(FormatNotAllowedException.class)
-                                .hasMessage("El formato del archivo no estÃ¡ permitido");
+                                .hasMessage("El formato del archivo no está permitido");
 
                 verifyNoInteractions(supabaseStorageService);
                 verifyNoInteractions(materialRepository);
         }
 
-        // ==================== AC4 â Formatos permitidos ====================
+        // ==================== AC4 — Formatos permitidos ====================
 
         @Test
         @DisplayName("AC4: upload with .pdf extension succeeds")
@@ -307,7 +307,7 @@ class MaterialServiceImplTest {
                 assertThat(response.format()).isEqualTo("XLSX");
         }
 
-        // ==================== AC2 â Reserva validation ====================
+        // ==================== AC2 — Reserva validation ====================
 
         @Test
         @DisplayName("AC2: student without any reservation gets NoActiveReservationException on listBySubject")
@@ -349,7 +349,7 @@ class MaterialServiceImplTest {
         @Test
         @DisplayName("BUG-REGRESION: TUTOR listando su propia materia NO debe recibir material cargado por otro tutor de esa misma materia")
         void listBySubject_asTutor_excludesMaterialFromOtherTutorsOfSameSubject() {
-                // Tutor A (el de setUp) sube material para "AnÃ¡lisis MatemÃ¡tico II"
+                // Tutor A (el de setUp) sube material para "Análisis Matemático II"
                 AcademicMaterial materialDeTutorA = AcademicMaterial.builder()
                                 .academicMaterialId(UUID.randomUUID())
                                 .tutorSubject(tutorSubject) // vinculado a tutorUserId (Tutor A)
@@ -358,7 +358,7 @@ class MaterialServiceImplTest {
                                 .active(true)
                                 .build();
 
-                // Tutor B, distinto de Tutor A, tambiÃ©n dicta la misma materia y sube su propio
+                // Tutor B, distinto de Tutor A, también dicta la misma materia y sube su propio
                 // material
                 UUID tutorBUserId = UUID.randomUUID();
                 User tutorBUser = User.builder()
@@ -382,9 +382,9 @@ class MaterialServiceImplTest {
                                 .active(true)
                                 .build();
 
-                // El repositorio, tal como estÃ¡ hoy, devuelve TODO el material activo de la
+                // El repositorio, tal como está hoy, devuelve TODO el material activo de la
                 // materia
-                // sin distinguir tutor â esto es correcto a nivel de datos, el filtro debe
+                // sin distinguir tutor — esto es correcto a nivel de datos, el filtro debe
                 // pasar por el service.
                 when(materialRepository.findActiveBySubjectId(subjectId))
                                 .thenReturn(List.of(materialDeTutorA, materialDeTutorB));
@@ -399,7 +399,7 @@ class MaterialServiceImplTest {
                                 .extracting(MaterialResponse::name)
                                 .containsExactly("Resumen de Tutor A");
 
-                // No debe haberse llamado a ninguna validaciÃ³n de reserva (eso es solo para
+                // No debe haberse llamado a ninguna validación de reserva (eso es solo para
                 // STUDENT)
                 verifyNoInteractions(reservationService);
         }
