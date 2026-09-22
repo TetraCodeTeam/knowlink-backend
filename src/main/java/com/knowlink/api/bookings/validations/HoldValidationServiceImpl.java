@@ -84,12 +84,13 @@ public class HoldValidationServiceImpl implements IHoldValidationService {
 
     @Override
     public void validateSingleActiveHold(User student) {
-        holdRepository.findByStudent_UserId(student.getUserId()).ifPresent(hold -> {
-            User tutor = holdTutorResolver.resolveTutor(hold.getTimeSlot());
-            throw new ValidationException(String.format(
-                    "Ya tenés una selección de horario en curso con %s. Completá o cancelá esa reserva antes de elegir otra.",
-                    tutor.getFullName()));
-        });
+        holdRepository.findByStudent_UserIdAndExpiresAtAfter(student.getUserId(), LocalDateTime.now(AppTimeZone.ZONE))
+                .ifPresent(hold -> {
+                    User tutor = holdTutorResolver.resolveTutor(hold.getTimeSlot());
+                    throw new ValidationException(String.format(
+                            "Ya tenés una selección de horario en curso con %s. Completá o cancelá esa reserva antes de elegir otra.",
+                            tutor.getFullName()));
+                });
     }
 
     @Override

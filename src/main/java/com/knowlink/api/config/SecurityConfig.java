@@ -39,6 +39,13 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(globalAuthenticationEntryPoint))
                 .authorizeHttpRequests(auth -> auth
+                        // Spring Security 6 también intercepta los dispatches ERROR y ASYNC del
+                        // servlet container — sin este permitAll, una respuesta SSE ya comprometida
+                        // (streaming en curso) puede terminar en un AccessDenied al reenviarse
+                        // internamente para manejar un error, sobre una respuesta que ya empezó a
+                        // escribirse. Esto autoriza el *dispatch* interno, no el endpoint: la
+                        // autenticación real del SSE se sigue exigiendo en el dispatch REQUEST
+                        // original, por el resto de las reglas de este método.
                         .dispatcherTypeMatchers(DispatcherType.ERROR, DispatcherType.ASYNC).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS).permitAll()
                         .requestMatchers(SWAGGER_WHITELIST).permitAll()

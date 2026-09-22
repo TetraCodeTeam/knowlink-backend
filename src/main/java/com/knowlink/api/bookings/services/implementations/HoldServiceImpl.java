@@ -11,6 +11,7 @@ import com.knowlink.api.bookings.data.models.Hold;
 import com.knowlink.api.bookings.repositories.IHoldRepository;
 import com.knowlink.api.bookings.services.interfaces.IHoldService;
 import com.knowlink.api.bookings.utils.BookingConstants;
+import com.knowlink.api.bookings.utils.HoldTutorResolver;
 import com.knowlink.api.bookings.validations.IHoldValidationService;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.bookings.data.mappers.HoldMapper;
@@ -40,6 +41,7 @@ public class HoldServiceImpl implements IHoldService {
     private final BookingEventPublisher eventPublisher;
     private final ITutorProfileValidationService tutorProfileValidationService;
     private final HoldMapper holdMapper;
+    private final HoldTutorResolver holdTutorResolver;
 
     @Override
     @Transactional
@@ -66,8 +68,8 @@ public class HoldServiceImpl implements IHoldService {
         holdValidationService.validateTimeWithinSlot(timeSlot, startTime, endTime);
         holdValidationService.validateMinNotice(tutorProfile, timeSlot, startTime);
         holdValidationService.validateNoOverlap(timeSlot.getTimeSlotId(), startTime, endTime);
-        holdValidationService.validateSingleActiveHold(student);
         userService.lockForUpdateOrThrowException(studentUserId);
+        holdValidationService.validateSingleActiveHold(student);
         holdValidationService.validateNoStudentTimeConflict(student, timeSlot.getDate(), startTime, endTime);
 
         Hold hold = Hold.builder()
@@ -83,7 +85,8 @@ public class HoldServiceImpl implements IHoldService {
         eventPublisher.publish(tutorProfile.getTutorProfileId(),
                 timeSlot.getTimeSlotId(), "BLOCKED", request.start(), request.end());
 
-        return new HoldResponse(hold.getHoldId(), timeSlot.getTimeSlotId(), "BLOCKED", hold.getExpiresAt());
+        return new HoldResponse(hold.getHoldId(), timeSlot.getTimeSlotId(), "BLOCKED",
+                hold.getExpiresAt().atZone(AppTimeZone.ZONE).toInstant());
     }
 
     @Override
@@ -135,8 +138,11 @@ public class HoldServiceImpl implements IHoldService {
     @Override
     @Transactional(readOnly = true)
     public ActiveHoldStatusResponse getActiveHold(UUID studentUserId) {
-        return holdRepository.findByStudent_UserId(studentUserId)
-                .map(hold -> new ActiveHoldStatusResponse(true, holdMapper.toActiveHoldResponse(hold)))
+        return holdRepository.findByStudent_UserIdAndExpiresAtAfter(studentUserId, LocalDateTime.now(AppTimeZone.ZONE))
+                .map(hold -> {
+                    User tutor = holdTutorResolver.resolveTutor(hold.getTimeSlot());
+                    return new ActiveHoldStatusResponse(true, holdMapper.toActiveHoldResponse(hold, tutor));
+                })
                 .orElseGet(() -> new ActiveHoldStatusResponse(false, null));
     }
 }

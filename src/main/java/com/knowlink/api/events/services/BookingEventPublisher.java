@@ -48,23 +48,23 @@ public class BookingEventPublisher {
             try {
                 emitter.send(SseEmitter.event().data(payload));
             } catch (Exception e) {
-                logger.warn("Failed to send SSE event, removing dead emitter", e);
+                logger.debug("Cliente SSE desconectado, se remueve el emitter: {}", e.getMessage());
                 emitters.remove(emitter);
-                 emitter.completeWithError(e);
+                emitter.complete();
             }
         }
     }
 
-    // Mantiene vivas las conexiones ante proxies que cierran conexiones HTTP inactivas.
+    // Mantiene vivas las conexiones ante proxies que cierran conexiones HTTP
+    // inactivas.
     public void sendHeartbeat() {
-        emittersByTutorProfile.values().forEach(emitters ->
-                emitters.removeIf(emitter -> {
-                    try {
-                        emitter.send(SseEmitter.event().comment("keep-alive"));
-                        return false;
-                    } catch (Exception e) {
-                        return true;
-                    }
-                }));
+        emittersByTutorProfile.values().forEach(emitters -> emitters.removeIf(emitter -> {
+            try {
+                emitter.send(SseEmitter.event().comment("keep-alive"));
+                return false;
+            } catch (Exception e) {
+                return true;
+            }
+        }));
     }
 }
