@@ -55,6 +55,7 @@ class TutorWeeklyScheduleServiceImplTest {
     private final UUID tutorProfileId = UUID.randomUUID();
     private final LocalDate monday = LocalDate.now().plusWeeks(1).with(java.time.DayOfWeek.MONDAY);
     private final LocalDate sunday = monday.plusDays(6);
+    private final LocalDate tuesday = monday.plusDays(1);
 
     @BeforeEach
     void setUp() {
@@ -155,7 +156,7 @@ class TutorWeeklyScheduleServiceImplTest {
         assertThat(result.availabilityBlocks()).hasSize(1);
         assertThat(result.bookings()).hasSize(3);
         assertThat(result.summary().confirmedBookingsCount()).isEqualTo(2);
-        assertThat(result.summary().freeBlocksCount()).isEqualTo(2);
+        assertThat(result.summary().freeBlocksCount()).isEqualTo(1);
         assertThat(result.summary().nextClass()).isNotNull();
         assertThat(result.summary().nextClass().bookingId()).isEqualTo(booking1.getBookingId());
     }
@@ -291,5 +292,140 @@ class TutorWeeklyScheduleServiceImplTest {
 
         assertThat(result.bookings()).hasSize(3);
         assertThat(result.summary().confirmedBookingsCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("CP-052.07 - Bloque parcialmente solapado se divide en sub-bloques libres")
+    void getWeeklySchedule_partialOverlap_splitsIntoFreeSubBlocks() {
+        when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId))
+                .thenReturn(buildTutorProfile());
+
+        AvailabilityBlockResponse block = new AvailabilityBlockResponse(
+                UUID.randomUUID(), monday, LocalTime.of(9, 0), LocalTime.of(14, 0), false, false);
+        when(availabilityBlockService.getBlocksInRange(tutorUserId, monday, sunday))
+                .thenReturn(List.of(block));
+
+        Booking booking = buildBooking(monday, LocalTime.of(11, 0), LocalTime.of(12, 0), BookingStatus.BOOKED);
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+                .thenReturn(List.of(booking));
+
+        when(bookingMapper.toResponse(any())).thenReturn(null);
+        when(availabilityBlockRepository.findInRange(eq(tutorProfileId), eq(monday), eq(sunday), any(), any()))
+                .thenReturn(List.of());
+
+        WeeklyScheduleResponse result = service.getWeeklySchedule(tutorUserId, monday, sunday);
+
+        assertThat(result.availabilityBlocks()).hasSize(2);
+        assertThat(result.availabilityBlocks().get(0).startTime()).isEqualTo(LocalTime.of(9, 0));
+        assertThat(result.availabilityBlocks().get(0).endTime()).isEqualTo(LocalTime.of(11, 0));
+        assertThat(result.availabilityBlocks().get(1).startTime()).isEqualTo(LocalTime.of(12, 0));
+        assertThat(result.availabilityBlocks().get(1).endTime()).isEqualTo(LocalTime.of(14, 0));
+    }
+
+    @Test
+    @DisplayName("CP-052.08 - Bloque completamente cubierto por reserva se elimina")
+    void getWeeklySchedule_fullyCoveredBlock_isRemoved() {
+        when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId))
+                .thenReturn(buildTutorProfile());
+
+        AvailabilityBlockResponse block = new AvailabilityBlockResponse(
+                UUID.randomUUID(), monday, LocalTime.of(10, 0), LocalTime.of(11, 0), false, false);
+        when(availabilityBlockService.getBlocksInRange(tutorUserId, monday, sunday))
+                .thenReturn(List.of(block));
+
+        Booking booking = buildBooking(monday, LocalTime.of(10, 0), LocalTime.of(11, 0), BookingStatus.BOOKED);
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+                .thenReturn(List.of(booking));
+
+        when(bookingMapper.toResponse(any())).thenReturn(null);
+        when(availabilityBlockRepository.findInRange(eq(tutorProfileId), eq(monday), eq(sunday), any(), any()))
+                .thenReturn(List.of());
+
+        WeeklyScheduleResponse result = service.getWeeklySchedule(tutorUserId, monday, sunday);
+
+        assertThat(result.availabilityBlocks()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("CP-052.09 - Bloque sin overlap se mantiene intacto")
+    void getWeeklySchedule_noOverlap_blockRemainsUnchanged() {
+        when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId))
+                .thenReturn(buildTutorProfile());
+
+        AvailabilityBlockResponse block = new AvailabilityBlockResponse(
+                UUID.randomUUID(), monday, LocalTime.of(9, 0), LocalTime.of(10, 0), false, false);
+        when(availabilityBlockService.getBlocksInRange(tutorUserId, monday, sunday))
+                .thenReturn(List.of(block));
+
+        Booking booking = buildBooking(tuesday, LocalTime.of(9, 0), LocalTime.of(10, 0), BookingStatus.BOOKED);
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+                .thenReturn(List.of(booking));
+
+        when(bookingMapper.toResponse(any())).thenReturn(null);
+        when(availabilityBlockRepository.findInRange(eq(tutorProfileId), eq(monday), eq(sunday), any(), any()))
+                .thenReturn(List.of());
+
+        WeeklyScheduleResponse result = service.getWeeklySchedule(tutorUserId, monday, sunday);
+
+        assertThat(result.availabilityBlocks()).hasSize(1);
+        assertThat(result.availabilityBlocks().get(0).startTime()).isEqualTo(LocalTime.of(9, 0));
+        assertThat(result.availabilityBlocks().get(0).endTime()).isEqualTo(LocalTime.of(10, 0));
+    }
+
+    @Test
+    @DisplayName("CP-052.10 - Bloque con multiples reservas se divide correctamente")
+    void getWeeklySchedule_multipleOverlaps_splitsCorrectly() {
+        when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId))
+                .thenReturn(buildTutorProfile());
+
+        AvailabilityBlockResponse block = new AvailabilityBlockResponse(
+                UUID.randomUUID(), monday, LocalTime.of(9, 0), LocalTime.of(17, 0), false, false);
+        when(availabilityBlockService.getBlocksInRange(tutorUserId, monday, sunday))
+                .thenReturn(List.of(block));
+
+        Booking booking1 = buildBooking(monday, LocalTime.of(10, 0), LocalTime.of(11, 0), BookingStatus.BOOKED);
+        Booking booking2 = buildBooking(monday, LocalTime.of(13, 0), LocalTime.of(14, 0), BookingStatus.BOOKED);
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+                .thenReturn(List.of(booking1, booking2));
+
+        when(bookingMapper.toResponse(any())).thenReturn(null);
+        when(availabilityBlockRepository.findInRange(eq(tutorProfileId), eq(monday), eq(sunday), any(), any()))
+                .thenReturn(List.of());
+
+        WeeklyScheduleResponse result = service.getWeeklySchedule(tutorUserId, monday, sunday);
+
+        assertThat(result.availabilityBlocks()).hasSize(3);
+        assertThat(result.availabilityBlocks().get(0).startTime()).isEqualTo(LocalTime.of(9, 0));
+        assertThat(result.availabilityBlocks().get(0).endTime()).isEqualTo(LocalTime.of(10, 0));
+        assertThat(result.availabilityBlocks().get(1).startTime()).isEqualTo(LocalTime.of(11, 0));
+        assertThat(result.availabilityBlocks().get(1).endTime()).isEqualTo(LocalTime.of(13, 0));
+        assertThat(result.availabilityBlocks().get(2).startTime()).isEqualTo(LocalTime.of(14, 0));
+        assertThat(result.availabilityBlocks().get(2).endTime()).isEqualTo(LocalTime.of(17, 0));
+    }
+
+    @Test
+    @DisplayName("CP-052.11 - Booking que inicia antes del bloque recorta solo el inicio")
+    void getWeeklySchedule_bookingBeforeBlock_trimStartOnly() {
+        when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId))
+                .thenReturn(buildTutorProfile());
+
+        AvailabilityBlockResponse block = new AvailabilityBlockResponse(
+                UUID.randomUUID(), monday, LocalTime.of(11, 0), LocalTime.of(14, 0), false, false);
+        when(availabilityBlockService.getBlocksInRange(tutorUserId, monday, sunday))
+                .thenReturn(List.of(block));
+
+        Booking booking = buildBooking(monday, LocalTime.of(9, 0), LocalTime.of(12, 0), BookingStatus.BOOKED);
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+                .thenReturn(List.of(booking));
+
+        when(bookingMapper.toResponse(any())).thenReturn(null);
+        when(availabilityBlockRepository.findInRange(eq(tutorProfileId), eq(monday), eq(sunday), any(), any()))
+                .thenReturn(List.of());
+
+        WeeklyScheduleResponse result = service.getWeeklySchedule(tutorUserId, monday, sunday);
+
+        assertThat(result.availabilityBlocks()).hasSize(1);
+        assertThat(result.availabilityBlocks().get(0).startTime()).isEqualTo(LocalTime.of(12, 0));
+        assertThat(result.availabilityBlocks().get(0).endTime()).isEqualTo(LocalTime.of(14, 0));
     }
 }
