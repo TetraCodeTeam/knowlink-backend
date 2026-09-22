@@ -1,9 +1,12 @@
 package com.knowlink.api.auth.controllers.responses;
 
+import com.knowlink.api.security.enums.Role;
+
+import java.util.UUID;
+
 public record AuthResponse(
-        String token,
+        UUID userId,
         String email,
-        String firstName,
-        String lastName,
-        String role
+        String token,
+        Role role
 ) {}

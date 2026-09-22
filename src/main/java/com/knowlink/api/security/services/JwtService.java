@@ -27,6 +27,7 @@ public class JwtService {
 
     public String generateToken(final User user) {
         return Jwts.builder()
+                .setId(UUID.randomUUID().toString())
                 .setSubject(user.getEmail())
                 .claim("role", user.getRole())
                 .claim("userId", user.getUserId().toString())
@@ -34,6 +35,10 @@ public class JwtService {
                 .setExpiration(new Date(System.currentTimeMillis() + jwtExpiration))
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)
                 .compact();
+    }
+
+    public String extractJti(String token) {
+        return extractClaim(token, Claims::getId);
     }
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
@@ -59,7 +64,7 @@ public class JwtService {
         return extractExpiration(token).before(new Date());
     }
 
-    private Date extractExpiration(String token) {
+    public Date extractExpiration(String token) {
         return extractClaim(token, Claims::getExpiration);
     }
 

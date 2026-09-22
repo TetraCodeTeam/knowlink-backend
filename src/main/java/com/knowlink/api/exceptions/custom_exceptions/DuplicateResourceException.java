@@ -1,7 +1,21 @@
 package com.knowlink.api.exceptions.custom_exceptions;
 
 public class DuplicateResourceException extends RuntimeException {
-    public DuplicateResourceException(String resource, String field, Object value) {
-        super(String.format("%s con %s '%s' ya existe", resource, field, value));
+
+    private final String errorCode;
+    private final String userMessage;
+
+    public DuplicateResourceException(String errorCode, String userMessage, String technicalMessage) {
+        super(technicalMessage); 
+        this.errorCode = errorCode;
+        this.userMessage = userMessage;
+    }
+
+    public String getErrorCode() {
+        return errorCode;
+    }
+
+    public String getUserMessage() {
+        return userMessage;
     }
 }

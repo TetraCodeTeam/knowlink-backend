@@ -1,4 +1,4 @@
-spring:
+﻿spring:
   datasource:
     url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     driver-class-name: org.h2.Driver
@@ -11,13 +11,25 @@ spring:
     show-sql: false
   cache:
     type: none
+  mail:
+    host: localhost
+    port: 25
+    username: test@test.com
+    password: test
 
 jwt:
   secret: dGVzdC1zZWNyZXQta2V5LWZvci1rbm93bGluay10ZXN0aW5nLXB1cnBvc2VzLW9ubHk=
   access-token-expiration: 86400000
+
+confirmation-token:
+  encryption-key: dGVzdC1lbmNyeXB0aW9uLWtleS1mb3ItdGVzdGluZy1vbmx5
 
 frontend:
   url: http://localhost:5173
 
 app:
   url: http://localhost:8080
+
+supabase:
+  url: https://test.supabase.co
+  service-role-key: test-key

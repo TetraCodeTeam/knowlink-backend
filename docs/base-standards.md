@@ -38,24 +38,46 @@ Este repositorio es la **REST API** del sistema.
 
 ```
 src/main/java/com/knowlink/api/
-├── auth/                  # Módulo de autenticación
-│   ├── controllers/       # @RestController: login, registro, refresh token
-│   └── services/          # Lógica de autenticación
-├── config/                # Configuración Spring: Security, CORS, Async, Caché
-├── exceptions/            # @ControllerAdvice — manejo global de errores
-├── security/              # Infraestructura JWT
-│   ├── enums/             # Ej: roles, tipos de token
-│   ├── filter/            # JwtAuthenticationFilter
-│   ├── services/          # UserDetailsService, etc.
-│   └── utils/             # JwtUtils (generación/validación de tokens)
-└── users/                 # Módulo de usuarios
-    ├── controllers/       # @RestController: CRUD de usuarios y perfiles
-    ├── data/              # @Entity JPA + DTOs
-    ├── repositories/      # Interfaces JpaRepository
-    └── services/          # Lógica de negocio de usuarios
+├── auth/                          # Módulo de autenticación
+│   ├── controllers/
+│   │   ├── interfaces/            # IAuthController (contrato + docs Swagger)
+│   │   ├── implementations/       # AuthControllerImpl
+│   │   ├── requests/               # records: UserRegistrationRequest, TutorRegistrationRequest, etc.
+│   │   └── responses/              # records: AuthResponse
+│   └── services/
+│       ├── interfaces/            # IAuthService
+│       └── implementations/       # AuthServiceImpl
+├── config/                        # SecurityConfig, OpenApiConfig
+├── exceptions/                    # @ControllerAdvice — manejo global de errores
+├── security/
+│   ├── enums/                     # Role
+│   ├── filter/                    # JwtAuthenticationFilter
+│   ├── models/                    # UserPrincipal (implements UserDetails)
+│   ├── services/                  # JwtService
+│   └── utils/                     # SecurityConstants (whitelist pública/swagger)
+├── users/                         # Módulo de usuarios
+│   ├── controllers/{interfaces,implementations,requests,responses}/
+│   ├── data/
+│   │   ├── models/                 # User, Token
+│   │   ├── enums/                  # AccountStatus
+│   │   └── mappers/                # UserMapper
+│   ├── events/                     # UserRegisteredEvent, PasswordResetRequestedEvent, ResendConfirmationEvent
+│   ├── repositories/
+│   └── services/{interfaces,implementations}/
+└── tutors/                        # Módulo de tutores (carreras, materias, perfiles, reservas)
+    ├── controllers/{interfaces,implementations,responses,requests}/
+    ├── data/
+    │   ├── models/                 # TutorProfile, Career, Subject, TutorSubject, AvailabilityBlock,
+    │   │                           # Booking, Rating, AcademicMaterial
+    │   ├── enums/                  # Modality, CompensationType, TutorSubjectStatus, BookingStatus
+    │   └── mappers/                # TutorProfileMapper, TutorSubjectMapper
+    ├── repositories/
+    ├── services/{interfaces,implementations}/
+    ├── validations/                # ITutorProfileValidationService
+    └── config/                     # CareerSeeder, SubjectSeeder (CommandLineRunner)
 ```
 
-Cada nuevo módulo de dominio replica esta misma estructura de 4 capas.
+Cada nuevo módulo de dominio replica esta misma estructura, **incluyendo la separación `interfaces/` + `implementations/`** tanto en `controllers/` como en `services/` (no es solo `controllers/` y `services/` a secas).
 
 ---
 
@@ -65,29 +87,32 @@ Cada nuevo módulo de dominio replica esta misma estructura de 4 capas.
 
 | Entidad | Descripción |
 |---|---|
-| `Usuario` | Base: email, password hash, rol, estado activo |
-| `PerfilAlumno` | Composición de `Usuario`; datos del alumno (intereses, nivel) |
-| `PerfilTutor` | Composición de `Usuario`; materias, tarifa por hora, disponibilidad, valoración |
-| `Reserva` | Sesión entre alumno y tutor; tiene fecha, duración, estado, modalidad |
-| `Material` | Recurso subido por un tutor (archivo o link) |
-| `Calificacion` | Reseña del alumno al tutor post-sesión (puntaje + comentario) |
-| `Pago` | Registro de pago asociado a una `Reserva` |
-| `Notificacion` | Notificación del sistema hacia un usuario |
-| `Denuncia` | Reporte de conducta entre usuarios |
+| `User` | Base: email, password hash, rol, estado de cuenta (soft-delete con `deletedAt`) |
+| `TutorProfile` | Composición 1:1 con `User` (rol TUTOR); carrera, biografía |
+| `Career` | Catálogo de carreras (seed data vía `CareerSeeder`) |
+| `Subject` | Catálogo de materias, asociadas a una `Career`; distingue básicas (`isBasic`) de específicas |
+| `TutorSubject` | Relación entre `TutorProfile` y `Subject`: modalidad, tipo de compensación, precio, estado |
+| `AvailabilityBlock` | Bloque de disponibilidad semanal de un tutor |
+| `Booking` | Sesión entre alumno y tutor: horario, estado, link de sesión virtual |
+| `AcademicMaterial` | Recurso subido por un tutor, asociado a un `TutorSubject` |
+| `Rating` | Reseña entre usuarios (rater/rated), visible u oculta |
+| `Token` | Token de un solo uso para confirmación de cuenta / reset de contraseña (expira a las N horas) |
+
+> Nota: las entidades y todo el código se nombran en **inglés** (`User`, no `Usuario`) — es la convención real del proyecto. El español se reserva para lo que ve el usuario final: mensajes de Zod en el front, y (por decisión de equipo) la documentación de Swagger.
 
 ### Roles (enum)
 
 ```java
-ALUMNO, TUTOR, ADMIN
+STUDENT, TUTOR, ADMIN
 ```
 
-### Estados típicos de Reserva
+> `ADMIN` todavía no está implementado — agregarlo a esta lista cuando se implemente el módulo de administración.
+
+### Estados de Booking (enum `BookingStatus`)
 
 ```java
-PENDIENTE, CONFIRMADA, CANCELADA, COMPLETADA
+BOOKED, IN_PROGRESS, COMPLETED, CANCELLED, NOT_CONFIRMED
 ```
-
----
 
 ## Convenciones de código
 
@@ -135,27 +160,43 @@ Con Lombok se puede usar `@RequiredArgsConstructor` en lugar del constructor exp
 
 ### DTOs
 
-- **Response** → `record` de Java (inmutable, conciso):
-  ```java
-  public record ReservaResponse(Long id, String fecha, String estado) {}
-  ```
-- **Request** → clase con validaciones Jakarta:
-  ```java
-  public class CrearReservaRequest {
-      @NotNull Long tutorId;
-      @NotBlank String fecha;
-  }
-  ```
+- **Response y Request → siempre `record` de Java** (inmutables), con validaciones Jakarta en el caso de los Request:
+```java
+  public record TutorSubjectRequest(
+          @NotBlank(message = "Subject name is required")
+          String subjectName,
+
+          @NotNull(message = "Modality is required")
+          Modality modality,
+
+          @DecimalMin(value = "0.01", message = "Price must be greater than zero")
+          BigDecimal pricePerHour
+  ) {}
+```
+- Los mensajes de las anotaciones de validación (`@NotBlank`, `@Size`, etc.) van **en inglés**, consistente con el resto del código. El español queda reservado para: (a) los mensajes que arma Zod en el front, y (b) la documentación de Swagger (`@Operation`, `@Tag`), por decisión de equipo.
 
 ### Manejo de errores
 
-- Centralizado en `exceptions/` mediante `@ControllerAdvice`
-- Lanzar excepciones personalizadas desde servicios, nunca manejarlas en controllers
-- Formato de respuesta de error siempre:
-  ```json
-  { "message": "Reserva no encontrada", "status": 404 }
-  ```
-- Usar `orElseThrow()` en Optional, nunca `get()` sin verificar
+- Centralizado en `exceptions/` mediante `@ControllerAdvice`.
+- Lanzar excepciones personalizadas desde servicios, nunca manejarlas en controllers.
+- Formato de respuesta de error real:
+```json
+  { "status": 409, "message": "Este correo ya está registrado.", "detail": "DUPLICATE_EMAIL" }
+```
+  (`status` + `message` con texto seguro para mostrar al usuario final + `detail` con un código estable de categoría — nunca información interna como IDs, valores de campo o nombres de entidad).
+- Las excepciones que representan errores de negocio recurrentes (`ResourceNotFoundException`, `DuplicateResourceException`) reciben **3 parámetros** en el constructor: `errorCode` (string fijo tipo `USER_NOT_FOUND`, va a `ApiError.detail`), `userMessage` (texto en español, seguro para el cliente, va a `ApiError.message`) y `technicalMessage` (detalle interno con los valores específicos — IDs, emails, etc. — solo para logs, nunca se expone en la respuesta).
+- El handler correspondiente debe loguear `ex.getMessage()` (el technicalMessage) con `logger.warn(...)` antes de construir el `ApiError`, y usar `ex.getUserMessage()` / `ex.getErrorCode()` para la respuesta:
+```java
+  @ExceptionHandler(ResourceNotFoundException.class)
+  public ResponseEntity<ApiError> handleNotFound(ResourceNotFoundException ex) {
+      logger.warn(ex.getMessage());
+      ApiError error = new ApiError(HttpStatus.NOT_FOUND.value(), ex.getUserMessage(), ex.getErrorCode());
+      return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+  }
+```
+- Para excepciones más simples que no necesitan este patrón de 3 parámetros (`UnauthorizedException`, `TokenExpiredException`, `ValidationException`, etc.), el mensaje pasado al constructor ya debe ser el texto final para el usuario — el `errorCode` se define directo como string literal en el `ApiError` del handler, no hace falta agregarlo a la excepción.
+- El handler catch-all (`RuntimeException`/`Exception`) nunca debe exponer `ex.getMessage()` en la respuesta — solo en el log (`logger.error`). La respuesta al cliente usa siempre un mensaje genérico fijo en español (`"Ocurrió un error inesperado. Intentá nuevamente más tarde."`), para no filtrar detalles de implementación (stack traces, nombres de tabla, etc.).
+- Usar `orElseThrow()` en `Optional`, nunca `get()` sin verificar.
 
 ### Logging
 
@@ -164,11 +205,31 @@ Con Lombok se puede usar `@RequiredArgsConstructor` en lugar del constructor exp
 
 ### Documentación Swagger
 
-Todo endpoint nuevo lleva anotaciones:
+Todo endpoint nuevo lleva anotaciones `@Operation` / `@ApiResponse` / `@Tag`.
+
+**Decisión de equipo: la documentación de Swagger se mantiene en español**, a diferencia del resto del código (nombres de clases, métodos, mensajes de validación internos), que va en inglés. No traducir `@Operation(summary = ...)` ni `@Tag(description = ...)` a menos que se decida lo contrario explícitamente.
+
+La autenticación JWT está documentada vía `OpenApiConfig` con un `@SecurityScheme` tipo Bearer, lo que habilita el botón "Authorize" en Swagger UI:
+
 ```java
-@Operation(summary = "Crear reserva")
-@ApiResponse(responseCode = "201", description = "Reserva creada")
+@Configuration
+@OpenAPIDefinition(security = @SecurityRequirement(name = "bearerAuth"))
+@SecurityScheme(name = "bearerAuth", type = SecuritySchemeType.HTTP, scheme = "bearer", bearerFormat = "JWT")
+public class OpenApiConfig {}
 ```
+
+### Identificadores
+
+Todas las entidades usan `UUID` como clave primaria, generado por Hibernate (`GenerationType.UUID`), **no** `Long` autoincremental:
+
+```java
+@Id
+@GeneratedValue(strategy = GenerationType.UUID)
+@Column(name = "tutor_subject_id", updatable = false, nullable = false)
+private UUID tutorSubjectId;
+```
+
+Convención de nombre de columna: `<entidad>_id` en snake_case (`tutor_subject_id`, `career_id`, `subject_id`).
 
 ---
 
@@ -185,6 +246,24 @@ Activar perfil:
 ./mvnw spring-boot:run -Dspring-boot.run.profiles=development
 ```
 
+---
+
+## Notificaciones por email
+
+Flujos de confirmación de cuenta y reset de contraseña son **asíncronos, basados en eventos** (`ApplicationEventPublisher` + `@EventListener`), no llamadas directas al servicio de mail desde el service de negocio:
+
+```java
+eventPublisher.publishEvent(new UserRegisteredEvent(newUser, confirmationToken));
+```
+
+Dependencia: `spring-boot-starter-mail`. Variables de entorno nuevas en `.env`:
+
+```
+MAIL_HOST=smtp.gmail.com
+MAIL_PORT=587
+MAIL_USERNAME=...
+MAIL_PASSWORD=...
+```
 ---
 
 ## Variables de entorno (`.env` en local)
@@ -222,6 +301,26 @@ APP_URL=http://localhost:8080
 ./mvnw verify -B                                # Build completo + tests (lo que corre el CI)
 docker compose up -d                            # Levantar MySQL + backend
 ```
+---
+
+## Seed data (catálogos)
+
+Entidades de catálogo sin ABM propio todavía (`Career`, `Subject`) se precargan al arrancar la app mediante `CommandLineRunner`, no con `data.sql` ni migraciones:
+
+```java
+@Component
+@Order(1) // los seeders con dependencias entre sí usan @Order para garantizar orden de ejecución
+@RequiredArgsConstructor
+public class CareerSeeder implements CommandLineRunner {
+    @Override
+    public void run(String... args) {
+        if (careerRepository.count() > 0) return; // idempotente
+        // ...
+    }
+}
+```
+
+Ubicación: `<modulo>/config/<Entidad>Seeder.java`. Reemplazar por un ABM real + endpoints cuando el sprint correspondiente lo contemple.
 
 ---
 

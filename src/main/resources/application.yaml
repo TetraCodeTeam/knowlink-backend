@@ -20,8 +20,8 @@ spring:
 
   servlet:
     multipart:
-      max-file-size: 8MB
-      max-request-size: 40MB
+      max-file-size: 20MB
+      max-request-size: 20MB
 
   cache:
     type: caffeine
@@ -39,12 +39,28 @@ spring:
         page-parameter-name: page
         size-parameter-name: size
         sort-parameter-name: sort
+  
+  mail:
+    host: ${MAIL_HOST}
+    port: ${MAIL_PORT}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 frontend:
   url: ${FRONTEND_URL}
 
 app:
   url: ${APP_URL}
+
+supabase:
+  url: ${SUPABASE_URL}
+  service-role-key: ${SUPABASE_SERVICE_ROLE_KEY}
 
 management:
   endpoints:

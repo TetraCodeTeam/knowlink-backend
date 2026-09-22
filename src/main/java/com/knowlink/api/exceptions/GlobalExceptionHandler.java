@@ -1,6 +1,11 @@
 package com.knowlink.api.exceptions;
 
 import com.knowlink.api.exceptions.custom_exceptions.*;
+import com.knowlink.api.resources.exception.FormatNotAllowedException;
+import com.knowlink.api.resources.exception.NoActiveReservationException;
+import com.knowlink.api.resources.exception.SubjectNotAssociatedException;
+import com.knowlink.api.resources.exception.ResourceAccessDeniedException;
+import io.jsonwebtoken.JwtException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -8,10 +13,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.stream.Collectors;
 
@@ -22,43 +31,111 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiError> handleNotFound(ResourceNotFoundException ex) {
-        ApiError error = new ApiError(HttpStatus.NOT_FOUND.value(), "Recurso no encontrado", ex.getMessage());
+        logger.warn(ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.NOT_FOUND.value(), ex.getUserMessage(), ex.getErrorCode());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
 
     @ExceptionHandler(DuplicateResourceException.class)
     public ResponseEntity<ApiError> handleDuplicate(DuplicateResourceException ex) {
-        ApiError error = new ApiError(HttpStatus.CONFLICT.value(), "Recurso duplicado", ex.getMessage());
+        logger.warn(ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.CONFLICT.value(), ex.getUserMessage(), ex.getErrorCode());
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
 
     @ExceptionHandler(ValidationException.class)
     public ResponseEntity<ApiError> handleValidation(ValidationException ex) {
-        ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(), "Error de validación", ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(), ex.getMessage(), "VALIDATION_ERROR");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(FormatNotAllowedException.class)
+    public ResponseEntity<ApiError> handleFormatNotAllowed(FormatNotAllowedException ex) {
+        ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(), ex.getMessage(), "FORMAT_NOT_ALLOWED");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(SubjectNotAssociatedException.class)
+    public ResponseEntity<ApiError> handleSubjectNotAssociated(SubjectNotAssociatedException ex) {
+        ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(), ex.getMessage(), "SUBJECT_NOT_ASSOCIATED");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(NoActiveReservationException.class)
+    public ResponseEntity<ApiError> handleNoActiveReservation(NoActiveReservationException ex) {
+        ApiError error = new ApiError(HttpStatus.FORBIDDEN.value(), ex.getMessage(), "NO_ACTIVE_RESERVATION");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+    }
+
+    @ExceptionHandler(ResourceAccessDeniedException.class)
+    public ResponseEntity<ApiError> handleResourceAccessDenied(ResourceAccessDeniedException ex) {
+        logger.warn(ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.FORBIDDEN.value(), ex.getMessage(), "ACCESS_DENIED");
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+    }
+
+    @ExceptionHandler(PasswordsDoNotMatchException.class)
+    public ResponseEntity<ApiError> handlePasswordsDoNotMatch(PasswordsDoNotMatchException ex) {
+        ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(), ex.getMessage(), "PASSWORDS_MISMATCH");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
     @ExceptionHandler(UnauthorizedException.class)
     public ResponseEntity<ApiError> handleUnauthorized(UnauthorizedException ex) {
-        ApiError error = new ApiError(HttpStatus.UNAUTHORIZED.value(), "No autorizado", ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.UNAUTHORIZED.value(), ex.getMessage(), "UNAUTHORIZED");
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
     }
 
     @ExceptionHandler(TokenExpiredException.class)
     public ResponseEntity<ApiError> handleTokenExpired(TokenExpiredException ex) {
-        ApiError error = new ApiError(HttpStatus.UNAUTHORIZED.value(), "Token expirado", ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.UNAUTHORIZED.value(), ex.getMessage(), "TOKEN_EXPIRED");
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    }
+
+    @ExceptionHandler(JwtException.class)
+    public ResponseEntity<ApiError> handleJwt(JwtException ex) {
+        logger.warn("JWT error: {}", ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.UNAUTHORIZED.value(),
+                "Token inválido o expirado", "TOKEN_INVALID");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    }
+
+    @ExceptionHandler(EmailAlreadyVerifiedException.class)
+    public ResponseEntity<ApiError> handleEmailAlreadyVerified(EmailAlreadyVerifiedException ex) {
+        ApiError error = new ApiError(HttpStatus.CONFLICT.value(), ex.getMessage(), "EMAIL_ALREADY_VERIFIED");
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ResponseEntity<ApiError> handleTooManyRequests(TooManyRequestsException ex) {
+        ApiError error = new ApiError(HttpStatus.TOO_MANY_REQUESTS.value(), ex.getMessage(), "TOO_MANY_REQUESTS");
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(error);
     }
 
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiError> handleBadCredentials(BadCredentialsException ex) {
-        ApiError error = new ApiError(HttpStatus.UNAUTHORIZED.value(), "Credenciales inválidas", "Email o contraseña incorrectos");
+        ApiError error = new ApiError(HttpStatus.UNAUTHORIZED.value(), "Invalid credentials",
+                "The email or password is incorrect");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    }
+
+    @ExceptionHandler(DisabledException.class)
+    public ResponseEntity<ApiError> handleDisabled(DisabledException ex) {
+        ApiError error = new ApiError(HttpStatus.UNAUTHORIZED.value(), "Account not active",
+                "You must confirm your account before logging in");
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    }
+
+    @ExceptionHandler(LockedException.class)
+    public ResponseEntity<ApiError> handleLocked(LockedException ex) {
+        ApiError error = new ApiError(HttpStatus.UNAUTHORIZED.value(), "Account locked",
+                "Your account has been deleted or suspended");
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiError> handleAccessDenied(AccessDeniedException ex) {
-        ApiError error = new ApiError(HttpStatus.FORBIDDEN.value(), "Acceso denegado", ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.FORBIDDEN.value(), "Access denied", ex.getMessage());
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
     }
 
@@ -67,21 +144,37 @@ public class GlobalExceptionHandler {
         String detail = ex.getBindingResult().getFieldErrors().stream()
                 .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
                 .collect(Collectors.joining(", "));
-        ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(), "Parámetros inválidos", detail);
+        ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(), "Invalid parameters", detail);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiError> handleMissingParameter(MissingServletRequestParameterException ex) {
+        ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(),
+                "Parámetro faltante: " + ex.getParameterName(), "MISSING_PARAMETER");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiError> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(),
+                "El parámetro '" + ex.getName() + "' no tiene un valor válido.", "INVALID_PARAMETER");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiError> handleDataIntegrity(DataIntegrityViolationException ex) {
         logger.error("Data integrity error: {}", ex.getMessage());
-        ApiError error = new ApiError(HttpStatus.CONFLICT.value(), "Error de integridad", "No se pudo completar la operación debido a un conflicto con los datos existentes");
+        ApiError error = new ApiError(HttpStatus.CONFLICT.value(), "Data integrity error",
+                "The operation could not be completed due to a conflict with existing data");
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
 
-    @ExceptionHandler({RuntimeException.class, Exception.class})
+    @ExceptionHandler({ RuntimeException.class, Exception.class })
     public ResponseEntity<ApiError> handleAll(Exception ex, WebRequest request) {
         logger.error("Unexpected error: {}", ex.getMessage(), ex);
-        ApiError error = new ApiError(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Error inesperado", ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Unexpected error",
+                "Ocurrió un error inesperado. Intentá nuevamente más tarde.");
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
     }
 }

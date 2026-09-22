@@ -2,6 +2,9 @@ jwt:
   secret: ${JWT_SECRET}
   access-token-expiration: ${JWT_EXPIRATION}
 
+confirmation-token:
+  encryption-key: AIPE0bEhK/1vurbx0GOovEeJe7bBbGkodv1sdb+D+hk=
+
 frontend:
   url: ${FRONTEND_URL}
 
@@ -19,4 +22,4 @@ cloudinary:
   api-secret: ${CLOUD_API_SECRET}
 
 notifications:
-  use-email: false
+  use-email: true
