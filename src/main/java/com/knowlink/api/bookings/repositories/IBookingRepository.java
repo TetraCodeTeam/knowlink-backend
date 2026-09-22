@@ -28,8 +28,6 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
                         @Param("timeSlotId") UUID timeSlotId,
                         @Param("statuses") List<BookingStatus> statuses);
 
-        boolean existsByStudent_UserIdAndBookingStatus(UUID studentUserId, BookingStatus status);
-
         @Query("""
                         SELECT b FROM Booking b
                         WHERE b.student.userId = :studentUserId
@@ -165,4 +163,5 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
         @Modifying(clearAutomatically = true)
         @Query("UPDATE Booking b SET b.confirmationTokenAttempts = b.confirmationTokenAttempts + 1 WHERE b.bookingId = :bookingId")
         void incrementConfirmationTokenAttempts(@Param("bookingId") UUID bookingId);
+        
 }
