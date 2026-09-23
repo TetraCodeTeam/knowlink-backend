@@ -10,7 +10,7 @@ import com.knowlink.api.users.services.interfaces.IEmailService;
 
 import java.util.UUID;
 
-@Service
+@Service("userEmailService")
 @RequiredArgsConstructor
 public class EmailServiceImpl implements IEmailService {
 

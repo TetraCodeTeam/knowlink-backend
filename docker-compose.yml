@@ -5,9 +5,9 @@ services:
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
-      MYSQL_DATABASE: ${DB_NAME:-knowlink_db}
-      MYSQL_USER: ${DB_USER:-knowlink_user}
-      MYSQL_PASSWORD: ${DB_PASSWORD:-knowlink_password}
+      MYSQL_DATABASE: ${MYSQLDATABASE:-knowlink_db}
+      MYSQL_USER: ${MYSQLUSER:-knowlink_user}
+      MYSQL_PASSWORD: ${MYSQLPASSWORD:-knowlink_password}
     ports:
       - "3306:3306"
     volumes:
@@ -30,8 +30,8 @@ services:
         condition: service_healthy
     env_file: .env
     environment:
-      DB_HOST: mysql
-      DB_PORT: 3306
+      RAILWAY_TCP_PROXY_DOMAIN: mysql
+      RAILWAY_TCP_PROXY_PORT: "3306"
       SPRING_PROFILE: development
       DDL_AUTO: update
 

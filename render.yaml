@@ -25,15 +25,15 @@ services:
         sync: false
       - key: GMAIL_REFRESH_TOKEN
         sync: false
-      - key: DB_HOST
+      - key: RAILWAY_TCP_PROXY_DOMAIN
         sync: false
-      - key: DB_PORT
+      - key: RAILWAY_TCP_PROXY_PORT
         sync: false
-      - key: DB_NAME
+      - key: MYSQLDATABASE
         sync: false
-      - key: DB_USER
+      - key: MYSQLUSER
         sync: false
-      - key: DB_PASSWORD
+      - key: MYSQLPASSWORD
         sync: false
       - key: SUPABASE_URL
         sync: false

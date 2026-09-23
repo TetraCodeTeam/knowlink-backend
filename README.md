@@ -14,11 +14,11 @@ Variables obligatorias en `.env`:
 
 | Variable | Descripción |
 |---|---|
-| `DB_HOST` | Host de MySQL (ej. `localhost`) |
-| `DB_PORT` | Puerto de MySQL (ej. `3306`) |
-| `DB_NAME` | Nombre de la base de datos |
-| `DB_USER` | Usuario de MySQL |
-| `DB_PASSWORD` | Contraseña de MySQL |
+| `RAILWAY_TCP_PROXY_DOMAIN` | Host de MySQL (ej. `localhost`) |
+| `RAILWAY_TCP_PROXY_PORT` | Puerto de MySQL (ej. `3306`) |
+| `MYSQLDATABASE` | Nombre de la base de datos |
+| `MYSQLUSER` | Usuario de MySQL |
+| `MYSQLPASSWORD` | Contraseña de MySQL |
 | `JWT_SECRET` | Clave secreta para firmar JWT (base64, 256+ bits) |
 | `JWT_EXPIRATION` | Expiración del token en ms (ej. `86400000`) |
 | `FRONTEND_URL` | URL del frontend (ej. `http://localhost:5173`) |
