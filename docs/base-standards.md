@@ -269,11 +269,11 @@ MAIL_PASSWORD=...
 ## Variables de entorno (`.env` en local)
 
 ```
-DB_HOST=localhost
-DB_PORT=3306
-DB_NAME=knowlink
-DB_USER=...
-DB_PASSWORD=...
+RAILWAY_TCP_PROXY_DOMAIN=localhost
+RAILWAY_TCP_PROXY_PORT=3306
+MYSQLDATABASE=knowlink
+MYSQLUSER=...
+MYSQLPASSWORD=...
 JWT_SECRET=<base64, mínimo 256 bits>
 JWT_EXPIRATION=86400000
 FRONTEND_URL=http://localhost:5173

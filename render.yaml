@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: knowlink-backend
+    runtime: image
+    image:
+      url: Dockerfile
+    envVars:
+      - key: SPRING_PROFILE
+        value: production
+      - key: DDL_AUTO
+        value: validate
+      - key: APP_URL
+        value: https://knowlink-backend.onrender.com
+      - key: JWT_EXPIRATION
+        value: "86400000"
+      - key: GMAIL_SENDER_ADDRESS
+        value: mrojaslopez03@gmail.com
+      - key: JWT_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: GMAIL_CLIENT_ID
+        sync: false
+      - key: GMAIL_CLIENT_SECRET
+        sync: false
+      - key: GMAIL_REFRESH_TOKEN
+        sync: false
+      - key: RAILWAY_TCP_PROXY_DOMAIN
+        sync: false
+      - key: RAILWAY_TCP_PROXY_PORT
+        sync: false
+      - key: MYSQLDATABASE
+        sync: false
+      - key: MYSQLUSER
+        sync: false
+      - key: MYSQLPASSWORD
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

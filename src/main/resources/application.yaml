@@ -3,9 +3,9 @@ spring:
     name: knowlink
 
   datasource:
-    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?createDatabaseIfNotExist=true&serverTimezone=UTC
-    username: ${DB_USER}
-    password: ${DB_PASSWORD}
+    url: jdbc:mysql://${RAILWAY_TCP_PROXY_DOMAIN}:${RAILWAY_TCP_PROXY_PORT}/${MYSQLDATABASE}?createDatabaseIfNotExist=true&serverTimezone=UTC
+    username: ${MYSQLUSER}
+    password: ${MYSQLPASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
@@ -64,6 +64,11 @@ frontend:
 
 app:
   url: ${APP_URL}
+
+brevo:
+  api-key: ${BREVO_API_KEY}
+  sender-address: ${BREVO_SENDER_ADDRESS}
+  sender-name: ${BREVO_SENDER_NAME:KnowLink}
 
 supabase:
   url: ${SUPABASE_URL}
