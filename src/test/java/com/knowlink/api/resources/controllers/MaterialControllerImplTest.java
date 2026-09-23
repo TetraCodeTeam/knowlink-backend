@@ -1,6 +1,7 @@
 package com.knowlink.api.resources.controllers;
 
 import com.knowlink.api.resources.service.interfaces.IReservationService;
+import com.knowlink.api.resources.service.interfaces.ISupabaseStorageService;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.tutors.data.enums.CompensationType;
@@ -36,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -73,6 +75,9 @@ class MaterialControllerImplTest {
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     private IReservationService reservationService;
 
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private ISupabaseStorageService supabaseStorageService;
+
     private User tutorUser;
     private User studentUser;
     private Subject subject;
@@ -80,12 +85,17 @@ class MaterialControllerImplTest {
 
     @BeforeEach
     void setUp() {
+        when(supabaseStorageService.upload(any(), any(UUID.class)))
+                .thenReturn("test-bucket/test-uuid.pdf");
+        when(supabaseStorageService.generateSignedUrl(any(), any(int.class)))
+                .thenReturn("https://test.supabase.co/signed-url");
+
         Career career = careerRepository.save(Career.builder()
-                .name("Ingeniería en Sistemas " + UUID.randomUUID())
+                .name("Ingenieria en Sistemas " + UUID.randomUUID())
                 .build());
 
         subject = subjectRepository.save(Subject.builder()
-                .name("Análisis Matemático II " + UUID.randomUUID())
+                .name("Analisis Matematico II " + UUID.randomUUID())
                 .isBasic(false)
                 .career(career)
                 .build());
@@ -132,8 +142,6 @@ class MaterialControllerImplTest {
                 .build());
     }
 
-    // ==================== AC1 — Carga con nombre y materia ====================
-
     @Test
     @DisplayName("AC1: tutor uploads material with valid name and subject returns 201")
     void tutorUploadsMaterial_returns201() throws Exception {
@@ -162,8 +170,6 @@ class MaterialControllerImplTest {
                 .andExpect(status().isBadRequest());
     }
 
-    // ==================== AC3 — Materia obligatoria ====================
-
     @Test
     @DisplayName("AC3: upload without subjectId returns 400")
     void uploadWithoutSubjectId_returns400() throws Exception {
@@ -176,8 +182,6 @@ class MaterialControllerImplTest {
                         .with(tutorAuth()))
                 .andExpect(status().isBadRequest());
     }
-
-    // ==================== AC4 — Formatos no permitidos ====================
 
     @Test
     @DisplayName("AC4: upload with .docx returns 400")
@@ -235,8 +239,6 @@ class MaterialControllerImplTest {
                 .andExpect(status().isBadRequest());
     }
 
-    // ==================== AC2 — Seguridad: reserva por tutor + materia ====================
-
     @Test
     @DisplayName("AC2: student without any reservation gets 403 on listBySubject")
     void studentWithoutReservation_gets403OnList() throws Exception {
@@ -253,13 +255,10 @@ class MaterialControllerImplTest {
     @Test
     @DisplayName("AC2: student without reservation gets 403 on download")
     void studentWithoutReservation_gets403OnDownload() throws Exception {
-        when(reservationService.hasReservationWithTutorForSubject(any(UUID.class), any(UUID.class), any(UUID.class)))
-                .thenReturn(false);
-
         mockMvc.perform(get("/api/v1/materials/" + existingMaterial.getAcademicMaterialId() + "/download")
                         .with(studentAuth()))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value("El alumno no tiene reserva activa con este tutor"));
+                .andExpect(jsonPath("$.message", containsString("acceso a este material")));
     }
 
     @Test
@@ -283,8 +282,6 @@ class MaterialControllerImplTest {
                         .with(studentAuth()))
                 .andExpect(status().isForbidden());
     }
-
-    // ==================== Helpers ====================
 
     private RequestPostProcessor tutorAuth() {
         UserPrincipal principal = new UserPrincipal(tutorUser);

@@ -1,16 +1,21 @@
 package com.knowlink.api.bookings.validations;
 
+import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.timeslot.data.models.TimeSlot;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.tutors.data.enums.Modality;
+import com.knowlink.api.bookings.utils.BookingConstants;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
+import com.knowlink.api.bookings.services.interfaces.IStudentScheduleValidationService;
 import com.knowlink.api.users.data.models.User;
 
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -18,17 +23,14 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
 public class BookingValidationServiceImpl implements IBookingValidationService {
 
-    private static final List<BookingStatus> ACTIVE_STATUSES =
-            List.of(BookingStatus.PENDING, BookingStatus.BOOKED, BookingStatus.IN_PROGRESS);
-
-    private static final Duration MAX_DAILY_SUBJECT_DURATION = Duration.ofHours(3);
-
     private final IBookingRepository bookingRepository;
+    private final IStudentScheduleValidationService studentScheduleValidationService;
 
     @Override
     public void validateModality(Modality requested, Modality subjectModality) {
@@ -75,11 +77,12 @@ public class BookingValidationServiceImpl implements IBookingValidationService {
     }
 
     @Override
-    public void validateNoOverlap(java.util.UUID timeSlotId, LocalTime startTime, LocalTime endTime) {
-        List<Booking> activeBookings = bookingRepository.findActiveByTimeSlotId(timeSlotId, ACTIVE_STATUSES);
+    public void validateNoOverlap(UUID timeSlotId, LocalTime startTime, LocalTime endTime) {
+        List<Booking> activeBookings = bookingRepository.findActiveByTimeSlotId(timeSlotId,
+                BookingConstants.ACTIVE_STATUSES);
 
-        boolean overlaps = activeBookings.stream().anyMatch(b ->
-                startTime.isBefore(b.getEndTime()) && endTime.isAfter(b.getStartTime()));
+        boolean overlaps = activeBookings.stream()
+                .anyMatch(b -> startTime.isBefore(b.getEndTime()) && endTime.isAfter(b.getStartTime()));
 
         if (overlaps) {
             throw new ValidationException("Este horario ya fue reservado o está siendo reservado por otro alumno.");
@@ -99,10 +102,10 @@ public class BookingValidationServiceImpl implements IBookingValidationService {
 
     @Override
     public void validateDailySubjectCap(
-            User student, java.util.UUID tutorSubjectId, LocalDate date, LocalTime startTime, LocalTime endTime) {
+            User student, UUID tutorSubjectId, LocalDate date, LocalTime startTime, LocalTime endTime) {
 
         List<Booking> sameDaySubjectBookings = bookingRepository.findActiveByStudentSubjectAndDate(
-                student.getUserId(), tutorSubjectId, date, ACTIVE_STATUSES);
+                student.getUserId(), tutorSubjectId, date, BookingConstants.ACTIVE_STATUSES);
 
         Duration existing = sameDaySubjectBookings.stream()
                 .map(b -> Duration.between(b.getStartTime(), b.getEndTime()))
@@ -110,9 +113,91 @@ public class BookingValidationServiceImpl implements IBookingValidationService {
 
         Duration requested = Duration.between(startTime, endTime);
 
-        if (existing.plus(requested).compareTo(MAX_DAILY_SUBJECT_DURATION) > 0) {
+        if (existing.plus(requested).compareTo(BookingConstants.MAX_DAILY_SUBJECT_DURATION) > 0) {
             throw new ValidationException(
                     "Superaste el máximo de 3 horas diarias de reserva para esta materia con este tutor.");
         }
+    }
+
+    @Override
+    public void validateOwnership(Booking booking, UUID userId) {
+        boolean isStudent = booking.getStudent().getUserId().equals(userId);
+        boolean isTutor = booking.getTutor().getUserId().equals(userId);
+
+        if (!isStudent && !isTutor) {
+            // Mismo mensaje que "no existe" a propósito — no confirmar la
+            // existencia de una reserva ajena a quien no tiene acceso a ella.
+            throw new ResourceNotFoundException(
+                    "BOOKING_NOT_FOUND",
+                    "La reserva no existe.",
+                    String.format("User %s tried to access booking %s without ownership", userId,
+                            booking.getBookingId()));
+        }
+    }
+
+    @Override
+    public void validateCanSetVirtualLink(Booking booking, UUID tutorUserId) {
+        if (!booking.getTutor().getUserId().equals(tutorUserId)) {
+            throw new AccessDeniedException(
+                    "No tenés permiso para modificar esta reserva.");
+        }
+        if (booking.getModality() != Modality.VIRTUAL) {
+            throw new ValidationException("No se puede cargar un link de videollamada para una clase presencial.");
+        }
+        if (booking.getBookingStatus() != BookingStatus.BOOKED
+                && booking.getBookingStatus() != BookingStatus.IN_PROGRESS) {
+            throw new ValidationException(
+                    "No se puede modificar el link de una clase que ya finalizó o fue cancelada.");
+        }
+    }
+
+    @Override
+    public void validateCanConfirmSession(Booking booking, UUID tutorUserId) {
+        if (!booking.getTutor().getUserId().equals(tutorUserId)) {
+            throw new AccessDeniedException("No tenés permiso para confirmar esta reserva.");
+        }
+        if (booking.getBookingStatus() != BookingStatus.BOOKED
+                && booking.getBookingStatus() != BookingStatus.IN_PROGRESS) {
+            throw new ValidationException("Esta reserva ya no admite confirmación por token.");
+        }
+        if (booking.getConfirmationToken() == null) {
+            throw new ValidationException("Todavía no se generó el código de confirmación para esta clase.");
+        }
+
+        LocalDateTime now = LocalDateTime.now(AppTimeZone.ZONE);
+        LocalDateTime sessionStart = LocalDateTime.of(booking.getSessionDate(), booking.getStartTime());
+
+        if (now.isBefore(sessionStart) || now.isAfter(booking.getConfirmationTokenExpiration())) {
+            throw new ValidationException("El código de confirmación no está disponible en este momento.");
+        }
+        if (booking.getConfirmationTokenAttempts() >= BookingConstants.CONFIRMATION_TOKEN_MAX_ATTEMPTS) {
+            throw new ValidationException("Se superó el máximo de intentos para este código. Contactá a soporte.");
+        }
+    }
+
+    @Override
+    public void validateCanViewConfirmationToken(Booking booking, UUID studentUserId) {
+        if (!booking.getStudent().getUserId().equals(studentUserId)) {
+            throw new AccessDeniedException("No tenés permiso para ver el código de esta reserva.");
+        }
+        if (booking.getConfirmationToken() == null) {
+            throw new ValidationException("Todavía no se generó el código de confirmación para esta clase.");
+        }
+        if (booking.getBookingStatus() == BookingStatus.CANCELLED) {
+            throw new ValidationException("El código de confirmación ya no está disponible para esta clase.");
+        }
+        if (booking.getConfirmedAt() != null) {
+            throw new ValidationException("El código de confirmación ya no está disponible para esta clase.");
+        }
+
+        LocalDateTime now = LocalDateTime.now(AppTimeZone.ZONE);
+        if (now.isAfter(booking.getConfirmationTokenExpiration())) {
+            throw new ValidationException("El código de confirmación ya no está disponible para esta clase.");
+        }
+    }
+
+    @Override
+    public void validateNoStudentTimeConflict(User student, LocalDate date, LocalTime startTime, LocalTime endTime) {
+        studentScheduleValidationService.validateNoTimeConflict(student, date, startTime, endTime);
     }
 }

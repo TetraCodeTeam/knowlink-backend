@@ -13,6 +13,7 @@ import com.knowlink.api.timeslot.repositories.ITimeSlotRepository;
 import com.knowlink.api.tutors.availability.repositories.IAvailabilityBlockRepository;
 import com.knowlink.api.tutors.availability.repositories.IAvailabilityWeekCustomizationRepository;
 import com.knowlink.api.tutors.availability.services.interfaces.IAvailabilityBlockService;
+import com.knowlink.api.tutors.availability.utils.AvailabilityBlockMerger;
 import com.knowlink.api.tutors.availability.utils.AvailabilityConstants;
 import com.knowlink.api.tutors.availability.validations.IAvailabilityBlockValidationService;
 import com.knowlink.api.tutors.data.models.TutorProfile;
@@ -52,10 +53,12 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
         availabilityBlockValidationService.validateBlocks(blocks);
         availabilityBlockValidationService.validateNoActiveBookingsInRange(tutorUserId, weekStart, weekEnd);
 
+        List<AvailabilityBlockRequest> mergedBlocks = AvailabilityBlockMerger.mergeContiguous(blocks);
+
         TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
         UUID tutorProfileId = tutorProfile.getTutorProfileId();
 
-        boolean anyRepeat = blocks.stream().anyMatch(request -> Boolean.TRUE.equals(request.repeatWeekly()));
+        boolean anyRepeat = mergedBlocks.stream().anyMatch(request -> Boolean.TRUE.equals(request.repeatWeekly()));
 
         List<Integer> protectedWeekOffsets = anyRepeat
                 ? clearNonProtectedFutureWeeks(tutorUserId, tutorProfileId, weekStart, weekEnd)
@@ -64,7 +67,7 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
         timeSlotRepository.deleteAvailableInRange(tutorProfileId, weekStart, weekEnd);
         availabilityBlockRepository.deleteInRange(tutorProfileId, weekStart, weekEnd);
 
-        List<AvailabilityBlock> toSave = buildBlocksToSave(blocks, tutorProfile, protectedWeekOffsets);
+        List<AvailabilityBlock> toSave = buildBlocksToSave(mergedBlocks, tutorProfile, protectedWeekOffsets);
         availabilityBlockRepository.saveAll(toSave);
 
         List<TimeSlot> newSlots = toSave.stream()
