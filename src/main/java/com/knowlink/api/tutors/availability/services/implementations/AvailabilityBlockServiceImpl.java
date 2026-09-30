@@ -18,6 +18,8 @@ import com.knowlink.api.tutors.availability.utils.AvailabilityConstants;
 import com.knowlink.api.tutors.availability.validations.IAvailabilityBlockValidationService;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
+import com.knowlink.api.bookings.repositories.IBookingRepository;
+import com.knowlink.api.tutors.availability.data.enums.BookingStatusGroups;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Set;
 import java.util.List;
 import java.util.UUID;
 
@@ -40,6 +43,7 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
     private final AvailabilityBlockMapper availabilityBlockMapper;
     private final ITimeSlotRepository timeSlotRepository;
     private final TimeSlotGenerator timeSlotGenerator;
+    private final IBookingRepository bookingRepository;
 
     @Override
     @Transactional
@@ -51,12 +55,18 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
 
         availabilityBlockValidationService.validateWeekRequest(weekStart, weekEnd, blocks);
         availabilityBlockValidationService.validateBlocks(blocks);
-        availabilityBlockValidationService.validateNoActiveBookingsInRange(tutorUserId, weekStart, weekEnd);
-
-        List<AvailabilityBlockRequest> mergedBlocks = AvailabilityBlockMerger.mergeContiguous(blocks);
 
         TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
         UUID tutorProfileId = tutorProfile.getTutorProfileId();
+
+        Set<LocalDate> protectedDates = availabilityBlockValidationService.resolveProtectedDates(
+                tutorUserId, tutorProfileId, blocks, weekStart, weekEnd, LocalDateTime.now());
+
+        List<AvailabilityBlockRequest> editableBlocks = blocks.stream()
+                .filter(b -> !protectedDates.contains(b.date()))
+                .toList();
+
+        List<AvailabilityBlockRequest> mergedBlocks = AvailabilityBlockMerger.mergeContiguous(editableBlocks);
 
         boolean anyRepeat = mergedBlocks.stream().anyMatch(request -> Boolean.TRUE.equals(request.repeatWeekly()));
 
@@ -64,8 +74,14 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
                 ? clearNonProtectedFutureWeeks(tutorUserId, tutorProfileId, weekStart, weekEnd)
                 : List.of();
 
-        timeSlotRepository.deleteAvailableInRange(tutorProfileId, weekStart, weekEnd);
-        availabilityBlockRepository.deleteInRange(tutorProfileId, weekStart, weekEnd);
+        if (protectedDates.isEmpty()) {
+            timeSlotRepository.deleteAvailableInRange(tutorProfileId, weekStart, weekEnd);
+            availabilityBlockRepository.deleteInRange(tutorProfileId, weekStart, weekEnd);
+        } else {
+            List<LocalDate> protectedList = new ArrayList<>(protectedDates);
+            timeSlotRepository.deleteAvailableInRangeExcludingDates(tutorProfileId, weekStart, weekEnd, protectedList);
+            availabilityBlockRepository.deleteInRangeExcludingDates(tutorProfileId, weekStart, weekEnd, protectedList);
+        }
 
         List<AvailabilityBlock> toSave = buildBlocksToSave(mergedBlocks, tutorProfile, protectedWeekOffsets);
         availabilityBlockRepository.saveAll(toSave);
@@ -91,13 +107,17 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
             boolean isCustomized = weekCustomizationRepository
                     .existsByTutorProfile_TutorProfileIdAndWeekStart(tutorProfileId, futureWeekStart);
 
-            if (isCustomized) {
+            // Antes esto rechazaba TODO el guardado si una semana futura auto-generada
+            // tenía una reserva. Ahora, como es un efecto colateral automático (no una
+            // edición directa del tutor), simplemente se salta esa semana futura —
+            // igual que ya se hace con las semanas "customizadas".
+            boolean hasActiveBooking = bookingRepository.existsActiveBookingInRange(
+                    tutorUserId, futureWeekStart, futureWeekEnd, BookingStatusGroups.ACTIVE);
+
+            if (isCustomized || hasActiveBooking) {
                 protectedWeekOffsets.add(i);
                 continue;
             }
-
-            availabilityBlockValidationService.validateNoActiveBookingsInRange(
-                    tutorUserId, futureWeekStart, futureWeekEnd);
 
             timeSlotRepository.deleteAvailableInRange(tutorProfileId, futureWeekStart, futureWeekEnd);
             availabilityBlockRepository.deleteInRange(tutorProfileId, futureWeekStart, futureWeekEnd);

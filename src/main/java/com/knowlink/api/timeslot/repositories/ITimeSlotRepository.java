@@ -87,4 +87,18 @@ public interface ITimeSlotRepository extends JpaRepository<TimeSlot, UUID> {
                         AND NOT EXISTS (SELECT 1 FROM Booking b WHERE b.timeSlot = ts)
                         """)
         void deletePastUnbooked(@Param("today") LocalDate today, @Param("nowTime") LocalTime nowTime);
+
+        @Modifying
+        @Query("""
+                        DELETE FROM TimeSlot ts
+                        WHERE ts.tutorProfileId = :tutorProfileId
+                        AND ts.date BETWEEN :from AND :to
+                        AND ts.status = 'AVAILABLE'
+                        AND ts.date NOT IN :protectedDates
+                        """)
+        void deleteAvailableInRangeExcludingDates(
+                        @Param("tutorProfileId") UUID tutorProfileId,
+                        @Param("from") LocalDate from,
+                        @Param("to") LocalDate to,
+                        @Param("protectedDates") List<LocalDate> protectedDates);
 }

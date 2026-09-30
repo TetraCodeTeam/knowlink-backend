@@ -13,6 +13,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,6 +28,33 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
         List<Booking> findActiveByTimeSlotId(
                         @Param("timeSlotId") UUID timeSlotId,
                         @Param("statuses") List<BookingStatus> statuses);
+
+        @Query("""
+                        SELECT DISTINCT b.sessionDate FROM Booking b
+                        WHERE b.tutor.userId = :tutorUserId
+                        AND b.sessionDate BETWEEN :from AND :to
+                        AND b.bookingStatus IN :activeStatuses
+                        """)
+        List<LocalDate> findActiveBookingDatesInRange(
+                        @Param("tutorUserId") UUID tutorUserId,
+                        @Param("from") LocalDate from,
+                        @Param("to") LocalDate to,
+                        @Param("activeStatuses") List<BookingStatus> activeStatuses);
+
+        @Query("""
+                        SELECT DISTINCT b.sessionDate FROM Booking b
+                        WHERE b.tutor.userId = :tutorUserId
+                        AND b.sessionDate BETWEEN :from AND :to
+                        AND b.bookingStatus IN :activeStatuses
+                        AND (b.sessionDate > :today OR (b.sessionDate = :today AND b.endTime > :nowTime))
+                        """)
+        List<LocalDate> findActiveUpcomingBookingDatesInRange(
+                        @Param("tutorUserId") UUID tutorUserId,
+                        @Param("from") LocalDate from,
+                        @Param("to") LocalDate to,
+                        @Param("activeStatuses") List<BookingStatus> activeStatuses,
+                        @Param("today") LocalDate today,
+                        @Param("nowTime") LocalTime nowTime);
 
         @Query("""
                         SELECT b FROM Booking b
@@ -163,5 +191,5 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
         @Modifying(clearAutomatically = true)
         @Query("UPDATE Booking b SET b.confirmationTokenAttempts = b.confirmationTokenAttempts + 1 WHERE b.bookingId = :bookingId")
         void incrementConfirmationTokenAttempts(@Param("bookingId") UUID bookingId);
-        
+
 }

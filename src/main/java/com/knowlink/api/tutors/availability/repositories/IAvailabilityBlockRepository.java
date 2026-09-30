@@ -65,4 +65,27 @@ public interface IAvailabilityBlockRepository extends JpaRepository<Availability
                         AND NOT EXISTS (SELECT 1 FROM TimeSlot ts WHERE ts.assignedBlock = ab)
                         """)
         void deletePastOrphaned(@Param("today") LocalDate today, @Param("nowTime") LocalTime nowTime);
+
+        @Query("""
+                        SELECT ab FROM AvailabilityBlock ab
+                        WHERE ab.tutorProfile.tutorProfileId = :tutorProfileId
+                        AND ab.date BETWEEN :from AND :to
+                        """)
+        List<AvailabilityBlock> findRawInRange(
+                        @Param("tutorProfileId") UUID tutorProfileId,
+                        @Param("from") LocalDate from,
+                        @Param("to") LocalDate to);
+
+        @Modifying(clearAutomatically = true)
+        @Query("""
+                        DELETE FROM AvailabilityBlock ab
+                        WHERE ab.tutorProfile.tutorProfileId = :tutorProfileId
+                        AND ab.date BETWEEN :from AND :to
+                        AND ab.date NOT IN :protectedDates
+                        """)
+        void deleteInRangeExcludingDates(
+                        @Param("tutorProfileId") UUID tutorProfileId,
+                        @Param("from") LocalDate from,
+                        @Param("to") LocalDate to,
+                        @Param("protectedDates") List<LocalDate> protectedDates);
 }
