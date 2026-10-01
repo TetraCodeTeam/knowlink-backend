@@ -3,6 +3,8 @@ package com.knowlink.api.payments.services;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
+import com.knowlink.api.claims.data.enums.ClaimStatus;
+import com.knowlink.api.claims.repositories.SessionClaimRepository;
 import com.knowlink.api.exceptions.custom_exceptions.ImmutableBookingException;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.payments.data.models.FundsTransfer;
@@ -32,6 +34,9 @@ class FundsResolutionServiceTest {
 
     @Mock
     private IBookingRepository bookingRepository;
+
+    @Mock
+    private SessionClaimRepository sessionClaimRepository;
 
     @Mock
     private IFundsTransferRepository fundsTransferRepository;
@@ -155,6 +160,21 @@ class FundsResolutionServiceTest {
 
         assertThatThrownBy(() -> fundsResolutionService.resolve(bookingId, true, true))
                 .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    @DisplayName("Caso 19 - reclamo abierto: resolve no toca fondos ni la reserva")
+    void resolve_openClaimExists_skipsResolutionEntirely() {
+        when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
+        when(sessionClaimRepository.existsByBooking_BookingIdAndStatus(bookingId, ClaimStatus.OPEN))
+                .thenReturn(true);
+
+        fundsResolutionService.resolve(bookingId, true, true);
+
+        verify(bookingRepository, never()).save(any());
+        verify(fundsTransferRepository, never()).findByBooking_BookingId(any(UUID.class));
+        verify(fundsLedgerService, never()).releaseToTutor(any(), any());
+        verify(fundsLedgerService, never()).refundToStudent(any(), any());
     }
 
     @Test

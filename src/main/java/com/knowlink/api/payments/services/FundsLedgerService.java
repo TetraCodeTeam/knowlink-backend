@@ -77,6 +77,11 @@ public class FundsLedgerService {
     public void markSuspendedByClaim(UUID bookingId, UUID claimId) {
         fundsTransferRepository.findByBooking_BookingId(bookingId)
                 .ifPresent(transfer -> {
+                    if (transfer.getFundsStatus() == FundsStatus.SUSPENDED_BY_CLAIM) {
+                        log.info("Funds for booking {} are already suspended by claim {}, keeping original block",
+                                bookingId, transfer.getBlockingClaimId());
+                        return;
+                    }
                     transfer.setFundsStatus(FundsStatus.SUSPENDED_BY_CLAIM);
                     transfer.setBlockingClaimId(claimId);
                     fundsTransferRepository.save(transfer);

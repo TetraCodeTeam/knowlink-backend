@@ -1,6 +1,8 @@
 package com.knowlink.api.payments.services;
 
 import com.knowlink.api.bookings.data.enums.BookingStatus;
+import com.knowlink.api.claims.data.enums.ClaimStatus;
+import com.knowlink.api.claims.repositories.SessionClaimRepository;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
 import com.knowlink.api.exceptions.custom_exceptions.ImmutableBookingException;
@@ -25,6 +27,7 @@ import java.util.UUID;
 public class FundsResolutionService {
 
     private final IBookingRepository bookingRepository;
+    private final SessionClaimRepository sessionClaimRepository;
     private final IFundsTransferRepository fundsTransferRepository;
     private final FundsLedgerService fundsLedgerService;
 
@@ -35,6 +38,11 @@ public class FundsResolutionService {
                         "BOOKING_NOT_FOUND",
                         "La reserva no existe.",
                         "Booking not found for id: " + bookingId));
+
+        if (sessionClaimRepository.existsByBooking_BookingIdAndStatus(bookingId, ClaimStatus.OPEN)) {
+            log.info("Booking {} has an open claim, funds resolution skipped", bookingId);
+            return;
+        }
 
         Optional<FundsTransfer> existingTransfer = fundsTransferRepository.findByBooking_BookingId(bookingId);
         if (existingTransfer.isPresent() && isTerminalStatus(existingTransfer.get().getFundsStatus())) {

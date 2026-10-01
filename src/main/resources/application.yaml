@@ -65,6 +65,12 @@ frontend:
 app:
   url: ${APP_URL}
 
+knowlink:
+  claims:
+    deadline-hours: 24
+    max-attachments: 3
+    max-attachment-mb: 5
+
 supabase:
   url: ${SUPABASE_URL}
   service-role-key: ${SUPABASE_SERVICE_ROLE_KEY}

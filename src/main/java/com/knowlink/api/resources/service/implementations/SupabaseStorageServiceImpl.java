@@ -32,8 +32,13 @@ public class SupabaseStorageServiceImpl implements ISupabaseStorageService {
 
     @Override
     public String upload(MultipartFile file, UUID subjectId) {
-        String path = subjectId + "/" + UUID.randomUUID() + "-" + file.getOriginalFilename();
-        String uploadUrl = supabaseUrl + "/storage/v1/object/" + BUCKET + "/" + path;
+        return upload(file, BUCKET, subjectId.toString());
+    }
+
+    @Override
+    public String upload(MultipartFile file, String bucket, String folder) {
+        String path = folder + "/" + UUID.randomUUID() + "-" + file.getOriginalFilename();
+        String uploadUrl = supabaseUrl + "/storage/v1/object/" + bucket + "/" + path;
 
         try {
             restClient.post()
@@ -47,13 +52,18 @@ public class SupabaseStorageServiceImpl implements ISupabaseStorageService {
             throw new RuntimeException("Failed to read file bytes", e);
         }
 
-        log.info("File uploaded to Supabase Storage: {}", path);
+        log.info("File uploaded to Supabase Storage: {}/{}", bucket, path);
         return path;
     }
 
     @Override
     public String generateSignedUrl(String path, int expirationSeconds) {
-        String signUrl = supabaseUrl + "/storage/v1/object/sign/" + BUCKET + "/" + path;
+        return generateSignedUrl(BUCKET, path, expirationSeconds);
+    }
+
+    @Override
+    public String generateSignedUrl(String bucket, String path, int expirationSeconds) {
+        String signUrl = supabaseUrl + "/storage/v1/object/sign/" + bucket + "/" + path;
 
         SignedUrlResponse response = restClient.post()
                 .uri(signUrl)
@@ -68,7 +78,12 @@ public class SupabaseStorageServiceImpl implements ISupabaseStorageService {
 
     @Override
     public void delete(String path) {
-        String deleteUrl = supabaseUrl + "/storage/v1/object/" + BUCKET + "/" + path;
+        delete(BUCKET, path);
+    }
+
+    @Override
+    public void delete(String bucket, String path) {
+        String deleteUrl = supabaseUrl + "/storage/v1/object/" + bucket + "/" + path;
 
         restClient.delete()
                 .uri(deleteUrl)
@@ -76,7 +91,7 @@ public class SupabaseStorageServiceImpl implements ISupabaseStorageService {
                 .retrieve()
                 .toBodilessEntity();
 
-        log.info("File deleted from Supabase Storage: {}", path);
+        log.info("File deleted from Supabase Storage: {}/{}", bucket, path);
     }
 
     private record SignedUrlResponse(String signedURL) {}
