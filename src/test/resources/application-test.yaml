@@ -11,13 +11,25 @@ spring:
     show-sql: false
   cache:
     type: none
+  mail:
+    host: localhost
+    port: 587
+    username: test@knowlink.local
+    password: test
 
 jwt:
   secret: dGVzdC1zZWNyZXQta2V5LWZvci1rbm93bGluay10ZXN0aW5nLXB1cnBvc2VzLW9ubHk=
   access-token-expiration: 86400000
+
+confirmation-token:
+  encryption-key: AIPE0bEhK/1vurbx0GOovEeJe7bBbGkodv1sdb+D+hk=
 
 frontend:
   url: http://localhost:5173
 
 app:
   url: http://localhost:8080
+
+supabase:
+  url: http://localhost:54321
+  service-role-key: test-service-role-key

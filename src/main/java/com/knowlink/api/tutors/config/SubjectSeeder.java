@@ -50,40 +50,40 @@ public class SubjectSeeder implements CommandLineRunner {
             ),
             "Contador Público", List.of(
                     "Auditoría", "Costos", "Finanzas Corporativas"
+            ),
+            "Ingeniería Química", List.of(
+                    "Balances de Masa y Energía", "Ciencia de los Materiales",
+                    "Fisicoquímica", "Procesos Biotecnológicos"
             )
     );
 
     @Override
     public void run(String... args) {
-        if (subjectRepository.count() > 0) {
-            return;
-        }
-
         Career placeholderCareer = careerRepository.findAll().stream()
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException(
                         "No hay carreras cargadas: CareerSeeder debe correr antes que SubjectSeeder"));
 
-        BASIC_SUBJECTS.forEach(name ->
-                subjectRepository.save(Subject.builder()
-                        .name(name)
-                        .isBasic(true)
-                        .career(placeholderCareer)
-                        .build())
-        );
+        BASIC_SUBJECTS.forEach(name -> saveIfAbsent(name, true, placeholderCareer));
 
         CAREER_SUBJECTS.forEach((careerName, subjectNames) -> {
             Career career = careerRepository.findByName(careerName)
                     .orElseThrow(() -> new IllegalStateException(
                             "Carrera no encontrada para seed de materias: " + careerName));
 
-            subjectNames.forEach(name ->
-                    subjectRepository.save(Subject.builder()
-                            .name(name)
-                            .isBasic(false)
-                            .career(career)
-                            .build())
-            );
+            subjectNames.forEach(name -> saveIfAbsent(name, false, career));
         });
+    }
+
+    private void saveIfAbsent(String name, boolean isBasic, Career career) {
+        if (subjectRepository.findByName(name).isPresent()) {
+            return;
+        }
+
+        subjectRepository.save(Subject.builder()
+                .name(name)
+                .isBasic(isBasic)
+                .career(career)
+                .build());
     }
 }
