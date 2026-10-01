@@ -1,5 +1,7 @@
 package com.knowlink.api.bookings.services.implementations;
 
+import com.knowlink.api.claims.controllers.responses.ClaimEligibilityResponse;
+import com.knowlink.api.claims.services.interfaces.ISessionClaimService;
 import com.knowlink.api.events.services.BookingEventPublisher;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
@@ -68,6 +70,7 @@ public class BookingServiceImpl implements IBookingService {
         private final ApplicationEventPublisher applicationEventPublisher;
         private final IBookingConfirmationTokenService confirmationTokenService;
         private final IStudentProfileRepository studentProfileRepository;
+        private final ISessionClaimService sessionClaimService;
 
         @Override
         @Transactional
@@ -172,8 +175,15 @@ public class BookingServiceImpl implements IBookingService {
                                                                                 (map, other) -> map.putAll(other))
                                                 : Map.of();
 
-                return PagedResponse.from(bookings.map(
-                                booking -> bookingMapper.toListItem(booking, userId, studentProfilePictureByUserId)));
+                Map<UUID, ClaimEligibilityResponse> claimEligibility =
+                                sessionClaimService.evaluateForListing(userId, bookings.getContent());
+
+                return PagedResponse.from(bookings.map(booking -> {
+                        ClaimEligibilityResponse eligibility = claimEligibility.get(booking.getBookingId());
+                        return bookingMapper.toListItem(booking, userId, studentProfilePictureByUserId,
+                                        eligibility != null && eligibility.canClaim(),
+                                        eligibility == null ? null : eligibility.claimableUntil());
+                }));
         }
 
         @Override
