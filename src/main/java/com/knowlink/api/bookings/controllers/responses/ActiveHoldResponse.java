@@ -3,9 +3,12 @@ package com.knowlink.api.bookings.controllers.responses;
 import java.time.Instant;
 import java.util.UUID;
 
-public record HoldResponse(
+public record ActiveHoldResponse(
         UUID holdId,
-        UUID slotId,
-        String status,
+        UUID tutorUserId,
+        String tutorFullName,
+        UUID timeSlotId,
+        Instant start,
+        Instant end,
         Instant expiresAt
 ) {}

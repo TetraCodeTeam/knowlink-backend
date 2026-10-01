@@ -17,8 +17,6 @@ public interface IBookingValidationService {
 
     void validateNoOverlap(UUID timeSlotId, LocalTime startTime, LocalTime endTime);
 
-    void validateSingleActiveHold(User student);
-
     void validateDailySubjectCap(User student, UUID tutorSubjectId, java.time.LocalDate date, LocalTime startTime,
             LocalTime endTime);
 

@@ -90,17 +90,6 @@ public class BookingValidationServiceImpl implements IBookingValidationService {
     }
 
     @Override
-    public void validateSingleActiveHold(User student) {
-        boolean hasActiveHold = bookingRepository.existsByStudent_UserIdAndBookingStatus(
-                student.getUserId(), BookingStatus.PENDING);
-
-        if (hasActiveHold) {
-            throw new ValidationException(
-                    "Ya tenés una reserva pendiente de pago. Completala o esperá a que expire antes de reservar otra.");
-        }
-    }
-
-    @Override
     public void validateDailySubjectCap(
             User student, UUID tutorSubjectId, LocalDate date, LocalTime startTime, LocalTime endTime) {
 

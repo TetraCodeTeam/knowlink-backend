@@ -12,8 +12,10 @@ import com.knowlink.api.bookings.controllers.requests.VirtualSessionLinkRequest;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryDetailResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryItemResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingResponse;
+import com.knowlink.api.bookings.controllers.responses.ActiveHoldStatusResponse;
 import com.knowlink.api.bookings.data.enums.BookingHistoryCategory;
 import com.knowlink.api.bookings.services.interfaces.IBookingService;
+import com.knowlink.api.bookings.services.interfaces.IHoldService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -27,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class BookingControllerImpl implements IBookingController {
 
     private final IBookingService bookingService;
+    private final IHoldService holdService;
 
     @Override
     public BookingResponse createBooking(UserPrincipal principal, CreateBookingRequest request) {
@@ -63,5 +66,10 @@ public class BookingControllerImpl implements IBookingController {
     @Override
     public BookingConfirmationTokenResponse getConfirmationToken(UserPrincipal principal, UUID bookingId) {
         return bookingService.getConfirmationToken(principal.getUser().getUserId(), bookingId);
+    }
+
+    @Override
+    public ActiveHoldStatusResponse getActiveHold(UserPrincipal principal) {
+        return holdService.getActiveHold(principal.getUser().getUserId());
     }
 }

@@ -104,9 +104,6 @@ public class BookingServiceImpl implements IBookingService {
                 bookingValidationService.validateNoStudentTimeConflict(
                                 student, hold.getTimeSlot().getDate(), startTime, endTime);
 
-                bookingValidationService.validateNoStudentTimeConflict(
-                                student, hold.getTimeSlot().getDate(), startTime, endTime);
-
                 TutorSubject tutorSubject = tutorSubjectRepository.findById(request.tutorSubjectId())
                                 .orElseThrow(() -> new ResourceNotFoundException(
                                                 "TUTOR_SUBJECT_NOT_FOUND",

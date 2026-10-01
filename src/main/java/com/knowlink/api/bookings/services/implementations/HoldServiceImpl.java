@@ -6,12 +6,15 @@ import com.knowlink.api.timeslot.data.models.TimeSlot;
 import com.knowlink.api.timeslot.repositories.ITimeSlotRepository;
 import com.knowlink.api.bookings.controllers.requests.CreateHoldRequest;
 import com.knowlink.api.bookings.controllers.responses.HoldResponse;
+import com.knowlink.api.bookings.controllers.responses.ActiveHoldStatusResponse;
 import com.knowlink.api.bookings.data.models.Hold;
 import com.knowlink.api.bookings.repositories.IHoldRepository;
 import com.knowlink.api.bookings.services.interfaces.IHoldService;
 import com.knowlink.api.bookings.utils.BookingConstants;
+import com.knowlink.api.bookings.utils.HoldTutorResolver;
 import com.knowlink.api.bookings.validations.IHoldValidationService;
 import com.knowlink.api.tutors.data.models.TutorProfile;
+import com.knowlink.api.bookings.data.mappers.HoldMapper;
 import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
 import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.users.data.models.User;
@@ -37,6 +40,8 @@ public class HoldServiceImpl implements IHoldService {
     private final IUserService userService;
     private final BookingEventPublisher eventPublisher;
     private final ITutorProfileValidationService tutorProfileValidationService;
+    private final HoldMapper holdMapper;
+    private final HoldTutorResolver holdTutorResolver;
 
     @Override
     @Transactional
@@ -63,9 +68,9 @@ public class HoldServiceImpl implements IHoldService {
         holdValidationService.validateTimeWithinSlot(timeSlot, startTime, endTime);
         holdValidationService.validateMinNotice(tutorProfile, timeSlot, startTime);
         holdValidationService.validateNoOverlap(timeSlot.getTimeSlotId(), startTime, endTime);
-        holdValidationService.validateSingleActiveHold(student);
         userService.lockForUpdateOrThrowException(studentUserId);
-        holdValidationService.validateNoStudentTimeConflict(student, timeSlot.getDate(), startTime, endTime);                                                                                                      
+        holdValidationService.validateSingleActiveHold(student);
+        holdValidationService.validateNoStudentTimeConflict(student, timeSlot.getDate(), startTime, endTime);
 
         Hold hold = Hold.builder()
                 .timeSlot(timeSlot)
@@ -80,7 +85,8 @@ public class HoldServiceImpl implements IHoldService {
         eventPublisher.publish(tutorProfile.getTutorProfileId(),
                 timeSlot.getTimeSlotId(), "BLOCKED", request.start(), request.end());
 
-        return new HoldResponse(hold.getHoldId(), timeSlot.getTimeSlotId(), "BLOCKED", hold.getExpiresAt());
+        return new HoldResponse(hold.getHoldId(), timeSlot.getTimeSlotId(), "BLOCKED",
+                hold.getExpiresAt().atZone(AppTimeZone.ZONE).toInstant());
     }
 
     @Override
@@ -127,5 +133,16 @@ public class HoldServiceImpl implements IHoldService {
                     start.atDate(date).atZone(AppTimeZone.ZONE).toInstant(),
                     end.atDate(date).atZone(AppTimeZone.ZONE).toInstant());
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ActiveHoldStatusResponse getActiveHold(UUID studentUserId) {
+        return holdRepository.findByStudent_UserIdAndExpiresAtAfter(studentUserId, LocalDateTime.now(AppTimeZone.ZONE))
+                .map(hold -> {
+                    User tutor = holdTutorResolver.resolveTutor(hold.getTimeSlot());
+                    return new ActiveHoldStatusResponse(true, holdMapper.toActiveHoldResponse(hold, tutor));
+                })
+                .orElseGet(() -> new ActiveHoldStatusResponse(false, null));
     }
 }
