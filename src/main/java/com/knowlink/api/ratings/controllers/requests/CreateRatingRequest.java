@@ -11,7 +11,7 @@ public record CreateRatingRequest(
         @Min(value = 1, message = "Score must be at least 1")
         @Max(value = 5, message = "Score must be at most 5")
         Integer score,
-                @Size(max = RatingConstants.MAX_COMMENT_LENGTH, message = "Comment must not exceed 2000 characters")
+                @Size(max = RatingConstants.MAX_COMMENT_LENGTH, message = "Comment must not exceed {max} characters")
                 String comment) {
 
         public CreateRatingRequest {

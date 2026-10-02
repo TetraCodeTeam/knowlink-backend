@@ -52,7 +52,7 @@ class RatingReputationServiceImplTest {
         Rating first = rating(tutor, 4);
         Rating second = rating(tutor, 5);
         when(tutorProfileRepository.findByUserId(tutor.getUserId())).thenReturn(Optional.of(tutorProfile));
-        when(ratingRepository.calculateVisibleTutorAverage(any(), any(LocalDateTime.class), any(), any()))
+        when(ratingRepository.calculateVisibleTutorAverage(any()))
             .thenReturn(4.5);
 
         ratingReputationService.refreshTutorAverages(List.of(first));
@@ -66,10 +66,10 @@ class RatingReputationServiceImplTest {
         User tutor = tutor();
         TutorProfile tutorProfile = TutorProfile.builder().user(tutor).build();
         Rating expiredRating = rating(tutor, 5);
-        when(ratingRepository.findExpiredHiddenRatings(any(LocalDateTime.class), any(), any()))
+        when(ratingRepository.findExpiredHiddenRatings(any(), any(LocalDateTime.class), any(), any()))
                 .thenReturn(List.of(expiredRating));
         when(tutorProfileRepository.findByUserId(tutor.getUserId())).thenReturn(Optional.of(tutorProfile));
-        when(ratingRepository.calculateVisibleTutorAverage(any(), any(LocalDateTime.class), any(), any()))
+        when(ratingRepository.calculateVisibleTutorAverage(any()))
             .thenReturn(5.0);
 
         ratingReputationService.revealExpiredRatings();

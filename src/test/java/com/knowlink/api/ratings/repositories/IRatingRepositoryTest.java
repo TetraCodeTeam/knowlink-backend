@@ -83,11 +83,8 @@ class IRatingRepositoryTest {
         persistRating(userAsTutor, student, dualRoleUser, 5, true);
         entityManager.flush();
 
-        LocalDateTime visibleBefore = LocalDateTime.of(2026, 10, 2, 10, 0);
-        Double average = ratingRepository.calculateVisibleTutorAverage(
-                dualRoleUser.getUserId(), visibleBefore, visibleBefore.toLocalDate(), visibleBefore.toLocalTime());
-        List<Rating> visibleTutorRatings = ratingRepository.findVisibleTutorRatings(
-                dualRoleUser.getUserId(), visibleBefore, visibleBefore.toLocalDate(), visibleBefore.toLocalTime());
+        Double average = ratingRepository.calculateVisibleTutorAverage(dualRoleUser.getUserId());
+        List<Rating> visibleTutorRatings = ratingRepository.findVisibleTutorRatings(dualRoleUser.getUserId());
 
         assertThat(average).isEqualTo(5.0);
         assertThat(visibleTutorRatings).extracting(Rating::getScore).containsExactly(5);
@@ -100,19 +97,46 @@ class IRatingRepositoryTest {
                 student, dualRoleUser, dualRoleProfile, dualRoleSubject,
                 LocalDate.of(2026, 10, 1), null);
         expiredBooking.setEndTime(LocalTime.of(9, 0));
-        Booking recentBooking = persistBooking(
+        Booking sameDayBoundaryBooking = persistBooking(
                 otherTutor, dualRoleUser, dualRoleProfile, dualRoleSubject,
                 LocalDate.of(2026, 10, 2), null);
-        recentBooking.setEndTime(LocalTime.of(11, 0));
+        sameDayBoundaryBooking.setEndTime(LocalTime.of(10, 0));
+        Booking recentBooking = persistBooking(
+                dualRoleUser, otherTutor, otherTutorProfile, otherTutorSubject,
+                LocalDate.of(2026, 10, 2), null);
+        recentBooking.setEndTime(LocalTime.of(10, 1));
         persistRating(expiredBooking, student, dualRoleUser, 4, false);
+        persistRating(sameDayBoundaryBooking, otherTutor, dualRoleUser, 5, false);
         persistRating(recentBooking, otherTutor, dualRoleUser, 5, false);
         entityManager.flush();
 
         List<Rating> expiredRatings = ratingRepository.findExpiredHiddenRatings(
-                visibleBefore, visibleBefore.toLocalDate(), visibleBefore.toLocalTime());
+                BookingStatus.COMPLETED,
+                visibleBefore,
+                visibleBefore.toLocalDate(),
+                visibleBefore.toLocalTime());
 
         assertThat(expiredRatings).extracting(rating -> rating.getBooking().getBookingId())
-                .containsExactly(expiredBooking.getBookingId());
+                .containsExactlyInAnyOrder(expiredBooking.getBookingId(), sameDayBoundaryBooking.getBookingId());
+    }
+
+    @Test
+    void deadlineWaitsForSessionEndWhenConfirmationWasEarlier() {
+        LocalDateTime visibleBefore = LocalDateTime.of(2026, 10, 1, 9, 59);
+        Booking booking = persistBooking(
+                student, dualRoleUser, dualRoleProfile, dualRoleSubject,
+                LocalDate.of(2026, 10, 1), LocalDateTime.of(2026, 10, 1, 9, 0));
+        booking.setEndTime(LocalTime.of(10, 0));
+        persistRating(booking, student, dualRoleUser, 4, false);
+        entityManager.flush();
+
+        List<Rating> expiredRatings = ratingRepository.findExpiredHiddenRatings(
+                BookingStatus.COMPLETED,
+                visibleBefore,
+                visibleBefore.toLocalDate(),
+                visibleBefore.toLocalTime());
+
+        assertThat(expiredRatings).isEmpty();
     }
 
     @Test
@@ -140,7 +164,7 @@ class IRatingRepositoryTest {
                 assertThatThrownBy(() -> {
                         persistRating(booking, student, dualRoleUser, 5, false);
                         entityManager.flush();
-                }).isInstanceOf(RuntimeException.class);
+                }).isInstanceOf(jakarta.persistence.PersistenceException.class);
         }
 
     private User persistUser(String localName, Role role) {

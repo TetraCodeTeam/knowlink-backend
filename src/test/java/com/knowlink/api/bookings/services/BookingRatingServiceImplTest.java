@@ -36,7 +36,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -118,6 +120,7 @@ class BookingRatingServiceImplTest {
         User student = user();
         User tutor = user();
         Booking booking = completedBooking(student, tutor, NOW.minusHours(25));
+        booking.setSessionDate(NOW.minusDays(2).toLocalDate());
         prepareBooking(bookingId, booking, List.of());
 
         RatingResponse response = bookingRatingService.submitRating(
@@ -152,12 +155,30 @@ class BookingRatingServiceImplTest {
         User student = user();
         User tutor = user();
         Booking booking = completedBooking(student, tutor, NOW.minusHours(24));
+        booking.setSessionDate(NOW.minusDays(1).toLocalDate());
+        booking.setEndTime(NOW.minusHours(24).toLocalTime());
         prepareBooking(bookingId, booking, List.of());
 
         RatingResponse response = bookingRatingService.submitRating(
                 student.getUserId(), bookingId, new CreateRatingRequest(4, null));
 
         assertTrue(response.visible());
+    }
+
+    @Test
+    void earlyConfirmationDoesNotShortenTheBlindWindowBeforeSessionEnd() {
+        UUID bookingId = UUID.randomUUID();
+        User student = user();
+        User tutor = user();
+        Booking booking = completedBooking(student, tutor, NOW.minusHours(30));
+        booking.setSessionDate(NOW.minusHours(23).toLocalDate());
+        booking.setEndTime(NOW.minusHours(23).toLocalTime());
+        prepareBooking(bookingId, booking, List.of());
+
+        RatingResponse response = bookingRatingService.submitRating(
+                student.getUserId(), bookingId, new CreateRatingRequest(4, null));
+
+        assertFalse(response.visible());
     }
 
     @Test
@@ -198,6 +219,20 @@ class BookingRatingServiceImplTest {
         when(bookingRepository.findByIdForUpdate(bookingId)).thenReturn(Optional.of(booking));
         if (booking.getBookingStatus() == BookingStatus.COMPLETED) {
             when(ratingRepository.findByBookingBookingId(bookingId)).thenReturn(existingRatings);
+            LocalDateTime visibleBefore = NOW.minusHours(24);
+                LocalDateTime sessionEnd = LocalDateTime.of(booking.getSessionDate(), booking.getEndTime());
+                LocalDateTime deadlineStart = booking.getConfirmedAt() != null
+                    && booking.getConfirmedAt().isAfter(sessionEnd)
+                        ? booking.getConfirmedAt()
+                        : sessionEnd;
+                boolean deadlineElapsed = !deadlineStart.plusHours(24).isAfter(NOW);
+                lenient().when(ratingRepository.isBlindReviewDeadlineElapsed(
+                eq(bookingId),
+                eq(BookingStatus.COMPLETED),
+                eq(visibleBefore),
+                eq(visibleBefore.toLocalDate()),
+                eq(visibleBefore.toLocalTime())))
+                .thenReturn(deadlineElapsed);
         }
     }
 
@@ -207,7 +242,7 @@ class BookingRatingServiceImplTest {
                 .tutor(tutor)
                 .bookingStatus(BookingStatus.COMPLETED)
                 .confirmedAt(confirmedAt)
-                .sessionDate(LocalDate.now())
+                .sessionDate(NOW.toLocalDate())
                 .endTime(LocalTime.NOON)
                 .build();
     }

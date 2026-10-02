@@ -66,10 +66,13 @@ public class RatingServiceImpl implements IRatingService {
         }
 
         LocalDateTime now = LocalDateTime.now(clock);
-        LocalDateTime completedAt = booking.getConfirmedAt() != null
-            ? booking.getConfirmedAt()
-            : LocalDateTime.of(booking.getSessionDate(), booking.getEndTime());
-        boolean deadlineElapsed = !completedAt.plus(RatingConstants.BLIND_REVIEW_WINDOW).isAfter(now);
+        LocalDateTime visibleBefore = now.minus(RatingConstants.BLIND_REVIEW_WINDOW);
+        boolean deadlineElapsed = ratingRepository.isBlindReviewDeadlineElapsed(
+            bookingId,
+            BookingStatus.COMPLETED,
+            visibleBefore,
+            visibleBefore.toLocalDate(),
+            visibleBefore.toLocalTime());
         boolean visible = !existingRatings.isEmpty() || deadlineElapsed;
 
         Rating rating = ratingMapper.toEntity(booking, rater, rated, request, now, visible);

@@ -1,6 +1,7 @@
 package com.knowlink.api.ratings.services.implementations;
 
 import com.knowlink.api.ratings.data.models.Rating;
+import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.ratings.repositories.IRatingRepository;
 import com.knowlink.api.tutors.repositories.ITutorProfileRepository;
@@ -29,7 +30,10 @@ public class RatingReputationServiceImpl implements IRatingReputationService {
     public void revealExpiredRatings() {
         LocalDateTime visibleBefore = visibleBefore();
         List<Rating> expiredRatings = ratingRepository.findExpiredHiddenRatings(
-                visibleBefore, visibleBefore.toLocalDate(), visibleBefore.toLocalTime());
+            BookingStatus.COMPLETED,
+            visibleBefore,
+            visibleBefore.toLocalDate(),
+            visibleBefore.toLocalTime());
         if (expiredRatings.isEmpty()) {
             return;
         }
@@ -56,9 +60,7 @@ public class RatingReputationServiceImpl implements IRatingReputationService {
             return;
         }
 
-        LocalDateTime visibleBefore = visibleBefore();
-        Double average = ratingRepository.calculateVisibleTutorAverage(
-                tutorUserId, visibleBefore, visibleBefore.toLocalDate(), visibleBefore.toLocalTime());
+        Double average = ratingRepository.calculateVisibleTutorAverage(tutorUserId);
         tutorProfile.setAverageRating(average);
         tutorProfileRepository.save(tutorProfile);
     }

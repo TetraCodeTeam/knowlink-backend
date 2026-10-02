@@ -28,6 +28,7 @@ import com.knowlink.api.users.data.enums.AccountStatus;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.repositories.IUserRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -35,9 +36,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -73,37 +74,45 @@ class RatingServiceConcurrencyTest {
     private ITutorSubjectRepository tutorSubjectRepository;
     @Autowired
     private ITimeSlotRepository timeSlotRepository;
+    @Autowired
+    private Clock clock;
     @MockitoBean
     private IBookingValidationService bookingValidationService;
 
     private User student;
     private User tutor;
+    private Career career;
+    private TutorProfile tutorProfile;
+    private Subject subject;
+    private TutorSubject tutorSubject;
+    private TimeSlot timeSlot;
     private Booking booking;
 
     @BeforeEach
     void setUp() {
         student = user("student", Role.STUDENT);
         tutor = user("tutor", Role.TUTOR);
-        Career career = careerRepository.save(Career.builder().name("Career " + UUID.randomUUID()).build());
-        TutorProfile tutorProfile = tutorProfileRepository.save(
+        career = careerRepository.save(Career.builder().name("Career " + UUID.randomUUID()).build());
+        tutorProfile = tutorProfileRepository.save(
                 TutorProfile.builder().user(tutor).career(career).build());
-        Subject subject = subjectRepository.save(Subject.builder()
+        subject = subjectRepository.save(Subject.builder()
                 .name("Subject " + UUID.randomUUID())
                 .career(career)
                 .isBasic(true)
                 .build());
-        TutorSubject tutorSubject = tutorSubjectRepository.save(TutorSubject.builder()
+        tutorSubject = tutorSubjectRepository.save(TutorSubject.builder()
                 .tutorProfile(tutorProfile)
                 .subject(subject)
                 .modality(Modality.VIRTUAL)
                 .compensationType(CompensationType.PAID)
                 .tutorSubjectStatus(TutorSubjectStatus.ACTIVE)
                 .build());
-        LocalDate sessionDate = LocalDate.now();
-        TimeSlot timeSlot = timeSlotRepository.save(TimeSlot.builder()
-                .date(sessionDate)
-                .startTime(LocalTime.now().minusHours(1))
-                .endTime(LocalTime.now())
+        LocalDateTime sessionEnd = LocalDateTime.now(clock).minusHours(1);
+        LocalDate sessionDate = sessionEnd.toLocalDate();
+        timeSlot = timeSlotRepository.save(TimeSlot.builder()
+            .date(sessionDate)
+            .startTime(sessionEnd.toLocalTime().minusHours(1))
+            .endTime(sessionEnd.toLocalTime())
                 .status(SlotStatus.OCCUPIED)
                 .tutorProfileId(tutorProfile.getTutorProfileId())
                 .build());
@@ -114,12 +123,41 @@ class RatingServiceConcurrencyTest {
                 .endTime(timeSlot.getEndTime())
                 .modality(Modality.VIRTUAL)
                 .bookingStatus(BookingStatus.COMPLETED)
-                .confirmedAt(LocalDateTime.now())
+                .confirmedAt(sessionEnd.plusMinutes(1))
                 .timeSlot(timeSlot)
                 .tutorSubject(tutorSubject)
                 .student(student)
                 .tutor(tutor)
                 .build());
+    }
+
+    @AfterEach
+    void cleanUp() {
+        if (booking != null) {
+            ratingRepository.deleteAll(ratingRepository.findByBookingBookingId(booking.getBookingId()));
+            bookingRepository.delete(booking);
+        }
+        if (timeSlot != null) {
+            timeSlotRepository.delete(timeSlot);
+        }
+        if (tutorSubject != null) {
+            tutorSubjectRepository.delete(tutorSubject);
+        }
+        if (subject != null) {
+            subjectRepository.delete(subject);
+        }
+        if (tutorProfile != null) {
+            tutorProfileRepository.delete(tutorProfile);
+        }
+        if (career != null) {
+            careerRepository.delete(career);
+        }
+        if (student != null) {
+            userRepository.delete(student);
+        }
+        if (tutor != null) {
+            userRepository.delete(tutor);
+        }
     }
 
     @Test
