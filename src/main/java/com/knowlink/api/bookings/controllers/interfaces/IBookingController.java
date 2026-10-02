@@ -4,14 +4,12 @@ import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.shared.responses.PagedResponse;
 import com.knowlink.api.bookings.controllers.requests.ConfirmSessionTokenRequest;
-import com.knowlink.api.bookings.controllers.requests.CreateBookingRatingRequest;
 import com.knowlink.api.bookings.controllers.requests.CreateBookingRequest;
 import com.knowlink.api.bookings.controllers.responses.BookingConfirmationResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingConfirmationTokenResponse;
 import com.knowlink.api.bookings.controllers.requests.VirtualSessionLinkRequest;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryDetailResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryItemResponse;
-import com.knowlink.api.bookings.controllers.responses.BookingRatingResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingResponse;
 import com.knowlink.api.bookings.controllers.responses.ActiveHoldStatusResponse;
 import com.knowlink.api.bookings.data.enums.BookingHistoryCategory;
@@ -101,17 +99,6 @@ public interface IBookingController {
         BookingConfirmationTokenResponse getConfirmationToken(
                         @AuthenticationPrincipal UserPrincipal principal,
                         @PathVariable UUID bookingId);
-
-        @PostMapping("/{bookingId}/ratings")
-        @Operation(summary = "Calificar una sesión realizada de manera definitiva")
-        @ApiResponse(responseCode = "201", description = "Calificación registrada")
-        @ApiResponse(responseCode = "400", description = "La sesión no está realizada, el puntaje es inválido o ya se calificó")
-        @ApiResponse(responseCode = "404", description = "La reserva no existe o no pertenece al usuario autenticado")
-        @ResponseStatus(CREATED)
-        BookingRatingResponse submitRating(
-                        @AuthenticationPrincipal UserPrincipal principal,
-                        @PathVariable UUID bookingId,
-                        @Valid @RequestBody CreateBookingRatingRequest request);
 
         @GetMapping("/active-hold")
         @Operation(summary = "Consultar si el alumno autenticado tiene una selección de horario en curso")

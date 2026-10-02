@@ -5,19 +5,16 @@ import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.shared.responses.PagedResponse;
 import com.knowlink.api.bookings.controllers.interfaces.IBookingController;
 import com.knowlink.api.bookings.controllers.requests.ConfirmSessionTokenRequest;
-import com.knowlink.api.bookings.controllers.requests.CreateBookingRatingRequest;
 import com.knowlink.api.bookings.controllers.requests.CreateBookingRequest;
 import com.knowlink.api.bookings.controllers.responses.BookingConfirmationResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingConfirmationTokenResponse;
 import com.knowlink.api.bookings.controllers.requests.VirtualSessionLinkRequest;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryDetailResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryItemResponse;
-import com.knowlink.api.bookings.controllers.responses.BookingRatingResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingResponse;
 import com.knowlink.api.bookings.controllers.responses.ActiveHoldStatusResponse;
 import com.knowlink.api.bookings.data.enums.BookingHistoryCategory;
 import com.knowlink.api.bookings.services.interfaces.IBookingService;
-import com.knowlink.api.bookings.services.interfaces.IBookingRatingService;
 import com.knowlink.api.bookings.services.interfaces.IHoldService;
 
 import lombok.RequiredArgsConstructor;
@@ -32,7 +29,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class BookingControllerImpl implements IBookingController {
 
     private final IBookingService bookingService;
-    private final IBookingRatingService bookingRatingService;
     private final IHoldService holdService;
 
     @Override
@@ -70,12 +66,6 @@ public class BookingControllerImpl implements IBookingController {
     @Override
     public BookingConfirmationTokenResponse getConfirmationToken(UserPrincipal principal, UUID bookingId) {
         return bookingService.getConfirmationToken(principal.getUser().getUserId(), bookingId);
-    }
-
-    @Override
-    public BookingRatingResponse submitRating(UserPrincipal principal, UUID bookingId,
-            CreateBookingRatingRequest request) {
-        return bookingRatingService.submitRating(principal.getUser().getUserId(), bookingId, request);
     }
 
     @Override
