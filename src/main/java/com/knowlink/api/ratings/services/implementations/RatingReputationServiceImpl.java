@@ -1,20 +1,19 @@
 package com.knowlink.api.ratings.services.implementations;
 
-import com.knowlink.api.security.enums.Role;
-import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.ratings.data.models.Rating;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.ratings.repositories.IRatingRepository;
 import com.knowlink.api.tutors.repositories.ITutorProfileRepository;
 import com.knowlink.api.ratings.services.interfaces.IRatingReputationService;
+import com.knowlink.api.ratings.utils.RatingConstants;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.OptionalDouble;
 import java.util.UUID;
 
 @Service
@@ -23,12 +22,14 @@ public class RatingReputationServiceImpl implements IRatingReputationService {
 
     private final IRatingRepository ratingRepository;
     private final ITutorProfileRepository tutorProfileRepository;
+    private final Clock clock;
 
-    @Scheduled(fixedRate = 60_000)
+    @Scheduled(fixedDelay = 60_000)
     @Transactional
     public void revealExpiredRatings() {
-        LocalDateTime visibleBefore = LocalDateTime.now(AppTimeZone.ZONE).minusHours(24);
-        List<Rating> expiredRatings = ratingRepository.findExpiredHiddenRatings(visibleBefore);
+        LocalDateTime visibleBefore = visibleBefore();
+        List<Rating> expiredRatings = ratingRepository.findExpiredHiddenRatings(
+                visibleBefore, visibleBefore.toLocalDate(), visibleBefore.toLocalTime());
         if (expiredRatings.isEmpty()) {
             return;
         }
@@ -42,9 +43,9 @@ public class RatingReputationServiceImpl implements IRatingReputationService {
     @Transactional
     public void refreshTutorAverages(List<Rating> ratings) {
         ratings.stream()
-                .map(Rating::getRatedUser)
-                .filter(user -> user.getRole() == Role.TUTOR)
-                .map(user -> user.getUserId())
+            .filter(rating -> rating.getBooking().getTutor().getUserId()
+                .equals(rating.getRatedUser().getUserId()))
+            .map(rating -> rating.getBooking().getTutor().getUserId())
                 .distinct()
                 .forEach(this::refreshTutorAverage);
     }
@@ -55,10 +56,14 @@ public class RatingReputationServiceImpl implements IRatingReputationService {
             return;
         }
 
-        List<Rating> visibleRatings = ratingRepository.findVisibleByRatedUserId(
-                tutorUserId, LocalDateTime.now(AppTimeZone.ZONE).minusHours(24));
-        OptionalDouble average = visibleRatings.stream().mapToInt(Rating::getScore).average();
-        tutorProfile.setAverageRating(average.isPresent() ? average.getAsDouble() : null);
+        LocalDateTime visibleBefore = visibleBefore();
+        Double average = ratingRepository.calculateVisibleTutorAverage(
+                tutorUserId, visibleBefore, visibleBefore.toLocalDate(), visibleBefore.toLocalTime());
+        tutorProfile.setAverageRating(average);
         tutorProfileRepository.save(tutorProfile);
+    }
+
+    private LocalDateTime visibleBefore() {
+        return LocalDateTime.now(clock).minus(RatingConstants.BLIND_REVIEW_WINDOW);
     }
 }

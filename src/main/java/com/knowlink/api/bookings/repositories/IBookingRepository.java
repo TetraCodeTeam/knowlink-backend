@@ -143,6 +143,7 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
         @EntityGraph(attributePaths = { "student", "tutor", "tutorSubject.subject", "tutorSubject.tutorProfile" })
         Optional<Booking> findById(UUID bookingId);
 
+        @EntityGraph(attributePaths = { "student", "tutor" })
         @Lock(LockModeType.PESSIMISTIC_WRITE)
         @Query("SELECT b FROM Booking b WHERE b.bookingId = :bookingId")
         Optional<Booking> findByIdForUpdate(@Param("bookingId") UUID bookingId);

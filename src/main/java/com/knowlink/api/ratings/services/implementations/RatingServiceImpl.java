@@ -8,17 +8,19 @@ import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
 import com.knowlink.api.ratings.services.interfaces.IRatingService;
 import com.knowlink.api.bookings.validations.IBookingValidationService;
+import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
-import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.ratings.data.models.Rating;
 import com.knowlink.api.ratings.repositories.IRatingRepository;
 import com.knowlink.api.ratings.services.interfaces.IRatingReputationService;
+import com.knowlink.api.ratings.utils.RatingConstants;
 import com.knowlink.api.users.data.models.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -35,6 +37,7 @@ public class RatingServiceImpl implements IRatingService {
     private final IRatingReputationService ratingReputationService;
     private final IBookingValidationService bookingValidationService;
     private final RatingMapper ratingMapper;
+    private final Clock clock;
 
     @Override
     @Transactional
@@ -56,12 +59,17 @@ public class RatingServiceImpl implements IRatingService {
         List<Rating> existingRatings = ratingRepository.findByBookingBookingId(bookingId);
 
         if (existingRatings.stream().anyMatch(rating -> rating.getRaterUser().getUserId().equals(userId))) {
-            throw new ValidationException("Esta calificación ya fue registrada de forma definitiva y no puede modificarse.");
+            throw new DuplicateResourceException(
+                "RATING_ALREADY_SUBMITTED",
+                "Ya registraste tu calificación para esta sesión. No se puede modificar.",
+                "User " + userId + " already submitted a rating for booking " + bookingId);
         }
 
-        LocalDateTime now = LocalDateTime.now(AppTimeZone.ZONE);
-        boolean deadlineElapsed = booking.getConfirmedAt() != null
-                && !booking.getConfirmedAt().plusHours(24).isAfter(now);
+        LocalDateTime now = LocalDateTime.now(clock);
+        LocalDateTime completedAt = booking.getConfirmedAt() != null
+            ? booking.getConfirmedAt()
+            : LocalDateTime.of(booking.getSessionDate(), booking.getEndTime());
+        boolean deadlineElapsed = !completedAt.plus(RatingConstants.BLIND_REVIEW_WINDOW).isAfter(now);
         boolean visible = !existingRatings.isEmpty() || deadlineElapsed;
 
         Rating rating = ratingMapper.toEntity(booking, rater, rated, request, now, visible);

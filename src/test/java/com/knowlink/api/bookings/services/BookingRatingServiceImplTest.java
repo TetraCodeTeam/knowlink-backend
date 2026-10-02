@@ -8,6 +8,7 @@ import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
 import com.knowlink.api.ratings.services.implementations.RatingServiceImpl;
 import com.knowlink.api.bookings.validations.IBookingValidationService;
+import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.ratings.data.models.Rating;
 import com.knowlink.api.ratings.repositories.IRatingRepository;
@@ -23,6 +24,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.Clock;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,6 +42,10 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class BookingRatingServiceImplTest {
+
+    private static final ZoneId ZONE = ZoneId.of("America/Argentina/Cordoba");
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 2, 11, 0);
+    private static final Clock CLOCK = Clock.fixed(NOW.atZone(ZONE).toInstant(), ZONE);
 
     @Mock
     private IBookingRepository bookingRepository;
@@ -57,7 +64,8 @@ class BookingRatingServiceImplTest {
                 ratingRepository,
                 ratingReputationService,
                 bookingValidationService,
-                new RatingMapper());
+                new RatingMapper(),
+                CLOCK);
     }
 
     @Test
@@ -65,7 +73,7 @@ class BookingRatingServiceImplTest {
         UUID bookingId = UUID.randomUUID();
         User student = user();
         User tutor = user();
-        Booking booking = completedBooking(student, tutor, LocalDateTime.now().minusHours(1));
+        Booking booking = completedBooking(student, tutor, NOW.minusHours(1));
         prepareBooking(bookingId, booking, List.of());
 
         RatingResponse response = bookingRatingService.submitRating(
@@ -84,13 +92,13 @@ class BookingRatingServiceImplTest {
         UUID bookingId = UUID.randomUUID();
         User student = user();
         User tutor = user();
-        Booking booking = completedBooking(student, tutor, LocalDateTime.now().minusHours(1));
+        Booking booking = completedBooking(student, tutor, NOW.minusHours(1));
         Rating firstRating = Rating.builder()
                 .booking(booking)
                 .raterUser(student)
                 .ratedUser(tutor)
                 .score(4)
-                .ratingDate(LocalDateTime.now().minusMinutes(20))
+                .ratingDate(NOW.minusMinutes(20))
                 .visible(false)
                 .build();
         prepareBooking(bookingId, booking, List.of(firstRating));
@@ -109,7 +117,7 @@ class BookingRatingServiceImplTest {
         UUID bookingId = UUID.randomUUID();
         User student = user();
         User tutor = user();
-        Booking booking = completedBooking(student, tutor, LocalDateTime.now().minusHours(25));
+        Booking booking = completedBooking(student, tutor, NOW.minusHours(25));
         prepareBooking(bookingId, booking, List.of());
 
         RatingResponse response = bookingRatingService.submitRating(
@@ -125,15 +133,46 @@ class BookingRatingServiceImplTest {
         UUID bookingId = UUID.randomUUID();
         User student = user();
         User tutor = user();
-        Booking booking = completedBooking(student, tutor, LocalDateTime.now().minusHours(1));
+        Booking booking = completedBooking(student, tutor, NOW.minusHours(1));
         Rating existingRating = Rating.builder().raterUser(student).build();
         prepareBooking(bookingId, booking, List.of(existingRating));
 
-        assertThrows(ValidationException.class, () -> bookingRatingService.submitRating(
+        DuplicateResourceException exception = assertThrows(DuplicateResourceException.class,
+            () -> bookingRatingService.submitRating(
                 student.getUserId(), bookingId, new CreateRatingRequest(1, "Cambio")));
+        assertEquals("RATING_ALREADY_SUBMITTED", exception.getErrorCode());
 
         verify(ratingRepository, never()).save(any(Rating.class));
         verify(ratingRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    void ratingAtExactTwentyFourHourBoundaryIsVisible() {
+        UUID bookingId = UUID.randomUUID();
+        User student = user();
+        User tutor = user();
+        Booking booking = completedBooking(student, tutor, NOW.minusHours(24));
+        prepareBooking(bookingId, booking, List.of());
+
+        RatingResponse response = bookingRatingService.submitRating(
+                student.getUserId(), bookingId, new CreateRatingRequest(4, null));
+
+        assertTrue(response.visible());
+    }
+
+    @Test
+    void missingConfirmedAtUsesSessionEndAsDeadlineStart() {
+        UUID bookingId = UUID.randomUUID();
+        User student = user();
+        User tutor = user();
+        Booking booking = completedBooking(student, tutor, null);
+        booking.setSessionDate(NOW.minusDays(2).toLocalDate());
+        prepareBooking(bookingId, booking, List.of());
+
+        RatingResponse response = bookingRatingService.submitRating(
+                student.getUserId(), bookingId, new CreateRatingRequest(4, null));
+
+        assertTrue(response.visible());
     }
 
     @Test

@@ -26,7 +26,8 @@ public interface IRatingsController {
     @PostMapping("/{bookingId}/ratings")
     @Operation(summary = "Calificar una sesión realizada de manera definitiva")
     @ApiResponse(responseCode = "201", description = "Calificación registrada")
-    @ApiResponse(responseCode = "400", description = "La sesión no está realizada, el puntaje es inválido o ya se calificó")
+    @ApiResponse(responseCode = "400", description = "La sesión no está realizada o el puntaje es inválido")
+    @ApiResponse(responseCode = "409", description = "El usuario ya calificó esta sesión")
     @ApiResponse(responseCode = "404", description = "La reserva no existe o no pertenece al usuario autenticado")
     @ResponseStatus(CREATED)
     RatingResponse submitRating(

@@ -23,14 +23,15 @@ import com.knowlink.api.tutors.services.interfaces.ITutorProfileService;
 import com.knowlink.api.tutors.services.interfaces.ITutorSubjectAssemblyService;
 import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
 import com.knowlink.api.ratings.repositories.*;
+import com.knowlink.api.ratings.utils.RatingConstants;
 import com.knowlink.api.users.data.models.User;
-import com.knowlink.api.shared.utils.AppTimeZone;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.DayOfWeek;
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -57,6 +58,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         private final IUserService userService;
         private final JwtService jwtService;
         private final IUserProfileLookupService userProfileLookupService;
+        private final Clock clock;
 
         @Override
         @Transactional(readOnly = true)
@@ -69,9 +71,10 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 .map(tutorProfileMapper::toSubjectResponse)
                                 .collect(Collectors.toList());
 
+                LocalDateTime visibleBefore = visibleBefore();
                 List<TutorReviewResponse> reviewResponses = ratingRepository
-                                .findVisibleByRatedUserId(tutorUserId,
-                                                LocalDateTime.now(AppTimeZone.ZONE).minusHours(24))
+                                .findVisibleTutorRatings(tutorUserId, visibleBefore, visibleBefore.toLocalDate(),
+                                                visibleBefore.toLocalTime())
                                 .stream()
                                 .map(tutorProfileMapper::toReviewResponse)
                                 .collect(Collectors.toList());
@@ -203,11 +206,10 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 .stream()
                                 .map(subjects -> {
                                         UUID tutorUserId = subjects.get(0).getTutorProfile().getUser().getUserId();
-                                        int totalReviews = ratingRepository
-                                                        .findVisibleByRatedUserId(tutorUserId,
-                                                                        LocalDateTime.now(AppTimeZone.ZONE)
-                                                                                        .minusHours(24))
-                                                        .size();
+                                        LocalDateTime visibleBefore = visibleBefore();
+                                        int totalReviews = ratingRepository.findVisibleTutorRatings(
+                                                        tutorUserId, visibleBefore, visibleBefore.toLocalDate(),
+                                                        visibleBefore.toLocalTime()).size();
                                         return TutorSearchMapper.from(subjects, totalReviews);
                                 })
                                 .toList();
@@ -218,6 +220,10 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 .stream()
                                 .anyMatch(block -> TutorSearchSpecifications.matchesAvailability(
                                                 block, dayOfWeek, null));
+        }
+
+        private LocalDateTime visibleBefore() {
+                return LocalDateTime.now(clock).minus(RatingConstants.BLIND_REVIEW_WINDOW);
         }
 
         /**
