@@ -1,4 +1,4 @@
-package com.knowlink.api.tutors.data.models;
+package com.knowlink.api.ratings.data.models;
 
 import jakarta.persistence.*;
 import lombok.*;
@@ -10,7 +10,8 @@ import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.users.data.models.User;
 
 @Entity
-@Table(name = "rating")
+@Table(name = "rating", uniqueConstraints = @UniqueConstraint(
+    name = "uk_rating_booking_rater", columnNames = { "booking_id", "rater_user_id" }))
 @Getter 
 @Setter 
 @NoArgsConstructor 

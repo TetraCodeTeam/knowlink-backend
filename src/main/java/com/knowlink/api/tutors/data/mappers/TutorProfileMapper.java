@@ -12,7 +12,7 @@ import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSubjectResponse;
 import com.knowlink.api.tutors.data.models.AcademicMaterial;
 import com.knowlink.api.tutors.data.models.Career;
-import com.knowlink.api.tutors.data.models.Rating;
+import com.knowlink.api.ratings.data.models.Rating;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.data.models.TutorSubject;
 import com.knowlink.api.users.data.models.User;
