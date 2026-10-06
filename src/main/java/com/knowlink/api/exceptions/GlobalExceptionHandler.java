@@ -1,10 +1,10 @@
 package com.knowlink.api.exceptions;
 
 import com.knowlink.api.exceptions.custom_exceptions.*;
-import com.knowlink.api.recursos.exception.FormatNotAllowedException;
-import com.knowlink.api.recursos.exception.SinReservaActivaException;
-import com.knowlink.api.recursos.exception.SubjectNotAssociatedException;
-import com.knowlink.api.recursos.exception.AccesoDenegadoException;
+import com.knowlink.api.materials.exception.FormatNotAllowedException;
+import com.knowlink.api.materials.exception.SinReservaActivaException;
+import com.knowlink.api.materials.exception.SubjectNotAssociatedException;
+import com.knowlink.api.materials.exception.AccesoDenegadoException;
 import io.jsonwebtoken.JwtException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
