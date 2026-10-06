@@ -1,18 +1,22 @@
 package com.knowlink.api.recursos.controllers;
 
-import com.knowlink.api.recursos.service.interfaces.IReservationService;
+import com.knowlink.api.materials.controller.requests.MaterialReportRequest;
+import com.knowlink.api.materials.controller.responses.MaterialReportResponse;
+import com.knowlink.api.materials.exception.AccesoDenegadoException;
+import com.knowlink.api.materials.service.interfaces.IMaterialAccessService;
+import com.knowlink.api.materials.service.interfaces.IMaterialReportService;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.tutors.data.enums.CompensationType;
-import com.knowlink.api.tutors.data.enums.MaterialType;
+import com.knowlink.api.materials.data.enums.MaterialType;
 import com.knowlink.api.tutors.data.enums.Modality;
 import com.knowlink.api.tutors.data.enums.TutorSubjectStatus;
-import com.knowlink.api.tutors.data.models.AcademicMaterial;
+import com.knowlink.api.materials.data.models.AcademicMaterial;
 import com.knowlink.api.tutors.data.models.Career;
 import com.knowlink.api.tutors.data.models.Subject;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.data.models.TutorSubject;
-import com.knowlink.api.tutors.repositories.IAcademicMaterialRepository;
+import com.knowlink.api.materials.repositories.IAcademicMaterialRepository;
 import com.knowlink.api.tutors.repositories.ICareerRepository;
 import com.knowlink.api.tutors.repositories.ISubjectRepository;
 import com.knowlink.api.tutors.repositories.ITutorProfileRepository;
@@ -37,9 +41,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -71,10 +79,14 @@ class MaterialControllerImplTest {
     private IAcademicMaterialRepository materialRepository;
 
     @org.springframework.test.context.bean.override.mockito.MockitoBean
-    private IReservationService reservationService;
+    private IMaterialAccessService materialAccessService;
+
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    private IMaterialReportService materialReportService;
 
     private User tutorUser;
     private User studentUser;
+        private User adminUser;
     private Subject subject;
     private AcademicMaterial existingMaterial;
 
@@ -103,6 +115,14 @@ class MaterialControllerImplTest {
                 .email("student-" + UUID.randomUUID() + "@test.com")
                 .password("password123")
                 .role(Role.STUDENT)
+                .accountStatus(AccountStatus.ACTIVE)
+                .build());
+
+        adminUser = userRepository.save(User.builder()
+                .fullName("Admin Test")
+                .email("admin-" + UUID.randomUUID() + "@test.com")
+                .password("password123")
+                .role(Role.ADMIN)
                 .accountStatus(AccountStatus.ACTIVE)
                 .build());
 
@@ -240,8 +260,8 @@ class MaterialControllerImplTest {
     @Test
     @DisplayName("AC2: student without any reservation gets 403 on listBySubject")
     void studentWithoutReservation_gets403OnList() throws Exception {
-        when(reservationService.tieneAlgunaReservaEnMateria(any(UUID.class), any(UUID.class)))
-                .thenReturn(false);
+        when(materialAccessService.listarMaterialesAccesibles(any(UUID.class), any(UUID.class), any(UUID.class)))
+                .thenReturn(java.util.List.of());
 
         mockMvc.perform(get("/api/v1/materials")
                         .param("subjectId", subject.getSubjectId().toString())
@@ -253,14 +273,64 @@ class MaterialControllerImplTest {
     @Test
     @DisplayName("AC2: student without reservation gets 403 on download")
     void studentWithoutReservation_gets403OnDownload() throws Exception {
-        when(reservationService.tieneReservaConTutorEnMateria(any(UUID.class), any(UUID.class), any(UUID.class)))
-                .thenReturn(false);
+        org.mockito.Mockito.doThrow(new AccesoDenegadoException("No tenés acceso a este material"))
+                .when(materialAccessService)
+                .validarAccesoODenegar(any(UUID.class), eq(existingMaterial.getAcademicMaterialId()));
 
         mockMvc.perform(get("/api/v1/materials/" + existingMaterial.getAcademicMaterialId() + "/download")
                         .with(studentAuth()))
                 .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.message").value("El alumno no tiene reserva activa con este tutor"));
+                .andExpect(jsonPath("$.message").value("No tenés acceso a este material"));
     }
+
+    @Test
+    @DisplayName("US-27: student can report an academic material")
+    void studentReportsMaterial_returns201AndConfirmation() throws Exception {
+        when(materialReportService.reportMaterial(
+                eq(studentUser.getUserId()),
+                eq(existingMaterial.getAcademicMaterialId()),
+                any(MaterialReportRequest.class)))
+                .thenReturn(new MaterialReportResponse("Tu reporte fue enviado correctamente."));
+
+        mockMvc.perform(post("/api/v1/materials/{id}/reports", existingMaterial.getAcademicMaterialId())
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"reason":"PLAGIARISM","description":"Copiado sin referencia"}
+                                """)
+                        .with(studentAuth()))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.message").value("Tu reporte fue enviado correctamente."));
+
+        verify(materialReportService).reportMaterial(
+                eq(studentUser.getUserId()),
+                eq(existingMaterial.getAcademicMaterialId()),
+                any(MaterialReportRequest.class));
+    }
+
+    @Test
+    @DisplayName("US-27: tutor cannot report materials through the student endpoint")
+    void tutorReportsMaterial_returns403() throws Exception {
+        mockMvc.perform(post("/api/v1/materials/{id}/reports", existingMaterial.getAcademicMaterialId())
+                        .contentType(APPLICATION_JSON)
+                        .content("""
+                                {"reason":"OTHER"}
+                                """)
+                        .with(tutorAuth()))
+                .andExpect(status().isForbidden());
+    }
+
+        @Test
+        @DisplayName("US-27: admin can see material report count")
+        void adminListsMaterials_seesReportsCount() throws Exception {
+                existingMaterial.setReportsCount(3);
+                materialRepository.save(existingMaterial);
+
+                mockMvc.perform(get("/api/v1/materials")
+                                                .param("subjectId", subject.getSubjectId().toString())
+                                                .with(adminAuth()))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$[0].reportsCount").value(3));
+        }
 
     @Test
     @DisplayName("AC2: unauthenticated user gets 401")
@@ -297,4 +367,10 @@ class MaterialControllerImplTest {
         return SecurityMockMvcRequestPostProcessors.authentication(
                 new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
     }
+
+        private RequestPostProcessor adminAuth() {
+                UserPrincipal principal = new UserPrincipal(adminUser);
+                return SecurityMockMvcRequestPostProcessors.authentication(
+                                new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
+        }
 }
