@@ -3,6 +3,7 @@ package com.knowlink.api.tutors.data.models;
 import com.knowlink.api.tutors.data.enums.CompensationType;
 import com.knowlink.api.tutors.data.enums.Modality;
 import com.knowlink.api.tutors.data.enums.TutorSubjectStatus;
+import com.knowlink.api.materials.data.models.AcademicMaterial;
 
 import jakarta.persistence.*;
 import lombok.*;
