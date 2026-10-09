@@ -10,6 +10,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.jpa.repository.Lock;
+
+import jakarta.persistence.LockModeType;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -139,6 +142,10 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
         @Override
         @EntityGraph(attributePaths = { "student", "tutor", "tutorSubject.subject", "tutorSubject.tutorProfile" })
         Optional<Booking> findById(UUID bookingId);
+
+        @Lock(LockModeType.PESSIMISTIC_WRITE)
+        @Query("SELECT b FROM Booking b WHERE b.bookingId = :bookingId")
+        Optional<Booking> findByIdForUpdate(@Param("bookingId") UUID bookingId);
 
         List<Booking> findByBookingStatusAndConfirmationTokenIsNull(BookingStatus status);
 

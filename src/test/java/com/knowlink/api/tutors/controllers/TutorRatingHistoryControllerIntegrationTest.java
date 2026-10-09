@@ -12,12 +12,12 @@ import com.knowlink.api.tutors.data.enums.CompensationType;
 import com.knowlink.api.tutors.data.enums.Modality;
 import com.knowlink.api.tutors.data.enums.TutorSubjectStatus;
 import com.knowlink.api.tutors.data.models.Career;
-import com.knowlink.api.tutors.data.models.Rating;
+import com.knowlink.api.ratings.data.models.Rating;
 import com.knowlink.api.tutors.data.models.Subject;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.data.models.TutorSubject;
 import com.knowlink.api.tutors.repositories.ICareerRepository;
-import com.knowlink.api.tutors.repositories.IRatingRepository;
+import com.knowlink.api.ratings.repositories.IRatingRepository;
 import com.knowlink.api.tutors.repositories.ISubjectRepository;
 import com.knowlink.api.tutors.repositories.ITutorProfileRepository;
 import com.knowlink.api.tutors.repositories.ITutorSubjectRepository;
@@ -271,8 +271,10 @@ class TutorRatingHistoryControllerIntegrationTest {
                 .ratingDate(LocalDateTime.of(2026, 9, 29, 10, 0))
                 .visible(true)
                 .build());
+        Booking hiddenSession = createBooking(tutorSubjectA, BookingStatus.COMPLETED,
+                LocalDate.of(2026, 9, 27), LocalTime.of(11, 0));
         ratingRepository.save(Rating.builder()
-                .booking(bookingA1)
+                .booking(hiddenSession)
                 .ratedUser(tutor)
                 .raterUser(student)
                 .score(1)

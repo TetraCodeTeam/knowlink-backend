@@ -23,8 +23,8 @@ import com.knowlink.api.exceptions.custom_exceptions.SessionNotFinalizedExceptio
 import com.knowlink.api.exceptions.custom_exceptions.SessionNotParticipantException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.payments.services.FundsLedgerService;
-import com.knowlink.api.resources.exception.FormatNotAllowedException;
-import com.knowlink.api.resources.service.interfaces.ISupabaseStorageService;
+import com.knowlink.api.materials.exception.FormatNotAllowedException;
+import com.knowlink.api.materials.service.interfaces.ISupabaseStorageService;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.users.data.models.User;
 

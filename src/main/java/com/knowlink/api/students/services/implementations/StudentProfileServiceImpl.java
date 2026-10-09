@@ -3,7 +3,7 @@ package com.knowlink.api.students.services.implementations;
 import com.knowlink.api.auth.controllers.requests.StudentRegistrationRequest;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
-import com.knowlink.api.resources.service.interfaces.IProfileImageService;
+import com.knowlink.api.materials.service.interfaces.IProfileImageService;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.security.services.JwtService;
 import com.knowlink.api.students.controllers.requests.ActivateTutorRoleRequest;

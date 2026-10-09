@@ -17,7 +17,7 @@ import com.knowlink.api.payments.domain.FundsRecipient;
 import com.knowlink.api.payments.domain.FundsStatus;
 import com.knowlink.api.payments.repositories.IFundsTransferRepository;
 import com.knowlink.api.payments.services.FundsLedgerService;
-import com.knowlink.api.resources.service.interfaces.ISupabaseStorageService;
+import com.knowlink.api.materials.service.interfaces.ISupabaseStorageService;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.students.data.models.StudentProfile;
 import com.knowlink.api.students.repositories.IStudentProfileRepository;

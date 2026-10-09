@@ -10,7 +10,7 @@ import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
-import com.knowlink.api.resources.service.interfaces.IProfileImageService;
+import com.knowlink.api.materials.service.interfaces.IProfileImageService;
 import com.knowlink.api.tutors.availability.controllers.responses.AvailabilityBlockResponse;
 import com.knowlink.api.tutors.availability.repositories.IAvailabilityBlockRepository;
 import com.knowlink.api.tutors.controllers.responses.*;
@@ -25,6 +25,7 @@ import com.knowlink.api.tutors.services.interfaces.ISubjectService;
 import com.knowlink.api.tutors.services.interfaces.ITutorProfileService;
 import com.knowlink.api.tutors.services.interfaces.ITutorSubjectAssemblyService;
 import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
+import com.knowlink.api.ratings.repositories.*;
 import com.knowlink.api.users.data.models.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.domain.Specification;
@@ -73,7 +74,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 .collect(Collectors.toList());
 
                 List<TutorReviewResponse> reviewResponses = ratingRepository
-                                .findVisibleByRatedUserId(tutorUserId)
+                                .findVisibleTutorRatings(tutorUserId)
                                 .stream()
                                 .map(tutorProfileMapper::toReviewResponse)
                                 .collect(Collectors.toList());
@@ -231,7 +232,8 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 .stream()
                                 .map(subjects -> {
                                         UUID tutorUserId = subjects.get(0).getTutorProfile().getUser().getUserId();
-                                        int totalReviews = ratingRepository.findVisibleByRatedUserId(tutorUserId).size();
+                                        int totalReviews = Math.toIntExact(
+                                                        ratingRepository.countVisibleTutorRatings(tutorUserId));
                                         return TutorSearchMapper.from(subjects, totalReviews);
                                 })
                                 .toList();
@@ -243,6 +245,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 .anyMatch(block -> TutorSearchSpecifications.matchesAvailability(
                                                 block, dayOfWeek, null));
         }
+
 
         /**
          * Estrategia definida para el edge case de calificacionMinima fuera de rango:
