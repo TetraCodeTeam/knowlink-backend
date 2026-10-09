@@ -66,7 +66,7 @@ class TutorProfileServiceImplTest {
 
     private TutorSubject tutorSubject(String fullName, String subjectName, String careerName) {
         Career career = Career.builder().name(careerName).build();
-        Subject subject = Subject.builder().name(subjectName).career(career).build();
+        Subject subject = Subject.builder().name(subjectName).careers(java.util.Set.of(career)).build();
         User user = User.builder().userId(tutorUserId).fullName(fullName).role(Role.TUTOR).build();
         TutorProfile profile = TutorProfile.builder()
                 .tutorProfileId(UUID.randomUUID())
@@ -93,7 +93,7 @@ class TutorProfileServiceImplTest {
                 .averageRating(4.0)
                 .build();
         subjectNames.forEach(name -> {
-            Subject subject = Subject.builder().name(name).career(career).build();
+            Subject subject = Subject.builder().name(name).careers(java.util.Set.of(career)).build();
             TutorSubject ts = TutorSubject.builder().tutorProfile(profile).subject(subject).build();
             profile.getSubjects().add(ts);
         });
@@ -226,12 +226,12 @@ class TutorProfileServiceImplTest {
         TutorSubject algebra = TutorSubject.builder()
                 .tutorSubjectId(UUID.randomUUID())
                 .tutorProfile(profile)
-                .subject(Subject.builder().name("\u00c1lgebra").career(career).build())
+                .subject(Subject.builder().name("\u00c1lgebra").careers(java.util.Set.of(career)).build())
                 .build();
         TutorSubject fisica = TutorSubject.builder()
                 .tutorSubjectId(UUID.randomUUID())
                 .tutorProfile(profile)
-                .subject(Subject.builder().name("F\u00edsica").career(career).build())
+                .subject(Subject.builder().name("F\u00edsica").careers(java.util.Set.of(career)).build())
                 .build();
         profile.getSubjects().addAll(List.of(algebra, fisica));
 

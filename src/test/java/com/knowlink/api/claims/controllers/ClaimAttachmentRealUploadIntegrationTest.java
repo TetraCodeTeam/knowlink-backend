@@ -1,4 +1,6 @@
 package com.knowlink.api.claims.controllers;
+import com.knowlink.api.catalog.data.models.Institution;
+import com.knowlink.api.catalog.repositories.IInstitutionRepository;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -189,12 +191,24 @@ class ClaimAttachmentRealUploadIntegrationTest {
     private TutorProfile tutorProfile;
     private TutorSubject tutorSubject;
 
+    @Autowired
+    private IInstitutionRepository institutionRepository;
+
     @BeforeEach
     void setUp() {
+        Institution institution = institutionRepository.save(Institution.builder()
+                .name("Test Institution " + UUID.randomUUID())
+                .build());
         Career career = careerRepository.save(Career.builder()
-                .name("Career " + UUID.randomUUID()).build());
+                .name("Career " + UUID.randomUUID())
+                .institution(institution)
+                .build());
         Subject subject = subjectRepository.save(Subject.builder()
-                .name("Subject " + UUID.randomUUID()).isBasic(true).career(career).build());
+                .name("Subject " + UUID.randomUUID())
+                .isBasic(true)
+                .institution(institution)
+                .careers(java.util.Set.of(career))
+                .build());
         tutor = saveUser("Tutor Test", Role.TUTOR);
         tutorProfile = tutorProfileRepository.save(TutorProfile.builder()
                 .user(tutor).career(career).verified(true).build());

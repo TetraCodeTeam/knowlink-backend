@@ -1,6 +1,7 @@
 package com.knowlink.api.exceptions;
 
 import com.knowlink.api.exceptions.custom_exceptions.*;
+import com.knowlink.api.catalog.controllers.responses.SubjectDuplicatedErrorResponse;
 import com.knowlink.api.resources.exception.FormatNotAllowedException;
 import com.knowlink.api.resources.exception.NoActiveReservationException;
 import com.knowlink.api.resources.exception.SubjectNotAssociatedException;
@@ -44,6 +45,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
 
+    @ExceptionHandler(DuplicatedSubjectException.class)
+    public ResponseEntity<SubjectDuplicatedErrorResponse> handleDuplicatedSubject(DuplicatedSubjectException ex) {
+        logger.warn(ex.getMessage());
+        SubjectDuplicatedErrorResponse error = new SubjectDuplicatedErrorResponse(
+                ex.getErrorCode(), ex.getUserMessage(), ex.getExistingSubjectId());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
     @ExceptionHandler(ValidationException.class)
     public ResponseEntity<ApiError> handleValidation(ValidationException ex) {
         ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(), ex.getMessage(), "VALIDATION_ERROR");

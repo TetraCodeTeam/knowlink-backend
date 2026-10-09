@@ -10,6 +10,8 @@ public record StudentSelfProfileResponse(
         String email,
         String phoneNumber,
         String career,
+        UUID institutionId,
+        UUID careerId,
         String profilePictureUrl,
         Role role,
         boolean hasTutorProfile

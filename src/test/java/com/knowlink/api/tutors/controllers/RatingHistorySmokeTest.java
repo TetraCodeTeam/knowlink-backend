@@ -1,4 +1,6 @@
 package com.knowlink.api.tutors.controllers;
+import com.knowlink.api.catalog.data.models.Institution;
+import com.knowlink.api.catalog.repositories.IInstitutionRepository;
 
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.models.Booking;
@@ -68,6 +70,9 @@ class RatingHistorySmokeTest {
     @Autowired
     private IBookingRepository bookingRepository;
     @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    @Autowired
     private IRatingRepository ratingRepository;
 
     private User studentUser;
@@ -82,11 +87,14 @@ class RatingHistorySmokeTest {
     @Test
     @DisplayName("Smoke: consultar historial de calificaciones de un tutor")
     void queryRatingHistory() throws Exception {
-        Career career = careerRepository.save(Career.builder().name("Career " + UUID.randomUUID()).build());
+        Institution institution = institutionRepository.save(Institution.builder()
+                .name("Test Institution " + UUID.randomUUID())
+                .build());
+        Career career = careerRepository.save(Career.builder().name("Career " + UUID.randomUUID()).institution(institution).build());
         Subject subjectA = subjectRepository.save(Subject.builder()
-                .name("A Analisis Matematico I " + UUID.randomUUID()).isBasic(false).career(career).build());
+                .name("A Analisis Matematico I " + UUID.randomUUID()).isBasic(false).institution(institution).careers(java.util.Set.of(career)).build());
         Subject subjectB = subjectRepository.save(Subject.builder()
-                .name("B Fisica I " + UUID.randomUUID()).isBasic(false).career(career).build());
+                .name("B Fisica I " + UUID.randomUUID()).isBasic(false).institution(institution).careers(java.util.Set.of(career)).build());
 
         User tutor = saveUser("Juan Perez", Role.TUTOR);
         studentUser = saveUser("Maria Lopez", Role.STUDENT);

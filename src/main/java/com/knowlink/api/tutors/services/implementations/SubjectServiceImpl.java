@@ -1,6 +1,5 @@
 package com.knowlink.api.tutors.services.implementations;
 
-import com.knowlink.api.tutors.data.models.Career;
 import com.knowlink.api.tutors.data.models.Subject;
 import com.knowlink.api.tutors.repositories.ISubjectRepository;
 import com.knowlink.api.tutors.services.interfaces.ISubjectService;
@@ -15,17 +14,6 @@ import java.util.UUID;
 public class SubjectServiceImpl implements ISubjectService {
 
     private final ISubjectRepository subjectRepository;
-
-    @Override
-    public Subject findByNameAndCareerOrThrowException(String name, Career career) {
-        return subjectRepository.findByName(name)
-                .orElseGet(() -> subjectRepository.save(
-                        Subject.builder()
-                                .name(name)
-                                .isBasic(false)
-                                .career(career)
-                                .build()));
-    }
 
     @Override
     public List<Subject> findBasicSubjects() {

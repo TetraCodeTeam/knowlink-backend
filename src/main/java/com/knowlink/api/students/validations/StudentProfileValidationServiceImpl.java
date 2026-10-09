@@ -2,12 +2,14 @@ package com.knowlink.api.students.validations;
 
 import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
-import java.util.UUID;
 import com.knowlink.api.students.data.models.StudentProfile;
 import com.knowlink.api.students.repositories.IStudentProfileRepository;
 import com.knowlink.api.users.data.models.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+
+import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -23,6 +25,11 @@ public class StudentProfileValidationServiceImpl implements IStudentProfileValid
                     "El usuario ya tiene un perfil de alumno",
                     String.format("user con id '%s' ya tiene student profile", user.getUserId()));
         }
+    }
+
+    @Override
+    public Optional<StudentProfile> findStudentProfile(UUID userId) {
+        return studentProfileRepository.findByUserId(userId);
     }
 
     @Override

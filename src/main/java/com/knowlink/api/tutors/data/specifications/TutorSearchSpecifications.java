@@ -13,6 +13,7 @@ import org.springframework.data.jpa.domain.Specification;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.Set;
 
 /**
@@ -81,6 +82,13 @@ public final class TutorSearchSpecifications {
         };
     }
 
+    public static Specification<TutorSubject> tutorInstitution(UUID institutionId) {
+        if (institutionId == null) {
+            return Specification.where(null);
+        }
+        return (root, cq, cb) -> cb.equal(
+                root.get("tutorProfile").get("career").get("institution").get("institutionId"), institutionId);
+    }
     public static boolean matchesModality(Modality subjectModality, Modality filter) {
         if (filter == null) {
             return true;

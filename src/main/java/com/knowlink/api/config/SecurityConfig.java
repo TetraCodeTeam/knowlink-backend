@@ -20,6 +20,7 @@ import jakarta.servlet.DispatcherType;
 
 import static com.knowlink.api.security.utils.SecurityConstants.SWAGGER_WHITELIST;
 import static com.knowlink.api.security.utils.SecurityConstants.PUBLIC_WHITELIST;
+import static com.knowlink.api.security.utils.SecurityConstants.PUBLIC_READ_WHITELIST;
 
 @Configuration
 @EnableWebSecurity
@@ -50,6 +51,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS).permitAll()
                         .requestMatchers(SWAGGER_WHITELIST).permitAll()
                         .requestMatchers(PUBLIC_WHITELIST).permitAll()
+                        .requestMatchers(HttpMethod.GET, PUBLIC_READ_WHITELIST).permitAll()
                         .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider)
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

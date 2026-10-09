@@ -20,6 +20,12 @@ public class SecurityConstants {
                 "/api/v1/users/availability",
         };
 
+        public static final String[] PUBLIC_READ_WHITELIST = {
+                "/api/v1/catalog/institutions",
+                "/api/v1/catalog/institutions/*/careers",
+                "/api/v1/catalog/subjects",
+        };
+
         public static final String[] SWAGGER_WHITELIST = {
                 "/api-docs",
                 "/api-docs/**",

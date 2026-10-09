@@ -1,8 +1,12 @@
 package com.knowlink.api.tutors.services.implementations;
 
+import com.knowlink.api.catalog.services.interfaces.ICatalogCareerService;
+import com.knowlink.api.catalog.services.interfaces.ICatalogSubjectService;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.security.services.JwtService;
+import com.knowlink.api.students.data.models.StudentProfile;
 import com.knowlink.api.students.services.interfaces.IStudentProfileService;
+import com.knowlink.api.students.validations.IStudentProfileValidationService;
 import com.knowlink.api.users.services.interfaces.IUserProfileLookupService;
 import com.knowlink.api.users.repositories.IUserRepository;
 import com.knowlink.api.users.services.interfaces.IUserService;
@@ -20,8 +24,6 @@ import com.knowlink.api.tutors.data.mappers.TutorSubjectMapper;
 import com.knowlink.api.tutors.data.models.*;
 import com.knowlink.api.tutors.data.specifications.TutorSearchSpecifications;
 import com.knowlink.api.tutors.repositories.*;
-import com.knowlink.api.tutors.services.interfaces.ICareerService;
-import com.knowlink.api.tutors.services.interfaces.ISubjectService;
 import com.knowlink.api.tutors.services.interfaces.ITutorProfileService;
 import com.knowlink.api.tutors.services.interfaces.ITutorSubjectAssemblyService;
 import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
@@ -48,8 +50,9 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         private final IRatingRepository ratingRepository;
         private final IAvailabilityBlockRepository availabilityBlockRepository;
         private final ITutorProfileRepository tutorProfileRepository;
-        private final ICareerService careerService;
-        private final ISubjectService subjectService;
+        private final ICatalogCareerService catalogCareerService;
+        private final ICatalogSubjectService catalogSubjectService;
+        private final IStudentProfileValidationService studentProfileValidationService;
         private final ITutorProfileValidationService tutorProfileValidationService;
         private final TutorProfileMapper tutorProfileMapper;
         private final TutorSubjectMapper tutorSubjectMapper;
@@ -96,7 +99,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         public TutorProfile createProfile(User user, TutorRegistrationRequest request) {
                 tutorProfileValidationService.ifTutorProfileAlreadyExistsThrowException(user);
 
-                Career career = careerService.findByNameOrThrowException(request.career());
+                Career career = catalogCareerService.findInInstitutionOrThrow(request.institutionId(), request.careerId());
                 TutorProfile tutorProfile = tutorProfileMapper.toEntity(user, career, request);
 
                 tutorProfile.getSubjects().addAll(
@@ -159,8 +162,12 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         @Transactional(readOnly = true)
         public List<TutorSearchResponse> searchTutor(String query, UUID studentUserId, TutorSearchFilters filters) {
                 validateMinRating(filters.minRating());
+                UUID institutionId = resolveSearcherInstitutionId(studentUserId);
 
                 Specification<TutorSubject> subjectSpec = TutorSearchSpecifications.subjectNameContains(query);
+                if (institutionId != null) {
+                        subjectSpec = subjectSpec.and(TutorSearchSpecifications.tutorInstitution(institutionId));
+                }
                 if (filters.hasModality()) {
                         subjectSpec = subjectSpec.and(TutorSearchSpecifications.modalityIn(filters.modality()));
                 }
@@ -195,6 +202,10 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 .findByUser_FullNameContainingIgnoreCase(query);
 
                 for (TutorProfile tutorProfile : nameMatches) {
+                        if (institutionId != null
+                                        && !institutionId.equals(tutorProfile.getCareer().getInstitution().getInstitutionId())) {
+                                        continue;
+                        }
                         if (tutorProfile.getSubjects().isEmpty()) {
                                 continue;
                         }
@@ -237,6 +248,14 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 .toList();
         }
 
+        private UUID resolveSearcherInstitutionId(UUID studentUserId) {
+                if (studentUserId == null) {
+                        return null;
+                }
+                return studentProfileValidationService.findStudentProfile(studentUserId)
+                                .map(profile -> profile.getCareer().getInstitution().getInstitutionId())
+                                .orElse(null);
+        }
         private boolean tutorHasAvailability(TutorProfile tutorProfile, DayOfWeek dayOfWeek) {
                 return availabilityBlockRepository.findAvailableByTutorProfileId(tutorProfile.getTutorProfileId())
                                 .stream()
@@ -262,8 +281,8 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
 
                 tutorProfileValidationService.ifPaidSubjectHasInvalidPriceThrowException(request);
 
-                Subject subject = subjectService.findByNameAndCareerOrThrowException(
-                                request.subjectName(), tutorProfile.getCareer());
+                Subject subject = catalogSubjectService.findSubjectTeachableInCareerOrThrow(
+                                request.subjectId(), tutorProfile.getCareer());
 
                 tutorProfileValidationService.ifTutorAlreadyTeachesSubjectThrowException(tutorProfile, subject);
 

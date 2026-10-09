@@ -1,4 +1,6 @@
 package com.knowlink.api.tutors.data.specifications;
+import com.knowlink.api.catalog.data.models.Institution;
+import com.knowlink.api.catalog.repositories.IInstitutionRepository;
 
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.tutors.availability.data.models.AvailabilityBlock;
@@ -29,6 +31,7 @@ import org.springframework.test.context.ActiveProfiles;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.UUID;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -53,15 +56,21 @@ class TutorSearchSpecificationsTest {
     private ITutorProfileRepository tutorProfileRepository;
 
     @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    @Autowired
     private IAvailabilityBlockRepository availabilityBlockRepository;
 
     @BeforeEach
     void seedData() {
-        Career career = careerRepository.save(Career.builder().name("Ingeniería en Sistemas").build());
+        Institution institution = institutionRepository.save(Institution.builder()
+                .name("Test Institution " + UUID.randomUUID())
+                .build());
+        Career career = careerRepository.save(Career.builder().name("Ingeniería en Sistemas").institution(institution).build());
 
-        Subject algebra = subjectRepository.save(Subject.builder().name("Algebra").isBasic(true).career(career).build());
-        Subject fisica = subjectRepository.save(Subject.builder().name("Fisica").isBasic(true).career(career).build());
-        Subject quimica = subjectRepository.save(Subject.builder().name("Quimica").isBasic(true).career(career).build());
+        Subject algebra = subjectRepository.save(Subject.builder().name("Algebra").isBasic(true).institution(institution).careers(java.util.Set.of(career)).build());
+        Subject fisica = subjectRepository.save(Subject.builder().name("Fisica").isBasic(true).institution(institution).careers(java.util.Set.of(career)).build());
+        Subject quimica = subjectRepository.save(Subject.builder().name("Quimica").isBasic(true).institution(institution).careers(java.util.Set.of(career)).build());
 
         TutorProfile ana = tutor(career, "Ana Test", false, 4.5);
         tutorSubject(ana, algebra, Modality.VIRTUAL, CompensationType.PAID);

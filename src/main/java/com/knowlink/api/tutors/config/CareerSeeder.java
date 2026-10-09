@@ -1,5 +1,7 @@
 package com.knowlink.api.tutors.config;
 
+import com.knowlink.api.catalog.data.models.Institution;
+import com.knowlink.api.catalog.repositories.IInstitutionRepository;
 import com.knowlink.api.tutors.data.models.Career;
 import com.knowlink.api.tutors.repositories.ICareerRepository;
 import lombok.RequiredArgsConstructor;
@@ -15,8 +17,9 @@ import java.util.List;
 public class CareerSeeder implements CommandLineRunner {
 
     private final ICareerRepository careerRepository;
+    private final IInstitutionRepository institutionRepository;
 
-    private static final List<String> CAREERS = List.of(
+    private static final List<String> UTN_FRVM_CAREERS = List.of(
             "Ingeniería en Sistemas",
             "Ingeniería Civil",
             "Ingeniería Mecánica",
@@ -40,13 +43,30 @@ public class CareerSeeder implements CommandLineRunner {
             "Otra"
     );
 
+    private static final List<String> UNVM_CAREERS = List.of(
+            "Profesorado de Matemática",
+            "Tecnicatura en Desarrollo Web"
+    );
+
     @Override
     public void run(String... args) {
-        if (careerRepository.count() > 0) {
+        Institution utn = findInstitutionOrThrow("UTN FRVM");
+        Institution unvm = findInstitutionOrThrow("UNVM");
+
+        UTN_FRVM_CAREERS.forEach(name -> saveIfAbsent(name, utn));
+        UNVM_CAREERS.forEach(name -> saveIfAbsent(name, unvm));
+    }
+
+    private void saveIfAbsent(String name, Institution institution) {
+        if (careerRepository.existsByInstitutionInstitutionIdAndName(institution.getInstitutionId(), name)) {
             return;
         }
-        CAREERS.forEach(name ->
-                careerRepository.save(Career.builder().name(name).build())
-        );
+        careerRepository.save(Career.builder().name(name).institution(institution).build());
+    }
+
+    private Institution findInstitutionOrThrow(String name) {
+        return institutionRepository.findByName(name)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Institución no encontrada para seed de carreras: " + name));
     }
 }

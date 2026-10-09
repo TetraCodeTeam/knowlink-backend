@@ -37,6 +37,8 @@ public class StudentProfileMapper {
                 user.getEmail(),
                 user.getPhoneNumber(),
                 profile.getCareer().getName(),
+                profile.getCareer().getInstitution().getInstitutionId(),
+                profile.getCareer().getCareerId(),
                 profile.getProfilePictureUrl(),
                 user.getRole(),
                 hasTutorProfile);

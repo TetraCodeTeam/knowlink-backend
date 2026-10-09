@@ -18,7 +18,7 @@ import com.knowlink.api.tutors.data.mappers.TutorProfileMapper;
 import com.knowlink.api.tutors.data.models.Career;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.repositories.ITutorProfileRepository;
-import com.knowlink.api.tutors.services.interfaces.ICareerService;
+import com.knowlink.api.catalog.services.interfaces.ICatalogCareerService;
 import com.knowlink.api.tutors.services.interfaces.ITutorSubjectAssemblyService;
 import com.knowlink.api.users.data.enums.AccountStatus;
 import com.knowlink.api.users.data.models.User;
@@ -36,7 +36,7 @@ import java.util.UUID;
 public class StudentProfileServiceImpl implements IStudentProfileService {
 
     private final IStudentProfileRepository studentProfileRepository;
-    private final ICareerService careerService;
+    private final ICatalogCareerService catalogCareerService;
     private final StudentProfileMapper studentProfileMapper;
     private final IStudentProfileValidationService studentProfileValidationService;
     private final ITutorProfileRepository tutorProfileRepository;
@@ -52,7 +52,7 @@ public class StudentProfileServiceImpl implements IStudentProfileService {
     public StudentProfile createProfile(User user, StudentRegistrationRequest request) {
         studentProfileValidationService.ifStudentProfileAlreadyExistsThrowException(user);
 
-        Career career = careerService.findByNameOrThrowException(request.career());
+        Career career = catalogCareerService.findInInstitutionOrThrow(request.institutionId(), request.careerId());
         StudentProfile studentProfile = studentProfileMapper.toEntity(user, career, request);
 
         return studentProfileRepository.save(studentProfile);

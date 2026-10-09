@@ -1,4 +1,6 @@
 package com.knowlink.api.tutors.controllers;
+import com.knowlink.api.catalog.data.models.Institution;
+import com.knowlink.api.catalog.repositories.IInstitutionRepository;
 
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.models.Booking;
@@ -82,6 +84,9 @@ class TutorRatingHistoryControllerIntegrationTest {
     private IBookingRepository bookingRepository;
 
     @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    @Autowired
     private IRatingRepository ratingRepository;
 
     private User tutor;
@@ -97,19 +102,25 @@ class TutorRatingHistoryControllerIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        Institution institution = institutionRepository.save(Institution.builder()
+                .name("Test Institution " + UUID.randomUUID())
+                .build());
         Career career = careerRepository.save(Career.builder()
                 .name("Career " + UUID.randomUUID())
+                .institution(institution)
                 .build());
 
         subjectA = subjectRepository.save(Subject.builder()
                 .name("A Analisis Matematico I " + UUID.randomUUID())
                 .isBasic(false)
-                .career(career)
+                .institution(institution)
+                .careers(java.util.Set.of(career))
                 .build());
         subjectB = subjectRepository.save(Subject.builder()
                 .name("B Fisica I " + UUID.randomUUID())
                 .isBasic(false)
-                .career(career)
+                .institution(institution)
+                .careers(java.util.Set.of(career))
                 .build());
 
         tutor = saveUser("Tutor Test", Role.TUTOR);
@@ -191,8 +202,12 @@ class TutorRatingHistoryControllerIntegrationTest {
     @DisplayName("CP4/CA4: tutor without rated sessions returns 200 with empty state")
     void cp4TutorWithoutRatings() throws Exception {
         User tutorWithoutRatings = saveUser("Tutor Sin Ratings", Role.TUTOR);
+        Institution institution = institutionRepository.save(Institution.builder()
+                .name("Test Institution " + UUID.randomUUID())
+                .build());
         Career career = careerRepository.save(Career.builder()
                 .name("Career " + UUID.randomUUID())
+                .institution(institution)
                 .build());
         tutorProfileRepository.save(TutorProfile.builder()
                 .user(tutorWithoutRatings)

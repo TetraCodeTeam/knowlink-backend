@@ -61,7 +61,7 @@ public class TutorProfileValidationServiceImpl implements ITutorProfileValidatio
         if (isPaidWithInvalidPrice) {
             throw new ValidationException(
                     String.format("El precio por hora debe ser mayor a cero para la materia '%s'.",
-                            request.subjectName()));
+                            request.subjectId()));
         }
     }
 }

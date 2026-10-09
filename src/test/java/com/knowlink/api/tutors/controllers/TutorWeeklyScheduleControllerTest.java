@@ -65,13 +65,16 @@ class TutorWeeklyScheduleControllerTest {
 
     @BeforeEach
     void seedData() {
-        Career career = careerRepository.findByName("Ingeniería en Sistemas")
-                .orElseGet(() -> careerRepository.save(
-                        Career.builder().name("Ingeniería en Sistemas").build()));
+        Career career = careerRepository.findByName("Ingeniería en Sistemas").orElseThrow();
 
-        Subject algebra = subjectRepository.findByName("Algebra")
-                .orElseGet(() -> subjectRepository.save(
-                        Subject.builder().name("Algebra").isBasic(true).career(career).build()));
+        Subject algebra = subjectRepository
+                .findByNameAndInstitutionInstitutionId("Algebra", career.getInstitution().getInstitutionId())
+                .orElseGet(() -> subjectRepository.save(Subject.builder()
+                        .name("Algebra")
+                        .isBasic(true)
+                        .institution(career.getInstitution())
+                        .careers(java.util.Set.of(career))
+                        .build()));
 
         tutorUser = userRepository.save(User.builder()
                 .fullName("Ana García")

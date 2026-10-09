@@ -31,7 +31,7 @@ public final class TutorSearchMapper {
                 tutorSubjectList.stream()
                         .map(mt -> new SubjectSummary(
                                 mt.getSubject().getName(),
-                                mt.getSubject().getCareer().getName()))
+                                tutorProfile.getCareer().getName()))
                         .distinct()
                         .sorted(Comparator.comparing(SubjectSummary::name))
                         .toList()

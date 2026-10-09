@@ -1,6 +1,8 @@
-// SubjectSeeder.java
 package com.knowlink.api.tutors.config;
 
+import com.knowlink.api.catalog.data.enums.CareerType;
+import com.knowlink.api.catalog.data.models.Institution;
+import com.knowlink.api.catalog.repositories.IInstitutionRepository;
 import com.knowlink.api.tutors.data.models.Career;
 import com.knowlink.api.tutors.data.models.Subject;
 import com.knowlink.api.tutors.repositories.ICareerRepository;
@@ -12,18 +14,17 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Component
-@Order(2) // corre después de CareerSeeder
+@Order(2)
 @RequiredArgsConstructor
 public class SubjectSeeder implements CommandLineRunner {
 
     private final ISubjectRepository subjectRepository;
     private final ICareerRepository careerRepository;
+    private final IInstitutionRepository institutionRepository;
 
-    // Materias básicas: no dependen de una carrera puntual, pero el modelo
-    // actual exige una FK -> se asocian a una carrera "placeholder" solo para
-    // satisfacer la constraint. El front las filtra por isBasic, no por carrera.
     private static final List<String> BASIC_SUBJECTS = List.of(
             "Análisis Matemático",
             "Álgebra",
@@ -32,7 +33,6 @@ public class SubjectSeeder implements CommandLineRunner {
             "Inglés"
     );
 
-    // Nombres únicos entre carreras (restricción actual: Subject.name es unique global)
     private static final Map<String, List<String>> CAREER_SUBJECTS = Map.of(
             "Ingeniería en Sistemas", List.of(
                     "Programación", "Estructuras de Datos", "Base de Datos", "Redes",
@@ -57,33 +57,68 @@ public class SubjectSeeder implements CommandLineRunner {
             )
     );
 
+    private static final Map<String, List<String>> UNVM_CAREER_SUBJECTS = Map.of(
+            "Profesorado de Matemática", List.of(
+                    "Matemática Discreta", "Didáctica de la Matemática"
+            ),
+            "Tecnicatura en Desarrollo Web", List.of(
+                    "Programación Web", "Bases de Datos Aplicadas"
+            )
+    );
+
     @Override
     public void run(String... args) {
-        Career placeholderCareer = careerRepository.findAll().stream()
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException(
-                        "No hay carreras cargadas: CareerSeeder debe correr antes que SubjectSeeder"));
+        Institution utn = findInstitutionOrThrow("UTN FRVM");
+        Institution unvm = findInstitutionOrThrow("UNVM");
 
-        BASIC_SUBJECTS.forEach(name -> saveIfAbsent(name, true, placeholderCareer));
+        Career utnSharedCareer = findSharedCareerOrThrow(utn);
+        BASIC_SUBJECTS.forEach(name -> saveIfAbsent(name, true, utn, Set.of(utnSharedCareer)));
 
         CAREER_SUBJECTS.forEach((careerName, subjectNames) -> {
-            Career career = careerRepository.findByName(careerName)
-                    .orElseThrow(() -> new IllegalStateException(
-                            "Carrera no encontrada para seed de materias: " + careerName));
-
-            subjectNames.forEach(name -> saveIfAbsent(name, false, career));
+            Career career = findCareerOrThrow(careerName, utn);
+            subjectNames.forEach(name -> saveIfAbsent(name, false, utn, Set.of(career)));
         });
+
+        Career unvmSharedCareer = findSharedCareerOrThrow(unvm);
+        UNVM_CAREER_SUBJECTS.forEach((careerName, subjectNames) -> {
+            Career career = findCareerOrThrow(careerName, unvm);
+            subjectNames.forEach(name -> saveIfAbsent(name, false, unvm, Set.of(career)));
+        });
+        saveIfAbsent("Lenguaje y Redacción", true, unvm, Set.of(unvmSharedCareer));
     }
 
-    private void saveIfAbsent(String name, boolean isBasic, Career career) {
-        if (subjectRepository.findByName(name).isPresent()) {
+    private void saveIfAbsent(String name, boolean isBasic, Institution institution, Set<Career> careers) {
+        if (subjectRepository.findByNameAndInstitutionInstitutionId(name, institution.getInstitutionId()).isPresent()) {
             return;
         }
 
         subjectRepository.save(Subject.builder()
                 .name(name)
                 .isBasic(isBasic)
-                .career(career)
+                .institution(institution)
+                .careers(careers)
                 .build());
+    }
+
+    private Career findSharedCareerOrThrow(Institution institution) {
+        return careerRepository.findByInstitutionInstitutionIdAndType(
+                        institution.getInstitutionId(), CareerType.COMPARTIDA).stream()
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "Carrera reservada no encontrada para la institución: " + institution.getName()));
+    }
+
+    private Career findCareerOrThrow(String careerName, Institution institution) {
+        return careerRepository.findByInstitutionInstitutionId(institution.getInstitutionId()).stream()
+                .filter(career -> career.getName().equals(careerName))
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "Carrera no encontrada para seed de materias: " + careerName));
+    }
+
+    private Institution findInstitutionOrThrow(String name) {
+        return institutionRepository.findByName(name)
+                .orElseThrow(() -> new IllegalStateException(
+                        "Institución no encontrada para seed de materias: " + name));
     }
 }

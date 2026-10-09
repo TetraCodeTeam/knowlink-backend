@@ -69,9 +69,7 @@ class TutorSearchFilterControllerTest {
 
     @BeforeEach
     void seedData() {
-        Career career = careerRepository.findByName("Ingeniería en Sistemas")
-                .orElseGet(() -> careerRepository.save(
-                        Career.builder().name("Ingeniería en Sistemas").build()));
+        Career career = careerRepository.findByName("Ingeniería en Sistemas").orElseThrow();
 
         Subject algebra = subject(career, "Algebra");
         Subject fisica = subject(career, "Fisica");
@@ -97,9 +95,14 @@ class TutorSearchFilterControllerTest {
     }
 
     private Subject subject(Career career, String name) {
-        return subjectRepository.findByName(name)
-                .orElseGet(() -> subjectRepository.save(
-                        Subject.builder().name(name).isBasic(true).career(career).build()));
+        return subjectRepository
+                .findByNameAndInstitutionInstitutionId(name, career.getInstitution().getInstitutionId())
+                .orElseGet(() -> subjectRepository.save(Subject.builder()
+                        .name(name)
+                        .isBasic(true)
+                        .institution(career.getInstitution())
+                        .careers(java.util.Set.of(career))
+                        .build()));
     }
 
     private void tutor(String fullName, Career career, Subject subject, boolean verified, double rating,

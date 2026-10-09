@@ -58,18 +58,23 @@ class TutorSearchControllerTest {
     @Autowired
     private ITutorSubjectRepository tutorSubjectRepository;
 
+    private Subject findOrCreateSubject(Career career, String name) {
+        return subjectRepository
+                .findByNameAndInstitutionInstitutionId(name, career.getInstitution().getInstitutionId())
+                .orElseGet(() -> subjectRepository.save(Subject.builder()
+                        .name(name)
+                        .isBasic(true)
+                        .institution(career.getInstitution())
+                        .careers(java.util.Set.of(career))
+                        .build()));
+    }
+
     @BeforeEach
     void seedData() {
-        Career career = careerRepository.findByName("Ingeniería en Sistemas")
-                .orElseGet(() -> careerRepository.save(
-                        Career.builder().name("Ingeniería en Sistemas").build()));
+        Career career = careerRepository.findByName("Ingeniería en Sistemas").orElseThrow();
 
-        Subject algebra = subjectRepository.findByName("Algebra")
-                .orElseGet(() -> subjectRepository.save(
-                        Subject.builder().name("Algebra").isBasic(true).career(career).build()));
-        Subject fisica = subjectRepository.findByName("Física")
-                .orElseGet(() -> subjectRepository.save(
-                        Subject.builder().name("Física").isBasic(true).career(career).build()));
+        Subject algebra = findOrCreateSubject(career, "Algebra");
+        Subject fisica = findOrCreateSubject(career, "Física");
 
         User anaTutora = userRepository.save(User.builder()
                 .fullName("Ana García")

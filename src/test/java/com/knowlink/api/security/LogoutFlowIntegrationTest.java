@@ -1,4 +1,6 @@
 package com.knowlink.api.security;
+import com.knowlink.api.catalog.data.models.Institution;
+import com.knowlink.api.catalog.repositories.IInstitutionRepository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knowlink.api.security.enums.Role;
@@ -55,6 +57,9 @@ class LogoutFlowIntegrationTest {
     private IStudentProfileRepository studentProfileRepository;
 
     @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    @Autowired
     private ICareerRepository careerRepository;
 
     @Autowired
@@ -67,8 +72,12 @@ class LogoutFlowIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        Institution institution = institutionRepository.save(Institution.builder()
+                .name("Test Institution " + UUID.randomUUID())
+                .build());
         Career career = careerRepository.save(Career.builder()
                 .name("Test Career " + UUID.randomUUID())
+                .institution(institution)
                 .build());
 
         User student = User.builder()

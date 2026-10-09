@@ -1,4 +1,6 @@
 package com.knowlink.api.resources.controllers;
+import com.knowlink.api.catalog.data.models.Institution;
+import com.knowlink.api.catalog.repositories.IInstitutionRepository;
 
 import com.knowlink.api.resources.service.interfaces.IReservationService;
 import com.knowlink.api.resources.service.interfaces.ISupabaseStorageService;
@@ -83,6 +85,9 @@ class MaterialControllerImplTest {
     private Subject subject;
     private AcademicMaterial existingMaterial;
 
+    @Autowired
+    private IInstitutionRepository institutionRepository;
+
     @BeforeEach
     void setUp() {
         when(supabaseStorageService.upload(any(), any(UUID.class)))
@@ -90,14 +95,19 @@ class MaterialControllerImplTest {
         when(supabaseStorageService.generateSignedUrl(any(), any(int.class)))
                 .thenReturn("https://test.supabase.co/signed-url");
 
+        Institution institution = institutionRepository.save(Institution.builder()
+                .name("Test Institution " + UUID.randomUUID())
+                .build());
         Career career = careerRepository.save(Career.builder()
                 .name("Ingenieria en Sistemas " + UUID.randomUUID())
+                .institution(institution)
                 .build());
 
         subject = subjectRepository.save(Subject.builder()
                 .name("Analisis Matematico II " + UUID.randomUUID())
                 .isBasic(false)
-                .career(career)
+                .institution(institution)
+                .careers(java.util.Set.of(career))
                 .build());
 
         tutorUser = userRepository.save(User.builder()

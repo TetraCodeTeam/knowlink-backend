@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 
 import java.util.List;
+import java.util.UUID;
 
 public record TutorRegistrationRequest(
 
@@ -35,8 +36,11 @@ public record TutorRegistrationRequest(
         @NotBlank(message = "Phone number is required")
         String phoneNumber,
 
-        @NotBlank(message = "Career is required")
-        String career,
+        @NotNull(message = "Institution is required")
+        UUID institutionId,
+
+        @NotNull(message = "Career is required")
+        UUID careerId,
 
         String institutionalId,
 
