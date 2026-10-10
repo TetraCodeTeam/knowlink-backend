@@ -18,6 +18,7 @@ import com.knowlink.api.payments.domain.FundsStatus;
 import com.knowlink.api.payments.repositories.IFundsTransferRepository;
 import com.knowlink.api.payments.services.FundsLedgerService;
 import com.knowlink.api.materials.service.interfaces.ISupabaseStorageService;
+import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.students.data.models.StudentProfile;
 import com.knowlink.api.students.repositories.IStudentProfileRepository;
@@ -62,6 +63,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -219,13 +221,25 @@ class ClaimControllerIntegrationTest {
                 .build());
     }
 
+    /** Sesion que termino hace 'hoursAgo' horas (relativa al reloj, para no depender de la hora del dia). */
+    private Booking endedBooking(long hoursAgo, BookingStatus status) {
+        LocalDateTime end = LocalDateTime.now(AppTimeZone.ZONE).minusHours(hoursAgo);
+        return createBooking(end.toLocalDate(), end.toLocalTime().minusHours(1), end.toLocalTime(), status);
+    }
+
+    /** Sesion terminada hace 2 h sin confirmar con token: reclamable. */
     private Booking withinDeadlineBooking() {
-        return createBooking(LocalDate.now(), LocalTime.NOON, LocalTime.of(15, 0), BookingStatus.COMPLETED);
+        return endedBooking(2, BookingStatus.NOT_CONFIRMED);
     }
 
     private Booking expiredBooking() {
         return createBooking(LocalDate.now().minusDays(5), LocalTime.NOON, LocalTime.of(15, 0),
-                BookingStatus.COMPLETED);
+                BookingStatus.NOT_CONFIRMED);
+    }
+
+    /** Sesion que todavia no termino (manana). */
+    private Booking futureBooking(BookingStatus status) {
+        return createBooking(LocalDate.now().plusDays(1), LocalTime.NOON, LocalTime.of(15, 0), status);
     }
 
     private FundsTransfer heldTransfer(Booking booking) {
@@ -283,13 +297,13 @@ class ClaimControllerIntegrationTest {
         Booking booking = withinDeadlineBooking();
         heldTransfer(booking);
         String token = login(student);
-        String json = "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\",\"comment\":\"no pude conectarme\"}";
+        String json = "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\",\"comment\":\"no pude conectarme\"}";
 
         mockMvc.perform(postClaim(token, booking.getBookingId(), json, pdfFile("evidence.pdf"), pngFile("photo.png")))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("OPEN"))
                 .andExpect(jsonPath("$.claimantRole").value("STUDENT"))
-                .andExpect(jsonPath("$.reason").value("STUDENT_COULD_NOT_ATTEND"))
+                .andExpect(jsonPath("$.reason").value("TUTOR_COULD_NOT_ATTEND"))
                 .andExpect(jsonPath("$.bookingId").value(booking.getBookingId().toString()))
                 .andExpect(jsonPath("$.comment").value("no pude conectarme"))
                 .andExpect(jsonPath("$.attachments.length()").value(2))
@@ -323,7 +337,7 @@ class ClaimControllerIntegrationTest {
     void create_duplicateSecondRequest_returns409WithExactMessage() throws Exception {
         Booking booking = withinDeadlineBooking();
         String token = login(student);
-        String json = "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}";
+        String json = "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}";
 
         mockMvc.perform(postClaim(token, booking.getBookingId(), json, pdfFile("a.pdf")))
                 .andExpect(status().isCreated());
@@ -342,7 +356,7 @@ class ClaimControllerIntegrationTest {
         Booking booking = withinDeadlineBooking();
         String token = login(outsider);
 
-        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
+        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.detail").value("SESSION_NOT_PARTICIPANT"));
     }
@@ -352,7 +366,7 @@ class ClaimControllerIntegrationTest {
     void create_unknownBooking_returns404() throws Exception {
         String token = login(student);
 
-        mockMvc.perform(postClaim(token, UUID.randomUUID(), "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
+        mockMvc.perform(postClaim(token, UUID.randomUUID(), "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.detail").value("SESSION_NOT_FOUND"));
     }
@@ -360,11 +374,10 @@ class ClaimControllerIntegrationTest {
     @Test
     @DisplayName("CP-06 - sesion no finalizada: 422 SESSION_NOT_FINALIZED")
     void create_notFinalized_returns422() throws Exception {
-        Booking booking = createBooking(LocalDate.now(), LocalTime.NOON, LocalTime.of(15, 0),
-                BookingStatus.IN_PROGRESS);
+        Booking booking = futureBooking(BookingStatus.IN_PROGRESS);
         String token = login(student);
 
-        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
+        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.detail").value("SESSION_NOT_FINALIZED"));
     }
@@ -375,7 +388,7 @@ class ClaimControllerIntegrationTest {
         Booking booking = expiredBooking();
         String token = login(student);
 
-        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
+        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.detail").value("CLAIM_DEADLINE_EXCEEDED"));
 
@@ -387,7 +400,7 @@ class ClaimControllerIntegrationTest {
     void create_unauthenticated_returns401() throws Exception {
         Booking booking = withinDeadlineBooking();
 
-        mockMvc.perform(postClaim("", booking.getBookingId(), "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
+        mockMvc.perform(postClaim("", booking.getBookingId(), "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -409,7 +422,7 @@ class ClaimControllerIntegrationTest {
         String longComment = "x".repeat(501);
 
         mockMvc.perform(postClaim(token, booking.getBookingId(),
-                        "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\",\"comment\":\"" + longComment + "\"}"))
+                        "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\",\"comment\":\"" + longComment + "\"}"))
                 .andExpect(status().isBadRequest());
     }
 
@@ -431,7 +444,7 @@ class ClaimControllerIntegrationTest {
         Booking booking = withinDeadlineBooking();
         String token = login(student);
 
-        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}",
+        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}",
                         pdfFile("a.pdf"), pdfFile("b.pdf"), pdfFile("c.pdf"), pdfFile("d.pdf")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("No podés adjuntar más de 3 archivos."));
@@ -446,7 +459,7 @@ class ClaimControllerIntegrationTest {
                 "zip-bytes".getBytes(StandardCharsets.UTF_8));
 
         mockMvc.perform(postClaim(token, booking.getBookingId(),
-                        "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}", zip))
+                        "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}", zip))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.detail").value("FORMAT_NOT_ALLOWED"));
     }
@@ -469,7 +482,7 @@ class ClaimControllerIntegrationTest {
     void eligibility_afterClaim_blocked() throws Exception {
         Booking booking = withinDeadlineBooking();
         String token = login(student);
-        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
+        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(get("/api/v1/bookings/{bookingId}/claims/eligibility", booking.getBookingId())
@@ -495,8 +508,7 @@ class ClaimControllerIntegrationTest {
     @Test
     @DisplayName("CP-17 - elegibilidad sin finalizar: bloqueo SESSION_NOT_FINALIZED sin fecha")
     void eligibility_notFinalized_blocked() throws Exception {
-        Booking booking = createBooking(LocalDate.now(), LocalTime.NOON, LocalTime.of(15, 0),
-                BookingStatus.BOOKED);
+        Booking booking = futureBooking(BookingStatus.BOOKED);
         String token = login(student);
 
         mockMvc.perform(get("/api/v1/bookings/{bookingId}/claims/eligibility", booking.getBookingId())
@@ -512,7 +524,7 @@ class ClaimControllerIntegrationTest {
         Booking booking = withinDeadlineBooking();
         String token = login(student);
         MvcResult created = mockMvc.perform(postClaim(token, booking.getBookingId(),
-                        "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}", pdfFile("evidence.pdf")))
+                        "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}", pdfFile("evidence.pdf")))
                 .andExpect(status().isCreated())
                 .andReturn();
         String claimId = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
@@ -532,7 +544,7 @@ class ClaimControllerIntegrationTest {
         Booking booking = withinDeadlineBooking();
         String studentToken = login(student);
         MvcResult created = mockMvc.perform(postClaim(studentToken, booking.getBookingId(),
-                        "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
+                        "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
                 .andExpect(status().isCreated())
                 .andReturn();
         String claimId = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
@@ -562,16 +574,15 @@ class ClaimControllerIntegrationTest {
     @DisplayName("CP-21 - listado /mine expone canClaim y claimableUntil por reserva")
     void listing_exposesClaimFlags() throws Exception {
         Booking freshBooking = withinDeadlineBooking();
-        Booking claimedBooking = createBooking(LocalDate.now(), LocalTime.of(16, 0), LocalTime.of(17, 0),
-                BookingStatus.COMPLETED);
+        Booking claimedBooking = endedBooking(3, BookingStatus.NOT_CONFIRMED);
         Booking oldBooking = expiredBooking();
         String token = login(student);
-        mockMvc.perform(postClaim(token, claimedBooking.getBookingId(), "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
+        mockMvc.perform(postClaim(token, claimedBooking.getBookingId(), "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
                 .andExpect(status().isCreated());
 
         MvcResult result = mockMvc.perform(get("/api/v1/bookings/mine")
                         .param("role", Role.STUDENT.name())
-                        .param("category", BookingHistoryCategory.COMPLETED.name())
+                        .param("category", BookingHistoryCategory.CANCELLED.name())
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
                 .andReturn();
@@ -591,13 +602,79 @@ class ClaimControllerIntegrationTest {
     }
 
     @Test
+    @DisplayName("CP-25 - sesion confirmada con token: 422 SESSION_ALREADY_CONFIRMED y elegibilidad bloqueada")
+    void create_confirmedSession_returns422() throws Exception {
+        Booking booking = endedBooking(2, BookingStatus.COMPLETED);
+        booking.setConfirmedAt(LocalDateTime.now(AppTimeZone.ZONE).minusHours(3));
+        bookingRepository.save(booking);
+        String token = login(student);
+
+        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.detail").value("SESSION_ALREADY_CONFIRMED"));
+
+        mockMvc.perform(get("/api/v1/bookings/{bookingId}/claims/eligibility", booking.getBookingId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.canClaim").value(false))
+                .andExpect(jsonPath("$.blockReason").value("SESSION_ALREADY_CONFIRMED"));
+    }
+
+    @Test
+    @DisplayName("CP-26 - motivo que no corresponde al rol: 422 CLAIM_REASON_NOT_ALLOWED_FOR_ROLE")
+    void create_reasonNotAllowedForRole_returns422() throws Exception {
+        Booking booking = withinDeadlineBooking();
+        String studentToken = login(student);
+        String tutorToken = login(tutor);
+
+        mockMvc.perform(postClaim(studentToken, booking.getBookingId(), "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.detail").value("CLAIM_REASON_NOT_ALLOWED_FOR_ROLE"));
+        mockMvc.perform(postClaim(tutorToken, booking.getBookingId(), "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.detail").value("CLAIM_REASON_NOT_ALLOWED_FOR_ROLE"));
+
+        assertThat(claimCount(booking)).isZero();
+    }
+
+    @Test
+    @DisplayName("CP-27 - el tutor reclama con 'el alumno no pudo asistir': 201")
+    void create_tutorReportsStudentAbsence_returns201() throws Exception {
+        Booking booking = withinDeadlineBooking();
+        String tutorToken = login(tutor);
+
+        mockMvc.perform(postClaim(tutorToken, booking.getBookingId(), "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.reason").value("STUDENT_COULD_NOT_ATTEND"))
+                .andExpect(jsonPath("$.claimantRole").value("TUTOR"));
+    }
+
+    @Test
+    @DisplayName("CP-28 - elegibilidad expone los motivos permitidos segun el rol")
+    void eligibility_exposesAllowedReasonsByRole() throws Exception {
+        Booking booking = withinDeadlineBooking();
+
+        mockMvc.perform(get("/api/v1/bookings/{bookingId}/claims/eligibility", booking.getBookingId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + login(student)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.canClaim").value(true))
+                .andExpect(jsonPath("$.allowedReasons[0]").value("TUTOR_COULD_NOT_ATTEND"))
+                .andExpect(jsonPath("$.allowedReasons[1]").value("I_COULD_NOT_ATTEND"));
+        mockMvc.perform(get("/api/v1/bookings/{bookingId}/claims/eligibility", booking.getBookingId())
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + login(tutor)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.allowedReasons[0]").value("STUDENT_COULD_NOT_ATTEND"))
+                .andExpect(jsonPath("$.allowedReasons[1]").value("I_COULD_NOT_ATTEND"));
+    }
+
+    @Test
     @DisplayName("CP-24 - la contraparte reclama la misma sesion: 201 y la retencion no se duplica")
     void create_counterpartyClaimsSameSession_returns201WithoutDuplicatingRetention() throws Exception {
         Booking booking = withinDeadlineBooking();
         heldTransfer(booking);
         String studentToken = login(student);
         MvcResult studentClaim = mockMvc.perform(postClaim(studentToken, booking.getBookingId(),
-                        "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
+                        "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
                 .andExpect(status().isCreated())
                 .andReturn();
         String studentClaimId = objectMapper.readTree(studentClaim.getResponse().getContentAsString())
@@ -624,7 +701,7 @@ class ClaimControllerIntegrationTest {
                 .when(fundsLedgerService).markSuspendedByClaim(any(), any());
 
         mockMvc.perform(postClaim(token, booking.getBookingId(),
-                        "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}", pdfFile("a.pdf")))
+                        "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}", pdfFile("a.pdf")))
                 .andExpect(status().isInternalServerError());
 
         assertThat(sessionClaimRepository.existsByBooking_BookingIdAndStatus(
@@ -640,7 +717,7 @@ class ClaimControllerIntegrationTest {
     void concurrentCreate_onlyOneClaimPersists() throws Exception {
         Booking booking = withinDeadlineBooking();
         String token = login(student);
-        var request = new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null);
+        var request = new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null);
 
         TransactionTemplate template = new TransactionTemplate(transactionManager);
         CountDownLatch firstInserted = new CountDownLatch(1);

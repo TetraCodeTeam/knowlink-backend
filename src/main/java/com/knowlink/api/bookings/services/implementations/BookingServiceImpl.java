@@ -3,6 +3,7 @@ package com.knowlink.api.bookings.services.implementations;
 import com.knowlink.api.claims.controllers.responses.ClaimEligibilityResponse;
 import com.knowlink.api.claims.services.interfaces.ISessionClaimService;
 import com.knowlink.api.events.services.BookingEventPublisher;
+import com.knowlink.api.exceptions.custom_exceptions.ConfirmationBlockedByClaimException;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.bookings.controllers.requests.CreateBookingRequest;
@@ -232,8 +233,19 @@ public class BookingServiceImpl implements IBookingService {
         @Override
         @Transactional(noRollbackFor = ValidationException.class)
         public BookingConfirmationResponse confirmSession(UUID tutorUserId, UUID bookingId, String rawToken) {
-                Booking booking = findBookingOrThrow(bookingId);
+                // Se bloquea la reserva para serializar la confirmación contra la creación de un reclamo
+                // (SessionClaimServiceImpl.create): si no, una sesión podría quedar confirmada con fondos retenidos.
+                Booking booking = bookingRepository.findByIdForUpdate(bookingId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "BOOKING_NOT_FOUND",
+                                                "La reserva no existe.",
+                                                "Booking not found for id: " + bookingId));
                 bookingValidationService.validateCanConfirmSession(booking, tutorUserId);
+
+                if (sessionClaimService.hasActiveClaim(bookingId)) {
+                        throw new ConfirmationBlockedByClaimException(
+                                        "Booking " + bookingId + " has an open claim, token confirmation blocked");
+                }
 
                 if (!confirmationTokenService.matches(rawToken, booking.getConfirmationToken())) {
                         bookingRepository.incrementConfirmationTokenAttempts(booking.getBookingId());

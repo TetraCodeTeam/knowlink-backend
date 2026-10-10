@@ -4,6 +4,10 @@
 > (paquete `com.knowlink.api.claims`). Donde el spec original proponía nombres en español
 > (`/api/sesiones/...`, `puedeReclamar`, `MotivoReclamo`), se adoptó la convención del repo:
 > rutas bajo `/api/v1/bookings`, campos y enums en inglés, y solo mensajes de usuario final en español.
+>
+> **Actualizado por el parche `US-51-claims-role-reasons-and-eligibility`:** motivos por rol
+> (`TUTOR_COULD_NOT_ATTEND` + `allowedReasons` en elegibilidad), bloqueos nuevos
+> (`SESSION_ALREADY_CONFIRMED`, `SESSION_NOT_CLAIMABLE`) y bloqueo recíproco reclamo <-> confirmación con código.
 
 ## 1. Metadata
 
@@ -28,20 +32,20 @@ Característica: Realizar reclamo de sesión
     Dado un usuario autenticado (alumno o tutor)
 
   Escenario: Reclamo exitoso con motivo y sin comentario
-    Dado una sesión propia finalizada hace menos de 24 horas
+    Dado una sesión propia que terminó por horario hace menos de 24 horas y no fue confirmada con código
     Y que el usuario no tiene un reclamo activo para esa sesión
-    Cuando envía el reclamo con motivo "El alumno no pudo asistir"
+    Cuando el tutor envía el reclamo con motivo "El alumno no pudo asistir"
     Entonces el sistema crea el reclamo en estado OPEN
     Y los fondos de la sesión quedan retenidos
     Y responde 201 con los datos del reclamo
 
   Escenario: Reclamo exitoso con comentario opcional
-    Dado una sesión propia finalizada hace menos de 24 horas
+    Dado una sesión propia que terminó por horario hace menos de 24 horas y no fue confirmada con código
     Cuando envía el reclamo con motivo "Yo no pude asistir" y un comentario
     Entonces el comentario se guarda junto con el reclamo (normalizado con trim)
 
   Escenario: Reclamo con adjuntos
-    Dado una sesión propia finalizada hace menos de 24 horas
+    Dado una sesión propia que terminó por horario hace menos de 24 horas y no fue confirmada con código
     Cuando envía hasta 3 archivos pdf/jpg/png de hasta 5 MB cada uno
     Entonces los archivos se suben al bucket "claimEvidence" y quedan asociados al reclamo
     Y el participante puede listarlos con URL firmada de lectura (1 hora)
@@ -50,16 +54,31 @@ Característica: Realizar reclamo de sesión
     Cuando envía el reclamo sin motivo o con un motivo fuera del catálogo
     Entonces responde 400 y no se crea ningún reclamo
 
+  Escenario: Motivo que no corresponde al rol
+    Dado una sesión reclamable de la que el usuario es participante
+    Cuando el alumno envía el motivo "El alumno no pudo asistir" o el tutor envía "El tutor no pudo asistir"
+    Entonces responde 422 con código CLAIM_REASON_NOT_ALLOWED_FOR_ROLE y no se crea ningún reclamo
+
   Escenario: Plazo vencido
-    Dado una sesión propia finalizada hace más de 24 horas
+    Dado una sesión propia terminada por horario hace más de 24 horas
     Cuando intenta reclamarla
     Entonces responde 422 con código CLAIM_DEADLINE_EXCEEDED
     Y la sesión figura como no reclamable en el historial
 
   Escenario: Sesión no finalizada
-    Dado una sesión propia que aún no finalizó
+    Dado una sesión propia que aún no llegó a su hora de fin programada
     Cuando intenta reclamarla
     Entonces responde 422 con código SESSION_NOT_FINALIZED
+
+  Escenario: Sesión confirmada con código
+    Dado una sesión en la que el tutor ingresó el código de confirmación (ambos asistieron)
+    Cuando cualquiera de los dos participantes intenta reclamarla
+    Entonces responde 422 con código SESSION_ALREADY_CONFIRMED
+
+  Escenario: Sesión que no admite reclamos
+    Dado una sesión cancelada o ya resuelta por fondos
+    Cuando el participante intenta reclamarla
+    Entonces responde 422 con código SESSION_NOT_CLAIMABLE
 
   Escenario: Sesión ajena
     Dado una sesión en la que el usuario no es alumno ni tutor
@@ -74,7 +93,12 @@ Característica: Realizar reclamo de sesión
 
   Escenario: Consulta de elegibilidad (para decidir si el front abre el popup)
     Cuando el usuario consulta la elegibilidad de una sesión
-    Entonces recibe canClaim, claimableUntil y, si no puede, el blockReason
+    Entonces recibe canClaim, claimableUntil, allowedReasons (motivos permitidos según su rol) y, si no puede, el blockReason
+
+  Escenario: Confirmación con código bloqueada por reclamo activo
+    Dado que existe un reclamo OPEN sobre la sesión
+    Cuando el tutor intenta confirmar la sesión con el código
+    Entonces responde 422 con código CONFIRMATION_BLOCKED_BY_ACTIVE_CLAIM
 ```
 
 ## 3. Stack y decisiones finales
@@ -88,11 +112,15 @@ Característica: Realizar reclamo de sesión
 - **Migraciones:** no hay Flyway/Liquibase; esquema por `ddl-auto` (create-drop en tests).
   Constraints/índices se declaran en las anotaciones JPA (`@Table`/`@UniqueConstraint`/`@Index`).
 - **Storage:** bucket nuevo **`claimEvidence`** (los materiales de US-26 siguen en `materials`).
-  El bucket debe crearse manualmente en Supabase (pasos pendientes, ver §10).
+  El bucket `claimEvidence` ya fue creado en Supabase (ver §10).
 
 ## 4. Advertencias de dependencias (resueltas)
 
-1. **Estado "finalizada":** = `BookingStatus.COMPLETED` solamente (`ClaimDeadlineCalculator.isFinalized`).
+1. **Semántica de "reclamable" (parche de roles/elegibilidad):** una sesión solo es reclamable si
+   **terminó por horario** (`ClaimDeadlineCalculator.hasEnded`), **no fue confirmada con código**
+   (`isConfirmed`: `confirmedAt != null || COMPLETED`) y su estado está en
+   `CLAIMABLE_STATUSES = {BOOKED, IN_PROGRESS, NOT_CONFIRMED}` (`isClaimableStatus`).
+   `isFinalized` fue eliminado.
 2. **Fondos retenidos (US-15):** `FundsLedgerService.markSuspendedByClaim(bookingId, claimId)` —
    **idempotente**: si la transferencia ya está `SUSPENDED_BY_CLAIM` conserva el `blockingClaimId`
    original y no vuelve a guardar. Sesión gratuita (sin `FundsTransfer`) → no-op sin error.
@@ -140,13 +168,17 @@ Característica: Realizar reclamo de sesión
 ### 5.3 Enums (paquete `com.knowlink.api.claims.data.enums`)
 
 ```java
-public enum ClaimReason { STUDENT_COULD_NOT_ATTEND, I_COULD_NOT_ATTEND }
+public enum ClaimReason { STUDENT_COULD_NOT_ATTEND, TUTOR_COULD_NOT_ATTEND, I_COULD_NOT_ATTEND }
 public enum ClaimStatus { OPEN, RESOLVED }  // RESOLVED queda fuera de esta US
-public enum ClaimBlockReason { SESSION_NOT_PARTICIPANT, SESSION_NOT_FINALIZED, CLAIM_DEADLINE_EXCEEDED, ACTIVE_CLAIM_EXISTS }
+public enum ClaimBlockReason { SESSION_NOT_PARTICIPANT, SESSION_ALREADY_CONFIRMED, SESSION_NOT_CLAIMABLE,
+        SESSION_NOT_FINALIZED, CLAIM_DEADLINE_EXCEEDED, ACTIVE_CLAIM_EXISTS }
 ```
 
-> "El alumno no pudo asistir" es ambiguo cuando reclama el propio alumno: se guarda el motivo literal
-> más `claimantRole`, y la interpretación queda a cargo del administrador al resolver.
+> **Motivos por rol** (`ClaimReason.allowedFor(role)`): el alumno elige `TUTOR_COULD_NOT_ATTEND`
+> ("El tutor no pudo asistir") o `I_COULD_NOT_ATTEND`; el tutor elige `STUDENT_COULD_NOT_ATTEND`
+> ("El alumno no pudo asistir") o `I_COULD_NOT_ATTEND`. Un motivo incompatible con el rol →
+> 422 `CLAIM_REASON_NOT_ALLOWED_FOR_ROLE`. El motivo se persiste con `claimantRole` y la interpretación
+> final queda a cargo del administrador al resolver.
 
 ## 6. API
 
@@ -159,7 +191,7 @@ el usuario sale del token (`@AuthenticationPrincipal UserPrincipal`), nunca del 
 
 | Parte | Requerida | Contenido |
 |---|---|---|
-| `request` | sí | JSON: `{ "reason": "STUDENT_COULD_NOT_ATTEND", "comment": "Esperé 15 minutos y no se conectó" }` |
+| `request` | sí | JSON: `{ "reason": "TUTOR_COULD_NOT_ATTEND", "comment": "Esperé 15 minutos y no se conectó" }` |
 | `files` | no | hasta 3 archivos `pdf` / `jpg` / `jpeg` / `png`, ≤ 5 MB c/u |
 
 Validaciones (`@Valid`):
@@ -171,7 +203,7 @@ Respuesta `201 Created`:
 {
   "id": "0b1f6f9e-...",
   "bookingId": "6c86354e-...",
-  "reason": "STUDENT_COULD_NOT_ATTEND",
+  "reason": "TUTOR_COULD_NOT_ATTEND",
   "comment": "Esperé 15 minutos y no se conectó",
   "status": "OPEN",
   "claimantRole": "STUDENT",
@@ -193,12 +225,15 @@ Errores (formato `ApiError { status, message, detail }` del `@ControllerAdvice` 
 | 403 | `SESSION_NOT_PARTICIPANT` | `No participás de esta sesión.` | el usuario no es alumno ni tutor |
 | 404 | `SESSION_NOT_FOUND` | `La sesión no existe.` | la reserva no existe |
 | 409 | `ACTIVE_CLAIM_EXISTS` | **`Ya tenés una disputa activa para esta sesión`** | reclamo activo previo del usuario o carrera ganada por otro request |
-| 422 | `SESSION_NOT_FINALIZED` | `La sesión todavía no finalizó.` | estado ≠ `COMPLETED` |
+| 422 | `SESSION_NOT_FINALIZED` | `La sesión todavía no finalizó.` | no llegó a su hora de fin programada |
+| 422 | `SESSION_ALREADY_CONFIRMED` | `La sesión ya fue confirmada con el código, por lo que no se puede reclamar por asistencia.` | `confirmedAt != null` o estado `COMPLETED` |
+| 422 | `SESSION_NOT_CLAIMABLE` | `Esta sesión no admite reclamos.` | estado fuera de `BOOKED`/`IN_PROGRESS`/`NOT_CONFIRMED` (cancelada o resuelta por fondos) |
+| 422 | `CLAIM_REASON_NOT_ALLOWED_FOR_ROLE` | `El motivo seleccionado no corresponde a tu rol en esta sesión.` | motivo incompatible con `claimantRole` |
 | 422 | `CLAIM_DEADLINE_EXCEEDED` | `Ya pasó el plazo para reclamar esta sesión (24 horas desde que finalizó).` | fuera del plazo |
 | 500 | `UNEXPECTED` | `Unexpected error` | falla la retención u otro error → **rollback total** (sin reclamo huérfano) |
 
 > El 400 por JSON malformado sale del handler nuevo `HttpMessageNotReadableException` (Spring);
-> el 422 sale del handler nuevo `UnprocessableEntityException` (base de las dos excepciones de plazo/estado).
+> el 422 sale del handler `UnprocessableEntityException` (base de todas las excepciones de plazo/estado/motivo).
 
 ### 6.2 `GET /api/v1/bookings/{bookingId}/claims/eligibility` — ¿puede reclamar?
 
@@ -207,11 +242,13 @@ Respuesta `200`:
 {
   "canClaim": false,
   "claimableUntil": "2026-10-02T15:00:00",
-  "blockReason": "ACTIVE_CLAIM_EXISTS"
+  "blockReason": "ACTIVE_CLAIM_EXISTS",
+  "allowedReasons": ["TUTOR_COULD_NOT_ATTEND", "I_COULD_NOT_ATTEND"]
 }
 ```
-- `blockReason` ∈ `SESSION_NOT_PARTICIPANT | SESSION_NOT_FINALIZED | CLAIM_DEADLINE_EXCEEDED | ACTIVE_CLAIM_EXISTS | null`.
-- `claimableUntil` = `fin + 24h` (null si la sesión no está finalizada).
+- `blockReason` ∈ `SESSION_NOT_PARTICIPANT | SESSION_ALREADY_CONFIRMED | SESSION_NOT_CLAIMABLE | SESSION_NOT_FINALIZED | CLAIM_DEADLINE_EXCEEDED | ACTIVE_CLAIM_EXISTS | null`.
+- `allowedReasons` = motivos que el usuario puede elegir según su rol (`ClaimReason.allowedFor`); vacío si no participa.
+- `claimableUntil` = `fin + 24h` (null si la sesión no terminó por horario, fue confirmada o no admite reclamos).
 - Mismo método de dominio que el POST (`evaluate`), solo lectura: no crea nada.
 
 ### 6.3 `GET /api/v1/bookings/{bookingId}/claims/{claimId}/attachments` — adjuntos
@@ -228,12 +265,16 @@ Respuesta `200` (lista; URL firmada de lectura con vencimiento de 1 hora):
 
 ### 6.4 Orden de validación (igual en POST y elegibilidad — un solo método `evaluate`)
 
-1. La sesión existe → 404 `SESSION_NOT_FOUND`.
+1. La sesión existe → 404 `SESSION_NOT_FOUND` (en POST la fila se bloquea con `findByIdForUpdate`,
+   para serializar contra `confirmSession`).
 2. El usuario participa de la sesión → 403 `SESSION_NOT_PARTICIPANT`.
-3. La sesión está finalizada (`COMPLETED`) → 422 `SESSION_NOT_FINALIZED`.
-4. Dentro de plazo (`ahora <= fin + 24h`, inclusivo) → 422 `CLAIM_DEADLINE_EXCEEDED`.
-5. Sin reclamo activo propio → 409 `ACTIVE_CLAIM_EXISTS`.
-6. (POST) validar adjuntos → 400.
+3. No está confirmada con código → 422 `SESSION_ALREADY_CONFIRMED`.
+4. El estado admite reclamos (`BOOKED`/`IN_PROGRESS`/`NOT_CONFIRMED`) → 422 `SESSION_NOT_CLAIMABLE`.
+5. Terminó por horario → 422 `SESSION_NOT_FINALIZED`.
+6. Dentro de plazo (`ahora <= fin + 24h` desde la hora de fin, inclusivo) → 422 `CLAIM_DEADLINE_EXCEEDED`.
+7. Sin reclamo activo propio → 409 `ACTIVE_CLAIM_EXISTS`.
+8. (POST) el motivo corresponde al rol → 422 `CLAIM_REASON_NOT_ALLOWED_FOR_ROLE`.
+9. (POST) validar adjuntos → 400.
 
 ### 6.5 Cambio en el listado de sesiones realizadas (`GET /api/v1/bookings/mine`)
 
@@ -241,7 +282,9 @@ Cada ítem de `BookingHistoryItemResponse` ahora incluye:
 ```json
 { "canClaim": true, "claimableUntil": "2026-10-02T15:00:00" }
 ```
-- `canClaim` = finalizada + dentro de plazo + sin reclamo activo del usuario.
+- `canClaim` = terminó por horario + no confirmada con código + estado reclamable + dentro de plazo + sin reclamo activo del usuario.
+- Nota: las sesiones `NOT_CONFIRMED` (terminaron sin código) se historían en la categoría `CANCELLED`
+  (`BookingHistoryCategoryMapper`), y en esa categoría es donde aplica `canClaim`/`claimableUntil` para ese estado.
 - Resuelto con **una sola consulta batch** por página (`findClaimedBookingIdsByUser`), sin N+1.
 
 ## 7. Implementación
@@ -267,18 +310,28 @@ com.knowlink.api.claims/
 
 Excepciones nuevas en `exceptions.custom_exceptions`:
 `UnprocessableEntityException` (base 422), `SessionNotFinalizedException`, `ClaimDeadlineExceededException`,
-`SessionNotParticipantException` (403). `GlobalExceptionHandler` suma los handlers 403/422/400.
+`SessionNotParticipantException` (403), y del parche de roles/elegibilidad: `SessionAlreadyConfirmedException`,
+`SessionNotClaimableException`, `ClaimReasonNotAllowedException` (422) y `ConfirmationBlockedByClaimException`
+(422, bloquea `confirmSession`). `GlobalExceptionHandler` suma los handlers 403/422/400.
 
 Modificaciones en código existente (mínimas):
 - `FundsLedgerService.markSuspendedByClaim` → idempotente; `FundsResolutionService` → guard por reclamo `OPEN`.
+- `BookingServiceImpl.confirmSession` → lock `findByIdForUpdate` + `ConfirmationBlockedByClaimException`
+  (422 `CONFIRMATION_BLOCKED_BY_ACTIVE_CLAIM`) si hay reclamo `OPEN`: confirma y reclamo quedan serializados.
+- `ClaimDeadlineCalculator` → `isConfirmed` / `isClaimableStatus` / `hasEnded` reemplazan a `isFinalized`.
 - `BookingHistoryItemResponse` + `BookingMapper.toListItem` → `canClaim`/`claimableUntil`; `BookingServiceImpl.getHistory` → evaluación batch.
 - `ISupabaseStorageService`/impl → sobrecargas `upload(file, bucket, folder)`, `generateSignedUrl(bucket, path, seconds)`, `delete(bucket, path)` (bucket `materials` intacto).
 - `ApplicationConfig` → bean `Clock`; `application.yaml` → bloque `knowlink.claims`.
 
 ### 7.2 Reglas del servicio (`SessionClaimServiceImpl.create`)
 
+- **Lock:** buscar la reserva con `findByIdForUpdate` (serializa contra `confirmSession`).
 - Validar en el orden de 6.4 con un único método `evaluate` (compartido con elegibilidad y listado).
 - Determinar `claimantRole` comparando el `userId` del token con alumno/tutor de la reserva.
+- Validar `request.reason().isAllowedFor(claimantRole)` → 422 `CLAIM_REASON_NOT_ALLOWED_FOR_ROLE`
+  (antes de validar adjuntos).
+- `hasActiveClaim(bookingId)` (nuevo en `ISessionClaimService`): existe reclamo `OPEN` de cualquiera
+  de las dos partes; lo consume `confirmSession` para bloquear la confirmación.
 - Persistir con `saveAndFlush` y capturar `DataIntegrityViolationException` sobre `active_key` → 409 con mensaje exacto.
 - **Adjuntos:** validar (cantidad, vacío, tamaño, extensión + MIME) **antes** de persistir; subir a `claimEvidence`;
   persistir `claimAttachment` y retener fondos en la **misma transacción**; si algo falla después de subir,
@@ -305,18 +358,18 @@ Modificaciones en código existente (mínimas):
 
 ## 9. Casos de prueba
 
-Ejecutados con `.\mvnw.cmd test` — todos en verde.
+Ejecutados con `.\mvnw.cmd clean verify` — todos en verde (**suite completa: 217 tests, 0 fallos**).
 
 | # | Caso de prueba | Resultado esperado | ¿Pasó? / Notas |
 |---|---|---|---|
-| 1 | Alumno reclama sesión propia finalizada hace 1 h, sin comentario | 201, `OPEN`, `claimantRole=STUDENT`, fondos retenidos | Sí / CP-01 + unitario |
-| 2 | Tutor reclama sesión propia finalizada hace 1 h, con comentario | 201, comentario trimmeado, `claimantRole=TUTOR` | Sí / CP-24 + unitario |
+| 1 | Alumno reclama con motivo `TUTOR_COULD_NOT_ATTEND` (tutor ausente), sin comentario | 201, `OPEN`, `claimantRole=STUDENT`, fondos retenidos | Sí / CP-01 + unitario |
+| 2 | Tutor reclama con motivo `STUDENT_COULD_NOT_ATTEND` (alumno ausente), con comentario | 201, comentario trimmeado, `claimantRole=TUTOR` | Sí / CP-24 + unitario |
 | 3 | Reclamo sin motivo | 400, no se crea reclamo | Sí / CP-09 |
 | 4 | Motivo fuera del catálogo | 400, no se crea reclamo | Sí / unitario (`ClaimReason` tipado + 400) |
 | 5 | Comentario de 501 caracteres | 400 | Sí / CP-10 |
 | 6 | Reclamo exactamente en el límite de las 24 h | 201 | Sí / unitario (`create_atExactDeadline`) |
 | 7 | Reclamo a las 24 h + 1 min | 422 `CLAIM_DEADLINE_EXCEEDED` | Sí / CP-07 + unitario |
-| 8 | Reclamo sobre sesión aún en curso | 422 `SESSION_NOT_FINALIZED` | Sí / CP-06 |
+| 8 | Reclamo sobre sesión que aún no terminó por horario | 422 `SESSION_NOT_FINALIZED` | Sí / CP-06 |
 | 9 | Usuario que no participa reclama | 403, no se crea reclamo | Sí / CP-04 |
 | 10 | Sesión inexistente | 404 `SESSION_NOT_FOUND` | Sí / CP-05 |
 | 11 | Segundo reclamo del mismo usuario con el primero `OPEN` | 409, mensaje exacto | Sí / CP-03 |
@@ -333,10 +386,16 @@ Ejecutados con `.\mvnw.cmd test` — todos en verde.
 | 22 | Más de 3 adjuntos / vacío / > 5 MB / formato no permitido | 400 (mensajes en español / `FORMAT_NOT_ALLOWED`) | Sí / CP-12, CP-13 + unitarios |
 | 23 | Lectura de adjuntos: participante / ajeno / reclamo inexistente | 200 con signedUrl / 403 / 404 `CLAIM_NOT_FOUND` | Sí / CP-18, CP-19, CP-20 |
 | 25 | **E2E subida real**: reclamo con PDF contra el bucket `claimEvidence` (storage real, sin mock) | 201, objeto presente en el bucket, signed URL devuelve los bytes, tras `delete` el endpoint directo del storage responde ≠200 (polling) y re-firmar falla con 400 (nota: la signed URL previa puede seguir sirviendo contenido en cache hasta expirar el token; no usarla como sonda post-borrado), fondos `SUSPENDED_BY_CLAIM` | Sí / `ClaimAttachmentRealUploadIntegrationTest` (se salta si no hay credenciales en `.env`) |
+| 26 | Sesión confirmada con código: POST y elegibilidad | 422 `SESSION_ALREADY_CONFIRMED`; `canClaim=false` con ese bloqueo | Sí / CP-25 + unitarios |
+| 27 | Motivo inadecuado para el rol (alumno → motivo de alumno; tutor → motivo de tutor) | 422 `CLAIM_REASON_NOT_ALLOWED_FOR_ROLE`, sin reclamo creado | Sí / CP-26 + unitarios |
+| 28 | Tutor reclama al alumno (`STUDENT_COULD_NOT_ATTEND`) | 201 con `claimantRole=TUTOR` | Sí / CP-27 + unitario |
+| 29 | Elegibilidad expone `allowedReasons` según el rol (y vacío para usuario ajeno) | lista correcta por rol | Sí / CP-28 + unitarios |
+| 30 | Confirmación con código teniendo reclamo `OPEN` | 422 `CONFIRMATION_BLOCKED_BY_ACTIVE_CLAIM`, sin consumir intentos ni completar la sesión | Sí / `BookingServiceImplConfirmSessionTest` (2 tests) |
+| 31 | Sesión terminada por horario sin estado final (`IN_PROGRESS`) se puede reclamar; sesión `CANCELLED` no | 201 aceptado / 422 `SESSION_NOT_CLAIMABLE` | Sí / unitarios |
 
-Suites: `SessionClaimServiceImplTest` (25), `ClaimControllerIntegrationTest` (24),
-`ClaimAttachmentRealUploadIntegrationTest` (1, E2E real contra Supabase), `FundsLedgerServiceTest` (3),
-`FundsResolutionServiceTest` (9, incluye caso 19).
+Suites claims: `SessionClaimServiceImplTest` (38), `ClaimControllerIntegrationTest` (28),
+`BookingServiceImplConfirmSessionTest` (2), `ClaimAttachmentRealUploadIntegrationTest` (1, E2E real contra Supabase),
+`FundsLedgerServiceTest` (3), `FundsResolutionServiceTest` (9, incluye caso 19).
 
 ## 10. Definition of Done
 
@@ -352,7 +411,14 @@ Suites: `SessionClaimServiceImplTest` (25), `ClaimControllerIntegrationTest` (24
 - [x] Tests unitarios del servicio (límite del plazo, ajena, no finalizada, duplicado, gratuita, adjuntos, N+1).
 - [x] Tests de integración: concurrencia (caso 12), rollback por falla de retención (caso 15), contraparte (13).
 - [x] Mensaje exacto "Ya tenés una disputa activa para esta sesión" en el 409.
-- [x] Casos de la sección 9 ejecutados y en verde (`.\mvnw.cmd test`).
+- [x] **Motivos por rol** (`TUTOR_COULD_NOT_ATTEND` nuevo; `allowedReasons` en elegibilidad) con 422
+      `CLAIM_REASON_NOT_ALLOWED_FOR_ROLE` (CP-26, CP-27, CP-28 + unitarios).
+- [x] **Bloqueo recíproco:** sesión confirmada con código no admite reclamo (422 `SESSION_ALREADY_CONFIRMED`)
+      y reclamo `OPEN` bloquea la confirmación (422 `CONFIRMATION_BLOCKED_BY_ACTIVE_CLAIM`);
+      ambos lados lockean la reserva con `findByIdForUpdate`.
+- [x] **Estados no reclamables** → 422 `SESSION_NOT_CLAIMABLE`; plazo contado desde la hora de fin
+      programada (`hasEnded`), no desde el estado `COMPLETED`.
+- [x] Casos de la sección 9 ejecutados y en verde (`.\mvnw.cmd clean verify` — 217 tests, 0 fallos).
 - [x] **Bucket `claimEvidence` creado** en Supabase (verificado: acepta `application/pdf` y restringe otros MIME con 415).
 - [x] **E2E real de subida** (`ClaimAttachmentRealUploadIntegrationTest`): upload → signed URL → delete, con credenciales desde `.env` y gate `@EnabledIf` para máquinas sin credenciales.
 - [ ] **Frontend:** spec de frontend de US-51 consume estos contratos (campos/rutas en inglés, incluye adjuntos).

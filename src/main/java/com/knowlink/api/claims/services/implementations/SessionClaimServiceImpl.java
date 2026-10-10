@@ -17,8 +17,11 @@ import com.knowlink.api.claims.repositories.SessionClaimRepository;
 import com.knowlink.api.claims.services.interfaces.ISessionClaimService;
 import com.knowlink.api.claims.utils.ClaimDeadlineCalculator;
 import com.knowlink.api.exceptions.custom_exceptions.ClaimDeadlineExceededException;
+import com.knowlink.api.exceptions.custom_exceptions.ClaimReasonNotAllowedException;
 import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
+import com.knowlink.api.exceptions.custom_exceptions.SessionAlreadyConfirmedException;
+import com.knowlink.api.exceptions.custom_exceptions.SessionNotClaimableException;
 import com.knowlink.api.exceptions.custom_exceptions.SessionNotFinalizedException;
 import com.knowlink.api.exceptions.custom_exceptions.SessionNotParticipantException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
@@ -92,17 +95,24 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
     @Override
     @Transactional
     public ClaimResponse create(UUID userId, UUID bookingId, CreateClaimRequest request, List<MultipartFile> files) {
-        Booking booking = findBookingOrThrow(bookingId);
+        // Se bloquea la reserva para serializar el reclamo contra la confirmación con token (BookingServiceImpl.confirmSession)
+        Booking booking = findBookingForUpdateOrThrow(bookingId);
 
         ClaimEligibilityResponse eligibility = evaluate(userId, booking, null);
         if (!eligibility.canClaim()) {
             throw toException(eligibility, bookingId, userId);
         }
 
+        Role claimantRole = participantRole(userId, booking);
+        if (!request.reason().isAllowedFor(claimantRole)) {
+            throw new ClaimReasonNotAllowedException(
+                    "Reason " + request.reason() + " is not allowed for role " + claimantRole
+                            + " (user " + userId + ", booking " + bookingId + ")");
+        }
+
         List<MultipartFile> attachments = normalize(files);
         validateAttachments(attachments);
 
-        Role claimantRole = participantRole(userId, booking);
         User claimant = claimantRole == Role.STUDENT ? booking.getStudent() : booking.getTutor();
         String activeKey = bookingId + ":" + userId;
 
@@ -205,18 +215,42 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
         return result;
     }
 
-    private ClaimEligibilityResponse evaluate(UUID userId, Booking booking, Boolean knownActiveClaim) {
-        boolean finalized = deadlineCalculator.isFinalized(booking);
-        LocalDateTime claimableUntil = finalized ? deadlineCalculator.deadline(booking) : null;
+    @Override
+    @Transactional(readOnly = true)
+    public boolean hasActiveClaim(UUID bookingId) {
+        return sessionClaimRepository.existsByBooking_BookingIdAndStatus(bookingId, ClaimStatus.OPEN);
+    }
 
-        if (participantRole(userId, booking) == null) {
-            return new ClaimEligibilityResponse(false, claimableUntil, ClaimBlockReason.SESSION_NOT_PARTICIPANT);
+    /**
+     * Una sesión es reclamable solo si: terminó por horario, NO fue confirmada con token
+     * (si hubo token, ambos asistieron) y está dentro de las 24 h desde su hora de fin programada.
+     */
+    private ClaimEligibilityResponse evaluate(UUID userId, Booking booking, Boolean knownActiveClaim) {
+        Role role = participantRole(userId, booking);
+        List<ClaimReason> allowedReasons = role == null ? List.of() : ClaimReason.allowedFor(role);
+
+        boolean confirmed = deadlineCalculator.isConfirmed(booking);
+        boolean claimableStatus = deadlineCalculator.isClaimableStatus(booking);
+        boolean ended = deadlineCalculator.hasEnded(booking);
+        LocalDateTime claimableUntil = (ended && !confirmed && claimableStatus)
+                ? deadlineCalculator.deadline(booking)
+                : null;
+
+        if (role == null) {
+            return new ClaimEligibilityResponse(false, null, ClaimBlockReason.SESSION_NOT_PARTICIPANT, allowedReasons);
         }
-        if (!finalized) {
-            return new ClaimEligibilityResponse(false, null, ClaimBlockReason.SESSION_NOT_FINALIZED);
+        if (confirmed) {
+            return new ClaimEligibilityResponse(false, null, ClaimBlockReason.SESSION_ALREADY_CONFIRMED, allowedReasons);
+        }
+        if (!claimableStatus) {
+            return new ClaimEligibilityResponse(false, null, ClaimBlockReason.SESSION_NOT_CLAIMABLE, allowedReasons);
+        }
+        if (!ended) {
+            return new ClaimEligibilityResponse(false, null, ClaimBlockReason.SESSION_NOT_FINALIZED, allowedReasons);
         }
         if (!deadlineCalculator.isWithinDeadline(booking)) {
-            return new ClaimEligibilityResponse(false, claimableUntil, ClaimBlockReason.CLAIM_DEADLINE_EXCEEDED);
+            return new ClaimEligibilityResponse(false, claimableUntil, ClaimBlockReason.CLAIM_DEADLINE_EXCEEDED,
+                    allowedReasons);
         }
 
         boolean activeClaim = knownActiveClaim != null
@@ -224,9 +258,10 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
                 : sessionClaimRepository.existsByBooking_BookingIdAndClaimant_UserIdAndStatus(
                         booking.getBookingId(), userId, ClaimStatus.OPEN);
         if (activeClaim) {
-            return new ClaimEligibilityResponse(false, claimableUntil, ClaimBlockReason.ACTIVE_CLAIM_EXISTS);
+            return new ClaimEligibilityResponse(false, claimableUntil, ClaimBlockReason.ACTIVE_CLAIM_EXISTS,
+                    allowedReasons);
         }
-        return new ClaimEligibilityResponse(true, claimableUntil, null);
+        return new ClaimEligibilityResponse(true, claimableUntil, null, allowedReasons);
     }
 
     private RuntimeException toException(ClaimEligibilityResponse eligibility, UUID bookingId, UUID userId) {
@@ -235,8 +270,14 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
             return new SessionNotParticipantException(
                     "User " + userId + " is not a participant of booking " + bookingId);
         }
+        if (reason == ClaimBlockReason.SESSION_ALREADY_CONFIRMED) {
+            return new SessionAlreadyConfirmedException("Booking " + bookingId + " was already confirmed with token");
+        }
+        if (reason == ClaimBlockReason.SESSION_NOT_CLAIMABLE) {
+            return new SessionNotClaimableException("Booking " + bookingId + " status does not admit claims");
+        }
         if (reason == ClaimBlockReason.SESSION_NOT_FINALIZED) {
-            return new SessionNotFinalizedException("Booking " + bookingId + " is not finalized");
+            return new SessionNotFinalizedException("Booking " + bookingId + " has not ended yet");
         }
         if (reason == ClaimBlockReason.CLAIM_DEADLINE_EXCEEDED) {
             return new ClaimDeadlineExceededException("Claim deadline exceeded for booking " + bookingId);
@@ -264,6 +305,14 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
 
     private Booking findBookingOrThrow(UUID bookingId) {
         return bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "SESSION_NOT_FOUND",
+                        "La sesión no existe.",
+                        "Booking not found for id: " + bookingId));
+    }
+
+    private Booking findBookingForUpdateOrThrow(UUID bookingId) {
+        return bookingRepository.findByIdForUpdate(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "SESSION_NOT_FOUND",
                         "La sesión no existe.",

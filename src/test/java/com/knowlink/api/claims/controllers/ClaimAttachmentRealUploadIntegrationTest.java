@@ -13,6 +13,7 @@ import com.knowlink.api.payments.domain.FundsRecipient;
 import com.knowlink.api.payments.domain.FundsStatus;
 import com.knowlink.api.payments.repositories.IFundsTransferRepository;
 import com.knowlink.api.materials.service.interfaces.ISupabaseStorageService;
+import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.students.data.models.StudentProfile;
 import com.knowlink.api.students.repositories.IStudentProfileRepository;
@@ -65,6 +66,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Objects;
@@ -231,21 +233,23 @@ class ClaimAttachmentRealUploadIntegrationTest {
     }
 
     private Booking withinDeadlineBooking() {
+        // Sesion terminada hace 2 h (relativa al reloj) y sin confirmar con token: reclamable
+        LocalDateTime end = LocalDateTime.now(AppTimeZone.ZONE).minusHours(2);
         TimeSlot slot = timeSlotRepository.save(TimeSlot.builder()
-                .date(LocalDate.now())
-                .startTime(LocalTime.NOON)
-                .endTime(LocalTime.of(15, 0))
+                .date(end.toLocalDate())
+                .startTime(end.toLocalTime().minusHours(1))
+                .endTime(end.toLocalTime())
                 .status(SlotStatus.OCCUPIED)
                 .tutorProfileId(tutorProfile.getTutorProfileId())
                 .build());
         return bookingRepository.save(Booking.builder()
                 .amount(new BigDecimal("2100.00"))
-                .sessionDate(LocalDate.now())
-                .startTime(LocalTime.NOON)
-                .endTime(LocalTime.of(15, 0))
+                .sessionDate(end.toLocalDate())
+                .startTime(end.toLocalTime().minusHours(1))
+                .endTime(end.toLocalTime())
                 .topic("Real upload E2E topic")
                 .modality(Modality.VIRTUAL)
-                .bookingStatus(BookingStatus.COMPLETED)
+                .bookingStatus(BookingStatus.NOT_CONFIRMED)
                 .timeSlot(slot)
                 .tutorSubject(tutorSubject)
                 .student(student)
@@ -299,7 +303,7 @@ class ClaimAttachmentRealUploadIntegrationTest {
                 "files", "evidencia-real.pdf", "application/pdf", pdfBytes);
 
         MvcResult created = mockMvc.perform(postClaim(token, booking.getBookingId(),
-                        "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\",\"comment\":\"e2e real upload\"}", file))
+                        "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\",\"comment\":\"e2e real upload\"}", file))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("OPEN"))
                 .andExpect(jsonPath("$.attachments.length()").value(1))

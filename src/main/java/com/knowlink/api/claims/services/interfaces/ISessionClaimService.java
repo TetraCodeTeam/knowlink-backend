@@ -23,4 +23,7 @@ public interface ISessionClaimService {
     List<ClaimAttachmentUrlResponse> getAttachments(UUID userId, Role role, UUID bookingId, UUID claimId);
 
     Map<UUID, ClaimEligibilityResponse> evaluateForListing(UUID userId, Collection<Booking> bookings);
+
+    /** Indica si la reserva tiene algún reclamo abierto (de cualquiera de las partes). */
+    boolean hasActiveClaim(UUID bookingId);
 }

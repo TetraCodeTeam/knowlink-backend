@@ -38,7 +38,7 @@ public interface IClaimController {
     @ApiResponse(responseCode = "403", description = "El usuario no participa de la sesión")
     @ApiResponse(responseCode = "404", description = "La sesión no existe")
     @ApiResponse(responseCode = "409", description = "Ya existe un reclamo activo del usuario para esta sesión")
-    @ApiResponse(responseCode = "422", description = "La sesión no finalizó o ya venció el plazo de reclamo")
+    @ApiResponse(responseCode = "422", description = "La sesión no terminó, ya fue confirmada con token, no admite reclamos, venció el plazo, o el motivo no corresponde al rol del usuario")
     @ResponseStatus(CREATED)
     ClaimResponse create(
             @AuthenticationPrincipal UserPrincipal principal,
@@ -48,7 +48,7 @@ public interface IClaimController {
 
     @GetMapping("/{bookingId}/claims/eligibility")
     @Operation(summary = "Consultar si el usuario autenticado puede reclamar una sesión")
-    @ApiResponse(responseCode = "200", description = "Elegibilidad de la sesión: puede reclamar, hasta cuándo, y motivo de bloqueo si corresponde")
+    @ApiResponse(responseCode = "200", description = "Elegibilidad de la sesión: puede reclamar, hasta cuándo, motivo de bloqueo si corresponde y motivos permitidos según el rol")
     @ApiResponse(responseCode = "404", description = "La sesión no existe")
     @ResponseStatus(OK)
     ClaimEligibilityResponse getEligibility(

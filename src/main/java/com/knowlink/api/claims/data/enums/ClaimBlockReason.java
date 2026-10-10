@@ -2,6 +2,8 @@ package com.knowlink.api.claims.data.enums;
 
 public enum ClaimBlockReason {
     SESSION_NOT_PARTICIPANT,
+    SESSION_ALREADY_CONFIRMED,
+    SESSION_NOT_CLAIMABLE,
     SESSION_NOT_FINALIZED,
     CLAIM_DEADLINE_EXCEEDED,
     ACTIVE_CLAIM_EXISTS

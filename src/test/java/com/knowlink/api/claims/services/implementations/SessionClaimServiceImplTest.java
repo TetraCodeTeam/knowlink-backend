@@ -16,8 +16,11 @@ import com.knowlink.api.claims.repositories.ClaimAttachmentRepository;
 import com.knowlink.api.claims.repositories.SessionClaimRepository;
 import com.knowlink.api.claims.utils.ClaimDeadlineCalculator;
 import com.knowlink.api.exceptions.custom_exceptions.ClaimDeadlineExceededException;
+import com.knowlink.api.exceptions.custom_exceptions.ClaimReasonNotAllowedException;
 import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
+import com.knowlink.api.exceptions.custom_exceptions.SessionAlreadyConfirmedException;
+import com.knowlink.api.exceptions.custom_exceptions.SessionNotClaimableException;
 import com.knowlink.api.exceptions.custom_exceptions.SessionNotFinalizedException;
 import com.knowlink.api.exceptions.custom_exceptions.SessionNotParticipantException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
@@ -66,6 +69,7 @@ class SessionClaimServiceImplTest {
     private static final LocalDateTime WITHIN_DEADLINE_NOW = LocalDateTime.of(2026, 10, 1, 9, 0);
     private static final LocalDateTime EXACT_DEADLINE_NOW = LocalDateTime.of(2026, 10, 1, 10, 0);
     private static final LocalDateTime AFTER_DEADLINE_NOW = LocalDateTime.of(2026, 10, 1, 10, 1);
+    private static final LocalDateTime DURING_SESSION_NOW = LocalDateTime.of(2026, 9, 30, 9, 0);
     private static final String ACTIVE_CLAIM_MESSAGE = "Ya tenés una disputa activa para esta sesión";
 
     @Mock
@@ -101,11 +105,12 @@ class SessionClaimServiceImplTest {
                 .sessionDate(SESSION_DATE)
                 .startTime(LocalTime.of(8, 0))
                 .endTime(SESSION_END)
-                .bookingStatus(BookingStatus.COMPLETED)
+                .bookingStatus(BookingStatus.NOT_CONFIRMED)
                 .student(student)
                 .tutor(tutor)
                 .build();
         lenient().when(bookingRepository.findById(booking.getBookingId())).thenReturn(Optional.of(booking));
+        lenient().when(bookingRepository.findByIdForUpdate(booking.getBookingId())).thenReturn(Optional.of(booking));
     }
 
     private SessionClaimServiceImpl newService(LocalDateTime now) {
@@ -146,7 +151,7 @@ class SessionClaimServiceImplTest {
         stubSaveAndFlush();
 
         ClaimResponse response = service.create(studentId, booking.getBookingId(),
-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), null);
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null);
 
         ArgumentCaptor<SessionClaim> captor = ArgumentCaptor.forClass(SessionClaim.class);
         verify(sessionClaimRepository).saveAndFlush(captor.capture());
@@ -154,7 +159,7 @@ class SessionClaimServiceImplTest {
         assertThat(saved.getStatus()).isEqualTo(ClaimStatus.OPEN);
         assertThat(saved.getClaimantRole()).isEqualTo(Role.STUDENT);
         assertThat(saved.getClaimant().getUserId()).isEqualTo(studentId);
-        assertThat(saved.getReason()).isEqualTo(ClaimReason.STUDENT_COULD_NOT_ATTEND);
+        assertThat(saved.getReason()).isEqualTo(ClaimReason.TUTOR_COULD_NOT_ATTEND);
         assertThat(saved.getComment()).isNull();
         assertThat(saved.getActiveKey()).isEqualTo(booking.getBookingId() + ":" + studentId);
         verify(fundsLedgerService).markSuspendedByClaim(booking.getBookingId(), saved.getClaimId());
@@ -191,7 +196,7 @@ class SessionClaimServiceImplTest {
         stubSaveAndFlush();
 
         ClaimResponse response = service.create(studentId, booking.getBookingId(),
-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), null);
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null);
 
         assertThat(response.status()).isEqualTo(ClaimStatus.OPEN);
     }
@@ -202,7 +207,7 @@ class SessionClaimServiceImplTest {
         service = newService(AFTER_DEADLINE_NOW);
 
         assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), null))
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null))
                 .isInstanceOf(ClaimDeadlineExceededException.class)
                 .hasFieldOrPropertyWithValue("errorCode", "CLAIM_DEADLINE_EXCEEDED");
 
@@ -211,14 +216,123 @@ class SessionClaimServiceImplTest {
     }
 
     @Test
-    @DisplayName("Crear - sesion no finalizada: 422 SESSION_NOT_FINALIZED")
-    void create_sessionNotFinalized_throwsSessionNotFinalized() {
+    @DisplayName("Crear - sesion en curso (antes de la hora de fin): 422 SESSION_NOT_FINALIZED")
+    void create_sessionStillInProgress_throwsSessionNotFinalized() {
+        service = newService(DURING_SESSION_NOW);
         booking.setBookingStatus(BookingStatus.IN_PROGRESS);
 
         assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), null))
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null))
                 .isInstanceOf(SessionNotFinalizedException.class)
                 .hasFieldOrPropertyWithValue("errorCode", "SESSION_NOT_FINALIZED");
+
+        verify(sessionClaimRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("Crear - sesion terminada por horario pero sin estado final (BOOKED/IN_PROGRESS): reclamo aceptado")
+    void create_endedByScheduleWithoutFinalStatus_returnsCreated() {
+        booking.setBookingStatus(BookingStatus.IN_PROGRESS);
+        stubNoActiveClaim();
+        stubSaveAndFlush();
+
+        ClaimResponse response = service.create(studentId, booking.getBookingId(),
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null);
+
+        assertThat(response.status()).isEqualTo(ClaimStatus.OPEN);
+    }
+
+    @Test
+    @DisplayName("Crear - sesion confirmada con token (COMPLETED): 422 SESSION_ALREADY_CONFIRMED")
+    void create_sessionConfirmedWithToken_throwsSessionAlreadyConfirmed() {
+        booking.setBookingStatus(BookingStatus.COMPLETED);
+        booking.setConfirmedAt(LocalDateTime.of(2026, 9, 30, 9, 30));
+
+        assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null))
+                .isInstanceOf(SessionAlreadyConfirmedException.class)
+                .hasFieldOrPropertyWithValue("errorCode", "SESSION_ALREADY_CONFIRMED");
+
+        verify(sessionClaimRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(fundsLedgerService);
+    }
+
+    @Test
+    @DisplayName("Crear - sesion confirmada con token durante la clase: bloquea por confirmada, no por en curso")
+    void create_confirmedWhileStillInProgress_throwsSessionAlreadyConfirmed() {
+        service = newService(DURING_SESSION_NOW);
+        booking.setBookingStatus(BookingStatus.COMPLETED);
+        booking.setConfirmedAt(LocalDateTime.of(2026, 9, 30, 9, 30));
+
+        assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null))
+                .isInstanceOf(SessionAlreadyConfirmedException.class);
+
+        verify(sessionClaimRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("Crear - sesion cancelada: 422 SESSION_NOT_CLAIMABLE")
+    void create_cancelledSession_throwsSessionNotClaimable() {
+        booking.setBookingStatus(BookingStatus.CANCELLED);
+
+        assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null))
+                .isInstanceOf(SessionNotClaimableException.class)
+                .hasFieldOrPropertyWithValue("errorCode", "SESSION_NOT_CLAIMABLE");
+
+        verify(sessionClaimRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("Crear - alumno reclama con motivo de tutor ausente: aceptado")
+    void create_studentWithTutorCouldNotAttend_returnsCreated() {
+        stubNoActiveClaim();
+        stubSaveAndFlush();
+
+        service.create(studentId, booking.getBookingId(),
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null);
+
+        ArgumentCaptor<SessionClaim> captor = ArgumentCaptor.forClass(SessionClaim.class);
+        verify(sessionClaimRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getReason()).isEqualTo(ClaimReason.TUTOR_COULD_NOT_ATTEND);
+        assertThat(captor.getValue().getClaimantRole()).isEqualTo(Role.STUDENT);
+    }
+
+    @Test
+    @DisplayName("Crear - tutor reclama con motivo de alumno ausente: aceptado")
+    void create_tutorWithStudentCouldNotAttend_returnsCreated() {
+        stubNoActiveClaim();
+        stubSaveAndFlush();
+
+        service.create(tutorId, booking.getBookingId(),
+                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), null);
+
+        ArgumentCaptor<SessionClaim> captor = ArgumentCaptor.forClass(SessionClaim.class);
+        verify(sessionClaimRepository).saveAndFlush(captor.capture());
+        assertThat(captor.getValue().getReason()).isEqualTo(ClaimReason.STUDENT_COULD_NOT_ATTEND);
+        assertThat(captor.getValue().getClaimantRole()).isEqualTo(Role.TUTOR);
+    }
+
+    @Test
+    @DisplayName("Crear - alumno con motivo de alumno ausente: 422 CLAIM_REASON_NOT_ALLOWED_FOR_ROLE")
+    void create_studentWithStudentCouldNotAttend_throwsReasonNotAllowed() {
+        assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
+                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), null))
+                .isInstanceOf(ClaimReasonNotAllowedException.class)
+                .hasFieldOrPropertyWithValue("errorCode", "CLAIM_REASON_NOT_ALLOWED_FOR_ROLE");
+
+        verify(sessionClaimRepository, never()).saveAndFlush(any());
+        verifyNoInteractions(fundsLedgerService);
+    }
+
+    @Test
+    @DisplayName("Crear - tutor con motivo de tutor ausente: 422 CLAIM_REASON_NOT_ALLOWED_FOR_ROLE")
+    void create_tutorWithTutorCouldNotAttend_throwsReasonNotAllowed() {
+        assertThatThrownBy(() -> service.create(tutorId, booking.getBookingId(),
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null))
+                .isInstanceOf(ClaimReasonNotAllowedException.class)
+                .hasFieldOrPropertyWithValue("errorCode", "CLAIM_REASON_NOT_ALLOWED_FOR_ROLE");
 
         verify(sessionClaimRepository, never()).saveAndFlush(any());
     }
@@ -229,7 +343,7 @@ class SessionClaimServiceImplTest {
         UUID outsiderId = UUID.randomUUID();
 
         assertThatThrownBy(() -> service.create(outsiderId, booking.getBookingId(),
-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), null))
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null))
                 .isInstanceOf(SessionNotParticipantException.class)
                 .hasFieldOrPropertyWithValue("errorCode", "SESSION_NOT_PARTICIPANT");
 
@@ -240,10 +354,10 @@ class SessionClaimServiceImplTest {
     @DisplayName("Crear - sesion inexistente: 404 SESSION_NOT_FOUND")
     void create_bookingNotFound_throwsResourceNotFound() {
         UUID missingId = UUID.randomUUID();
-        when(bookingRepository.findById(missingId)).thenReturn(Optional.empty());
+        when(bookingRepository.findByIdForUpdate(missingId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.create(studentId, missingId,
-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), null))
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasFieldOrPropertyWithValue("errorCode", "SESSION_NOT_FOUND");
     }
@@ -255,7 +369,7 @@ class SessionClaimServiceImplTest {
                 booking.getBookingId(), studentId, ClaimStatus.OPEN)).thenReturn(true);
 
         assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), null))
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null))
                 .isInstanceOf(DuplicateResourceException.class)
                 .hasFieldOrPropertyWithValue("errorCode", "ACTIVE_CLAIM_EXISTS")
                 .hasFieldOrPropertyWithValue("userMessage", ACTIVE_CLAIM_MESSAGE);
@@ -271,7 +385,7 @@ class SessionClaimServiceImplTest {
                 .thenThrow(new DataIntegrityViolationException("uk_session_claim_active_key"));
 
         assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), null))
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null))
                 .isInstanceOf(DuplicateResourceException.class)
                 .hasFieldOrPropertyWithValue("errorCode", "ACTIVE_CLAIM_EXISTS")
                 .hasFieldOrPropertyWithValue("userMessage", ACTIVE_CLAIM_MESSAGE);
@@ -286,7 +400,7 @@ class SessionClaimServiceImplTest {
         List<MultipartFile> files = List.of(pdfFile("a.pdf"), pdfFile("b.pdf"), pdfFile("c.pdf"), pdfFile("d.pdf"));
 
         assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), files))
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), files))
                 .isInstanceOf(ValidationException.class)
                 .hasMessage("No podés adjuntar más de 3 archivos.");
 
@@ -300,7 +414,7 @@ class SessionClaimServiceImplTest {
         MockMultipartFile empty = new MockMultipartFile("files", "a.pdf", "application/pdf", new byte[0]);
 
         assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), List.of(empty)))
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), List.of(empty)))
                 .isInstanceOf(ValidationException.class)
                 .hasMessage("El archivo adjunto no puede estar vacío.");
 
@@ -314,7 +428,7 @@ class SessionClaimServiceImplTest {
         MockMultipartFile big = new MockMultipartFile("files", "big.pdf", "application/pdf", new byte[6 * 1024 * 1024]);
 
         assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), List.of(big)))
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), List.of(big)))
                 .isInstanceOf(ValidationException.class)
                 .hasMessage("Cada archivo adjunto no puede superar los 5MB.");
     }
@@ -326,7 +440,7 @@ class SessionClaimServiceImplTest {
         MockMultipartFile zip = new MockMultipartFile("files", "evidence.zip", "application/zip", "zip".getBytes(StandardCharsets.UTF_8));
 
         assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), List.of(zip)))
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), List.of(zip)))
                 .isInstanceOf(FormatNotAllowedException.class)
                 .hasMessage("El formato del archivo no está permitido");
 
@@ -344,7 +458,7 @@ class SessionClaimServiceImplTest {
         when(claimAttachmentRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         ClaimResponse response = service.create(studentId, booking.getBookingId(),
-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null),
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null),
                 List.of(pdfFile("evidence.pdf"),
                         new MockMultipartFile("files", "photo.png", "image/png", "png".getBytes(StandardCharsets.UTF_8))));
 
@@ -370,7 +484,7 @@ class SessionClaimServiceImplTest {
                 .thenThrow(new RuntimeException("storage down"));
 
         assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null),
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null),
                 List.of(pdfFile("a.pdf"), pdfFile("b.pdf"))))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessage("storage down");
@@ -391,7 +505,7 @@ class SessionClaimServiceImplTest {
                 .markSuspendedByClaim(any(), any());
 
         assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), List.of(pdfFile("a.pdf"))))
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), List.of(pdfFile("a.pdf"))))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessage("ledger down");
 
@@ -436,15 +550,73 @@ class SessionClaimServiceImplTest {
     }
 
     @Test
-    @DisplayName("Elegibilidad - sesion no finalizada: bloqueo SESSION_NOT_FINALIZED sin fecha")
-    void getEligibility_sessionNotFinalized_blocksWithoutClaimableUntil() {
-        booking.setBookingStatus(BookingStatus.NOT_FULFILLED_BY_TUTOR);
+    @DisplayName("Elegibilidad - sesion en curso: bloqueo SESSION_NOT_FINALIZED sin fecha")
+    void getEligibility_sessionNotEnded_blocksWithoutClaimableUntil() {
+        service = newService(DURING_SESSION_NOW);
+        booking.setBookingStatus(BookingStatus.IN_PROGRESS);
 
         ClaimEligibilityResponse eligibility = service.getEligibility(studentId, booking.getBookingId());
 
         assertThat(eligibility.canClaim()).isFalse();
         assertThat(eligibility.blockReason()).isEqualTo(ClaimBlockReason.SESSION_NOT_FINALIZED);
         assertThat(eligibility.claimableUntil()).isNull();
+    }
+
+    @Test
+    @DisplayName("Elegibilidad - sesion confirmada con token: bloqueo SESSION_ALREADY_CONFIRMED sin fecha")
+    void getEligibility_sessionConfirmed_blocksWithAlreadyConfirmed() {
+        booking.setBookingStatus(BookingStatus.COMPLETED);
+        booking.setConfirmedAt(LocalDateTime.of(2026, 9, 30, 9, 30));
+
+        ClaimEligibilityResponse eligibility = service.getEligibility(studentId, booking.getBookingId());
+
+        assertThat(eligibility.canClaim()).isFalse();
+        assertThat(eligibility.blockReason()).isEqualTo(ClaimBlockReason.SESSION_ALREADY_CONFIRMED);
+        assertThat(eligibility.claimableUntil()).isNull();
+    }
+
+    @Test
+    @DisplayName("Elegibilidad - estado que no admite reclamos (resuelto por fondos): bloqueo SESSION_NOT_CLAIMABLE")
+    void getEligibility_nonClaimableStatus_blocksWithNotClaimable() {
+        booking.setBookingStatus(BookingStatus.NOT_FULFILLED_BY_TUTOR);
+
+        ClaimEligibilityResponse eligibility = service.getEligibility(studentId, booking.getBookingId());
+
+        assertThat(eligibility.canClaim()).isFalse();
+        assertThat(eligibility.blockReason()).isEqualTo(ClaimBlockReason.SESSION_NOT_CLAIMABLE);
+        assertThat(eligibility.claimableUntil()).isNull();
+    }
+
+    @Test
+    @DisplayName("Elegibilidad - devuelve los motivos permitidos segun el rol")
+    void getEligibility_returnsAllowedReasonsByRole() {
+        stubNoActiveClaim();
+
+        ClaimEligibilityResponse student = service.getEligibility(studentId, booking.getBookingId());
+        ClaimEligibilityResponse tutor = service.getEligibility(tutorId, booking.getBookingId());
+
+        assertThat(student.allowedReasons())
+                .containsExactly(ClaimReason.TUTOR_COULD_NOT_ATTEND, ClaimReason.I_COULD_NOT_ATTEND);
+        assertThat(tutor.allowedReasons())
+                .containsExactly(ClaimReason.STUDENT_COULD_NOT_ATTEND, ClaimReason.I_COULD_NOT_ATTEND);
+    }
+
+    @Test
+    @DisplayName("Elegibilidad - usuario ajeno: sin motivos permitidos")
+    void getEligibility_notParticipant_hasNoAllowedReasons() {
+        ClaimEligibilityResponse eligibility = service.getEligibility(UUID.randomUUID(), booking.getBookingId());
+
+        assertThat(eligibility.blockReason()).isEqualTo(ClaimBlockReason.SESSION_NOT_PARTICIPANT);
+        assertThat(eligibility.allowedReasons()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("hasActiveClaim - delega en el repositorio por reserva (cualquiera de las partes)")
+    void hasActiveClaim_delegatesToRepository() {
+        when(sessionClaimRepository.existsByBooking_BookingIdAndStatus(booking.getBookingId(), ClaimStatus.OPEN))
+                .thenReturn(true);
+
+        assertThat(service.hasActiveClaim(booking.getBookingId())).isTrue();
     }
 
     @Test
@@ -456,7 +628,7 @@ class SessionClaimServiceImplTest {
                 .sessionDate(SESSION_DATE)
                 .startTime(LocalTime.of(8, 0))
                 .endTime(SESSION_END)
-                .bookingStatus(BookingStatus.COMPLETED)
+                .bookingStatus(BookingStatus.NOT_CONFIRMED)
                 .student(booking.getStudent())
                 .tutor(booking.getTutor())
                 .build();
