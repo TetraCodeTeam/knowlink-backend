@@ -2,14 +2,15 @@ package com.knowlink.api.exceptions;
 
 import com.knowlink.api.exceptions.custom_exceptions.*;
 import com.knowlink.api.materials.exception.FormatNotAllowedException;
-import com.knowlink.api.materials.exception.SinReservaActivaException;
+import com.knowlink.api.materials.exception.NoActiveReservationException;
 import com.knowlink.api.materials.exception.SubjectNotAssociatedException;
-import com.knowlink.api.materials.exception.AccesoDenegadoException;
+import com.knowlink.api.materials.exception.ResourceAccessDeniedException;
 import io.jsonwebtoken.JwtException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -61,14 +62,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
-    @ExceptionHandler(SinReservaActivaException.class)
-    public ResponseEntity<ApiError> handleSinReservaActiva(SinReservaActivaException ex) {
+    @ExceptionHandler(NoActiveReservationException.class)
+    public ResponseEntity<ApiError> handleNoActiveReservation(NoActiveReservationException ex) {
         ApiError error = new ApiError(HttpStatus.FORBIDDEN.value(), ex.getMessage(), "NO_ACTIVE_RESERVATION");
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
     }
 
-    @ExceptionHandler(AccesoDenegadoException.class)
-    public ResponseEntity<ApiError> handleAccesoDenegado(AccesoDenegadoException ex) {
+    @ExceptionHandler(ResourceAccessDeniedException.class)
+    public ResponseEntity<ApiError> handleResourceAccessDenied(ResourceAccessDeniedException ex) {
         logger.warn(ex.getMessage());
         ApiError error = new ApiError(HttpStatus.FORBIDDEN.value(), ex.getMessage(), "ACCESS_DENIED");
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
@@ -131,6 +132,27 @@ public class GlobalExceptionHandler {
         ApiError error = new ApiError(HttpStatus.UNAUTHORIZED.value(), "Account locked",
                 "Your account has been deleted or suspended");
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    }
+
+    @ExceptionHandler(SessionNotParticipantException.class)
+    public ResponseEntity<ApiError> handleSessionNotParticipant(SessionNotParticipantException ex) {
+        logger.warn(ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.FORBIDDEN.value(), ex.getUserMessage(), ex.getErrorCode());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+    }
+
+    @ExceptionHandler(UnprocessableEntityException.class)
+    public ResponseEntity<ApiError> handleUnprocessable(UnprocessableEntityException ex) {
+        logger.warn(ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.UNPROCESSABLE_ENTITY.value(), ex.getUserMessage(), ex.getErrorCode());
+        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(error);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiError> handleNotReadable(HttpMessageNotReadableException ex) {
+        logger.warn("Malformed request body: {}", ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(), "Cuerpo de la solicitud inválido.", "VALIDATION_ERROR");
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
     @ExceptionHandler(AccessDeniedException.class)

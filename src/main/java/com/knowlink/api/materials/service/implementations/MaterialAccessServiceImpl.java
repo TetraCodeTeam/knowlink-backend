@@ -5,7 +5,7 @@ import com.knowlink.api.materials.data.models.AcademicMaterial;
 import com.knowlink.api.materials.repositories.IAcademicMaterialReportRepository;
 import com.knowlink.api.materials.repositories.IAcademicMaterialRepository;
 import com.knowlink.api.materials.controller.responses.MaterialResponse;
-import com.knowlink.api.materials.exception.AccesoDenegadoException;
+import com.knowlink.api.materials.exception.ResourceAccessDeniedException;
 import com.knowlink.api.materials.service.interfaces.IMaterialAccessService;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
 import com.knowlink.api.tutors.data.models.Subject;
@@ -29,7 +29,7 @@ public class MaterialAccessServiceImpl implements IMaterialAccessService {
 
     @Override
     @Transactional(readOnly = true)
-    public boolean tieneAcceso(UUID studentId, UUID tutorUserId) {
+    public boolean hasAccess(UUID studentId, UUID tutorUserId) {
         List<UUID> completedSubjects = bookingRepository
                 .findCompletedSubjectIdsByStudentAndTutor(studentId, tutorUserId);
         return !completedSubjects.isEmpty();
@@ -37,7 +37,7 @@ public class MaterialAccessServiceImpl implements IMaterialAccessService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<MaterialResponse> listarMaterialesAccesibles(UUID studentId, UUID tutorUserId, UUID subjectId) {
+    public List<MaterialResponse> listAccessibleMaterials(UUID studentId, UUID tutorUserId, UUID subjectId) {
         List<UUID> completedSubjectIds = bookingRepository
                 .findCompletedSubjectIdsByStudentAndTutor(studentId, tutorUserId);
 
@@ -73,7 +73,7 @@ public class MaterialAccessServiceImpl implements IMaterialAccessService {
 
     @Override
     @Transactional(readOnly = true)
-    public void validarAccesoODenegar(UUID studentId, UUID materialId) {
+    public void validateAccessOrDeny(UUID studentId, UUID materialId) {
         AcademicMaterial material = materialRepository
                 .findByAcademicMaterialIdAndActiveTrue(materialId)
                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -90,7 +90,7 @@ public class MaterialAccessServiceImpl implements IMaterialAccessService {
         if (!completedSubjectIds.contains(subjectId)) {
             log.warn("Access denied: student {} tried to download material {} without completed session",
                     studentId, materialId);
-            throw new AccesoDenegadoException("No tenés acceso a este material");
+            throw new ResourceAccessDeniedException("No tenés acceso a este material");
         }
     }
 

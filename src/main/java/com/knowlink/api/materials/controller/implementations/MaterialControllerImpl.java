@@ -91,8 +91,8 @@ public class MaterialControllerImpl implements IMaterialController {
         UserPrincipal principal = (UserPrincipal) userDetails;
         UUID studentId = principal.getUser().getUserId();
 
-        boolean accesoHabilitado = materialAccessService.tieneAcceso(studentId, tutorId);
-        return ResponseEntity.ok(new AccessCheckResponse(accesoHabilitado));
+        boolean accessEnabled = materialAccessService.hasAccess(studentId, tutorId);
+        return ResponseEntity.ok(new AccessCheckResponse(accessEnabled));
     }
 
     @Override
@@ -106,7 +106,7 @@ public class MaterialControllerImpl implements IMaterialController {
         UUID studentId = principal.getUser().getUserId();
 
         List<MaterialResponse> materials = materialAccessService
-                .listarMaterialesAccesibles(studentId, tutorId, subjectId);
+                .listAccessibleMaterials(studentId, tutorId, subjectId);
         return ResponseEntity.ok(materials);
     }
 }

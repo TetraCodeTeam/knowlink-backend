@@ -6,9 +6,9 @@ import java.util.List;
 import java.util.UUID;
 
 public interface IMaterialAccessService {
-    boolean tieneAcceso(UUID studentId, UUID tutorUserId);
+    boolean hasAccess(UUID studentId, UUID tutorUserId);
 
-    List<MaterialResponse> listarMaterialesAccesibles(UUID studentId, UUID tutorUserId, UUID subjectId);
+    List<MaterialResponse> listAccessibleMaterials(UUID studentId, UUID tutorUserId, UUID subjectId);
 
-    void validarAccesoODenegar(UUID studentId, UUID materialId);
+    void validateAccessOrDeny(UUID studentId, UUID materialId);
 }

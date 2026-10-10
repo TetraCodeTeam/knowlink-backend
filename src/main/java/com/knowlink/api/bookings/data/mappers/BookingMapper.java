@@ -15,6 +15,7 @@ import com.knowlink.api.users.data.models.User;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Map;
 import java.util.UUID;
@@ -60,7 +61,7 @@ public class BookingMapper {
         }
 
         public BookingHistoryItemResponse toListItem(Booking booking, UUID viewerUserId,
-                        Map<UUID, String> studentProfilePictureByUserId) {
+                Map<UUID, String> studentProfilePictureByUserId, boolean canClaim, LocalDateTime claimableUntil) {
                 OtherParty otherParty = resolveOtherParty(booking, viewerUserId);
                 String otherPartyProfilePictureUrl = otherParty.isTutor()
                                 ? booking.getTutorSubject().getTutorProfile().getProfilePictureUrl()
@@ -76,7 +77,9 @@ public class BookingMapper {
                                 booking.getEndTime(),
                                 booking.getModality(),
                                 booking.getBookingStatus(),
-                                booking.getConfirmationTokenExpiration());
+                                booking.getConfirmationTokenExpiration(),
+                                canClaim,
+                                claimableUntil);
         }
 
         public BookingHistoryDetailResponse toDetail(Booking booking, UUID viewerUserId,

@@ -27,4 +27,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD wget -qO- http://localhost:8080/actuator/health | grep -q '"status":"UP"' || exit 1
 
-ENTRYPOINT ["java", "-jar", "-Dspring.profiles.active=${SPRING_PROFILE:-production}", "app.jar"]
+ENTRYPOINT java -jar -Dspring.profiles.active=${SPRING_PROFILE:-production} app.jar
