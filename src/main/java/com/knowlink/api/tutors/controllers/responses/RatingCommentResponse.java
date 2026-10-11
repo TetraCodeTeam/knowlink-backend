@@ -7,6 +7,7 @@ public record RatingCommentResponse(
         UUID id,
         UUID subjectId,
         String subjectName,
+        RatingAuthorResponse author,
         Integer score,
         String comment,
         LocalDateTime ratingDate) {

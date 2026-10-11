@@ -45,6 +45,7 @@ import java.time.LocalTime;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.nullValue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -94,10 +95,11 @@ class TutorRatingHistoryControllerIntegrationTest {
     private Booking bookingA1;
     private Booking bookingA2;
     private Booking bookingB1;
+    private Career career;
 
     @BeforeEach
     void setUp() {
-        Career career = careerRepository.save(Career.builder()
+        career = careerRepository.save(Career.builder()
                 .name("Career " + UUID.randomUUID())
                 .build());
 
@@ -162,6 +164,9 @@ class TutorRatingHistoryControllerIntegrationTest {
                 .andExpect(jsonPath("$.comments.content[0].subjectId")
                         .value(subjectA.getSubjectId().toString()))
                 .andExpect(jsonPath("$.comments.content[0].subjectName").value(subjectA.getName()))
+                .andExpect(jsonPath("$.comments.content[0].author.userId").value(student.getUserId().toString()))
+                .andExpect(jsonPath("$.comments.content[0].author.fullName").value("Student Test"))
+                .andExpect(jsonPath("$.comments.content[0].author.profilePictureUrl").value(nullValue()))
                 .andExpect(jsonPath("$.comments.content[2].subjectId")
                         .value(subjectB.getSubjectId().toString()))
                 .andExpect(jsonPath("$.comments.content[2].subjectName").value(subjectB.getName()));
@@ -255,6 +260,96 @@ class TutorRatingHistoryControllerIntegrationTest {
                 .andExpect(jsonPath("$.subjects[1].count").value(2))
                 .andExpect(jsonPath("$.comments.content.length()").value(3))
                 .andExpect(jsonPath("$.comments.totalElements").value(3));
+    }
+    @Test
+    @DisplayName("Comment author carries fullName and profilePictureUrl of the rater")
+    void commentAuthorIncludesProfilePicture() throws Exception {
+        student.setProfilePictureUrl("https://cdn.test/student.png");
+        userRepository.save(student);
+
+        mockMvc.perform(get(BASE_PATH + tutor.getUserId() + "/ratings").with(studentAuth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.comments.content[0].author.userId")
+                        .value(student.getUserId().toString()))
+                .andExpect(jsonPath("$.comments.content[0].author.fullName").value("Student Test"))
+                .andExpect(jsonPath("$.comments.content[0].author.profilePictureUrl")
+                        .value("https://cdn.test/student.png"));
+    }
+
+    @Test
+    @DisplayName("Cross ratings: received as student excluded, given as student appear with author")
+    void crossRatingsSeparateTutorAndStudentRoles() throws Exception {
+        User otherTutor = saveUser("Other Tutor", Role.TUTOR);
+        TutorProfile otherProfile = tutorProfileRepository.save(TutorProfile.builder()
+                .user(otherTutor)
+                .career(career)
+                .verified(true)
+                .build());
+        TutorSubject otherTutorSubject = tutorSubjectRepository.save(TutorSubject.builder()
+                .tutorProfile(otherProfile)
+                .subject(subjectA)
+                .pricePerHour(new BigDecimal("2000.00"))
+                .compensationType(CompensationType.PAID)
+                .tutorSubjectStatus(TutorSubjectStatus.ACTIVE)
+                .modality(Modality.VIRTUAL)
+                .build());
+        LocalDate crossDate = LocalDate.of(2026, 9, 22);
+        LocalTime crossStart = LocalTime.of(10, 0);
+        TimeSlot crossSlot = timeSlotRepository.save(TimeSlot.builder()
+                .date(crossDate)
+                .startTime(crossStart)
+                .endTime(crossStart.plusHours(1))
+                .status(SlotStatus.OCCUPIED)
+                .tutorProfileId(otherProfile.getTutorProfileId())
+                .build());
+        Booking crossBooking = bookingRepository.save(Booking.builder()
+                .amount(new BigDecimal("2100.00"))
+                .sessionDate(crossDate)
+                .startTime(crossStart)
+                .endTime(crossStart.plusHours(1))
+                .topic("Sesion cruzada")
+                .modality(Modality.VIRTUAL)
+                .bookingStatus(BookingStatus.COMPLETED)
+                .timeSlot(crossSlot)
+                .tutorSubject(otherTutorSubject)
+                .student(tutor)
+                .tutor(otherTutor)
+                .build());
+        ratingRepository.save(Rating.builder()
+                .booking(crossBooking)
+                .ratedUser(tutor)
+                .raterUser(otherTutor)
+                .score(1)
+                .comment("Resena cruzada recibida.")
+                .ratingDate(LocalDateTime.of(2026, 9, 23, 10, 0))
+                .visible(true)
+                .build());
+        ratingRepository.save(Rating.builder()
+                .booking(crossBooking)
+                .ratedUser(otherTutor)
+                .raterUser(tutor)
+                .score(5)
+                .comment("Resena cruzada dada.")
+                .ratingDate(LocalDateTime.of(2026, 9, 23, 11, 0))
+                .visible(true)
+                .build());
+
+        mockMvc.perform(get(BASE_PATH + tutor.getUserId() + "/ratings").with(studentAuth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalRatings").value(3))
+                .andExpect(jsonPath("$.averageRating").value(4.0))
+                .andExpect(jsonPath("$.comments.content.length()").value(3));
+
+        mockMvc.perform(get(BASE_PATH + otherTutor.getUserId() + "/ratings").with(studentAuth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalRatings").value(1))
+                .andExpect(jsonPath("$.averageRating").value(5.0))
+                .andExpect(jsonPath("$.subjects.length()").value(1))
+                .andExpect(jsonPath("$.subjects[0].count").value(1))
+                .andExpect(jsonPath("$.comments.content.length()").value(1))
+                .andExpect(jsonPath("$.comments.content[0].comment").value("Resena cruzada dada."))
+                .andExpect(jsonPath("$.comments.content[0].author.userId").value(tutor.getUserId().toString()))
+                .andExpect(jsonPath("$.comments.content[0].author.fullName").value("Tutor Test"));
     }
 
     @Test

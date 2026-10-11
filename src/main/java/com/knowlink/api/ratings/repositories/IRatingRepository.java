@@ -83,6 +83,7 @@ public interface IRatingRepository extends JpaRepository<Rating, UUID> {
             FROM Rating r
             JOIN r.booking b
             WHERE r.ratedUser.userId = :tutorId
+              AND b.tutor.userId = :tutorId
               AND r.visible = true
               AND b.bookingStatus = com.knowlink.api.bookings.data.enums.BookingStatus.COMPLETED
             """)
@@ -98,6 +99,7 @@ public interface IRatingRepository extends JpaRepository<Rating, UUID> {
             JOIN b.tutorSubject ts
             JOIN ts.subject s
             WHERE r.ratedUser.userId = :tutorId
+              AND b.tutor.userId = :tutorId
               AND r.visible = true
               AND b.bookingStatus = com.knowlink.api.bookings.data.enums.BookingStatus.COMPLETED
             GROUP BY s.subjectId, s.name
@@ -109,9 +111,11 @@ public interface IRatingRepository extends JpaRepository<Rating, UUID> {
             SELECT r
             FROM Rating r
             JOIN FETCH r.booking b
+            JOIN FETCH r.raterUser
             JOIN FETCH b.tutorSubject ts
             JOIN FETCH ts.subject s
             WHERE r.ratedUser.userId = :tutorId
+              AND b.tutor.userId = :tutorId
               AND r.visible = true
               AND b.bookingStatus = com.knowlink.api.bookings.data.enums.BookingStatus.COMPLETED
               AND r.comment IS NOT NULL
@@ -121,6 +125,7 @@ public interface IRatingRepository extends JpaRepository<Rating, UUID> {
             FROM Rating r
             JOIN r.booking b
             WHERE r.ratedUser.userId = :tutorId
+              AND b.tutor.userId = :tutorId
               AND r.visible = true
               AND b.bookingStatus = com.knowlink.api.bookings.data.enums.BookingStatus.COMPLETED
               AND r.comment IS NOT NULL
@@ -131,9 +136,11 @@ public interface IRatingRepository extends JpaRepository<Rating, UUID> {
             SELECT r
             FROM Rating r
             JOIN FETCH r.booking b
+            JOIN FETCH r.raterUser
             JOIN FETCH b.tutorSubject ts
             JOIN FETCH ts.subject s
             WHERE r.ratedUser.userId = :tutorId
+              AND b.tutor.userId = :tutorId
               AND r.visible = true
               AND b.bookingStatus = com.knowlink.api.bookings.data.enums.BookingStatus.COMPLETED
               AND r.comment IS NOT NULL
@@ -146,6 +153,7 @@ public interface IRatingRepository extends JpaRepository<Rating, UUID> {
             JOIN b.tutorSubject ts
             JOIN ts.subject s
             WHERE r.ratedUser.userId = :tutorId
+              AND b.tutor.userId = :tutorId
               AND r.visible = true
               AND b.bookingStatus = com.knowlink.api.bookings.data.enums.BookingStatus.COMPLETED
               AND r.comment IS NOT NULL

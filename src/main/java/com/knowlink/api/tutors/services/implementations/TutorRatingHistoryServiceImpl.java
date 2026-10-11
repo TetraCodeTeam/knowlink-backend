@@ -1,6 +1,7 @@
 package com.knowlink.api.tutors.services.implementations;
 
 import com.knowlink.api.tutors.controllers.responses.PagedCommentsResponse;
+import com.knowlink.api.tutors.controllers.responses.RatingAuthorResponse;
 import com.knowlink.api.tutors.controllers.responses.RatingCommentResponse;
 import com.knowlink.api.tutors.controllers.responses.SubjectAverageResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorRatingHistoryResponse;
@@ -10,6 +11,7 @@ import com.knowlink.api.tutors.data.projections.SubjectRatingSummary;
 import com.knowlink.api.ratings.repositories.IRatingRepository;
 import com.knowlink.api.tutors.services.interfaces.ITutorRatingHistoryService;
 import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
+import com.knowlink.api.users.data.models.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -78,10 +80,16 @@ public class TutorRatingHistoryServiceImpl implements ITutorRatingHistoryService
     }
 
     private static RatingCommentResponse toComment(Rating rating) {
+        User rater = rating.getRaterUser();
+        RatingAuthorResponse author = new RatingAuthorResponse(
+                rater.getUserId(),
+                rater.getFullName(),
+                rater.getProfilePictureUrl());
         return new RatingCommentResponse(
                 rating.getRatingId(),
                 rating.getBooking().getTutorSubject().getSubject().getSubjectId(),
                 rating.getBooking().getTutorSubject().getSubject().getName(),
+                author,
                 rating.getScore(),
                 rating.getComment(),
                 rating.getRatingDate());

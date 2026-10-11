@@ -12,6 +12,7 @@ import com.knowlink.api.tutors.data.projections.SubjectRatingSummary;
 import com.knowlink.api.ratings.repositories.IRatingRepository;
 import com.knowlink.api.tutors.services.implementations.TutorRatingHistoryServiceImpl;
 import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
+import com.knowlink.api.users.data.models.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -100,13 +101,14 @@ class TutorRatingHistoryServiceImplTest {
     }
 
     private Rating ratingWithComment(UUID ratingId, UUID subjectId, String subjectName, Integer score,
-            String comment, LocalDateTime ratingDate) {
+            String comment, LocalDateTime ratingDate, User rater) {
         Subject subject = Subject.builder().subjectId(subjectId).name(subjectName).build();
         TutorSubject tutorSubject = TutorSubject.builder().subject(subject).build();
         Booking booking = Booking.builder().tutorSubject(tutorSubject).build();
         return Rating.builder()
                 .ratingId(ratingId)
                 .booking(booking)
+                .raterUser(rater)
                 .score(score)
                 .comment(comment)
                 .ratingDate(ratingDate)
@@ -218,8 +220,13 @@ class TutorRatingHistoryServiceImplTest {
         UUID ratingId = UUID.randomUUID();
         UUID commentSubjectId = UUID.randomUUID();
         LocalDateTime ratingDate = LocalDateTime.of(2026, 9, 28, 19, 30);
+        User rater = User.builder()
+                .userId(UUID.randomUUID())
+                .fullName("Maria Lopez")
+                .profilePictureUrl("https://cdn.test/avatar.png")
+                .build();
         Rating rating = ratingWithComment(ratingId, commentSubjectId, "Analisis Matematico I", 5,
-                "Explica muy claro.", ratingDate);
+                "Explica muy claro.", ratingDate, rater);
 
         when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorId))
                 .thenReturn(null);
@@ -238,7 +245,38 @@ class TutorRatingHistoryServiceImplTest {
         assertThat(comment.score()).isEqualTo(5);
         assertThat(comment.comment()).isEqualTo("Explica muy claro.");
         assertThat(comment.ratingDate()).isEqualTo(ratingDate);
+        assertThat(comment.author()).isNotNull();
+        assertThat(comment.author().userId()).isEqualTo(rater.getUserId());
+        assertThat(comment.author().fullName()).isEqualTo("Maria Lopez");
+        assertThat(comment.author().profilePictureUrl()).isEqualTo("https://cdn.test/avatar.png");
         assertThat(response.comments().totalElements()).isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("Comment author without profile picture keeps fullName and null profilePictureUrl")
+    void commentAuthorWithoutProfilePicture() {
+        LocalDateTime ratingDate = LocalDateTime.of(2026, 9, 26, 10, 0);
+        User rater = User.builder()
+                .userId(UUID.randomUUID())
+                .fullName("Sin Foto")
+                .build();
+        Rating rating = ratingWithComment(UUID.randomUUID(), UUID.randomUUID(), "Fisica I", 4,
+                "Muy bien.", ratingDate, rater);
+
+        when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorId))
+                .thenReturn(null);
+        when(ratingRepository.findOverallSummaryByTutorId(tutorId)).thenReturn(summary(4.0, 1L));
+        when(ratingRepository.findAverageGroupedBySubject(tutorId)).thenReturn(List.of());
+        when(ratingRepository.findCompletedComments(eq(tutorId), any(Pageable.class)))
+                .thenReturn(ratingPage(List.of(rating), 1));
+
+        TutorRatingHistoryResponse response = service.getRatingHistory(tutorId, null, 0, 10);
+
+        RatingCommentResponse comment = response.comments().content().get(0);
+        assertThat(comment.author()).isNotNull();
+        assertThat(comment.author().userId()).isEqualTo(rater.getUserId());
+        assertThat(comment.author().fullName()).isEqualTo("Sin Foto");
+        assertThat(comment.author().profilePictureUrl()).isNull();
     }
 
     @Test

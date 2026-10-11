@@ -14,6 +14,8 @@ import com.knowlink.api.tutors.data.models.Career;
 import com.knowlink.api.tutors.data.models.Subject;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.data.models.TutorSubject;
+import com.knowlink.api.tutors.data.projections.OverallRatingSummary;
+import com.knowlink.api.tutors.data.projections.SubjectRatingSummary;
 import com.knowlink.api.users.data.enums.AccountStatus;
 import com.knowlink.api.users.data.models.User;
 import jakarta.persistence.EntityManager;
@@ -22,6 +24,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
@@ -88,6 +92,40 @@ class IRatingRepositoryTest {
 
         assertThat(average).isEqualTo(5.0);
         assertThat(visibleTutorRatings).extracting(Rating::getScore).containsExactly(5);
+    }
+
+    @Test
+    void historyQueriesOnlyCountRatingsReceivedAsTutor() {
+        LocalDate sessionDate = LocalDate.of(2026, 9, 30);
+        LocalDateTime completedAt = LocalDateTime.of(2026, 9, 30, 12, 0);
+        Booking bookingAsStudent = persistBooking(
+                dualRoleUser, otherTutor, otherTutorProfile, otherTutorSubject, sessionDate, completedAt);
+        Booking bookingAsTutor = persistBooking(
+                student, dualRoleUser, dualRoleProfile, dualRoleSubject, sessionDate, completedAt);
+
+        persistRating(bookingAsStudent, otherTutor, dualRoleUser, 1, true, "Rated while being the student.");
+        persistRating(bookingAsTutor, student, dualRoleUser, 5, true, "Rated while being the tutor.");
+        entityManager.flush();
+
+        OverallRatingSummary summary = ratingRepository.findOverallSummaryByTutorId(dualRoleUser.getUserId());
+        List<SubjectRatingSummary> bySubject = ratingRepository
+                .findAverageGroupedBySubject(dualRoleUser.getUserId());
+        Page<Rating> comments = ratingRepository.findCompletedComments(dualRoleUser.getUserId(),
+                PageRequest.of(0, 10));
+        Page<Rating> commentsBySubject = ratingRepository.findCompletedCommentsBySubject(
+                dualRoleUser.getUserId(), dualRoleSubject.getSubject().getSubjectId(), PageRequest.of(0, 10));
+
+        assertThat(summary.getRatingCount()).isEqualTo(1);
+        assertThat(summary.getAverageScore()).isEqualTo(5.0);
+        assertThat(bySubject).hasSize(1);
+        assertThat(bySubject.get(0).getRatingCount()).isEqualTo(1L);
+        assertThat(bySubject.get(0).getAverageScore()).isEqualTo(5.0);
+        assertThat(comments.getTotalElements()).isEqualTo(1);
+        assertThat(comments.getContent()).extracting(Rating::getComment)
+                .containsExactly("Rated while being the tutor.");
+        assertThat(commentsBySubject.getTotalElements()).isEqualTo(1);
+        assertThat(commentsBySubject.getContent()).extracting(Rating::getComment)
+                .containsExactly("Rated while being the tutor.");
     }
 
     @Test
@@ -217,12 +255,17 @@ class IRatingRepositoryTest {
     }
 
     private Rating persistRating(Booking booking, User rater, User rated, int score, boolean visible) {
+        return persistRating(booking, rater, rated, score, visible, null);
+    }
+
+    private Rating persistRating(Booking booking, User rater, User rated, int score, boolean visible,
+            String comment) {
         return persist(Rating.builder()
                 .booking(booking)
                 .raterUser(rater)
                 .ratedUser(rated)
                 .score(score)
-                .comment(null)
+                .comment(comment)
                 .ratingDate(LocalDateTime.of(2026, 10, 1, 12, 0))
                 .visible(visible)
                 .build());

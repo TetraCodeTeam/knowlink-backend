@@ -101,6 +101,11 @@ Respuesta `200`:
         "id": "a1010000-0000-4000-8000-000000000101",
         "subjectId": "3b8f2a10-0000-4000-8000-000000000003",
         "subjectName": "Análisis Matemático I",
+        "author": {
+          "userId": "e4aa53af-0000-4000-8000-000000001111",
+          "fullName": "Maria Lopez",
+          "profilePictureUrl": "https://cdn.knowlink.test/avatar.png"
+        },
         "score": 5,
         "comment": "Explica muy claro.",
         "ratingDate": "2026-09-28T19:30:00"
@@ -120,6 +125,7 @@ Reglas:
 - Una calificación sin comentario (solo puntaje) cuenta para el promedio pero **no** aparece en `comments.content`.
 - `totalRatings` es el conteo real (query), nunca un valor fijo.
 - Solo se consideran calificaciones de sesiones **completadas** y con `visible = true` (consistente con el perfil de US-07).
+- Solo se cuentan las calificaciones recibidas por el tutor en reservas donde él era el tutor (`booking.tutor`); las recibidas siendo alumno no entran en su historial.
 - `totalRatings` cuenta todas las calificaciones (con y sin comentario); `comments.totalElements` cuenta solo las que tienen comentario (menor o igual).
 - Los promedios por materia se devuelven siempre completos, aunque se pase `subjectId`.
 - Sin `subjectId` válido para ese tutor: devolver lista vacía de comentarios, no error.
@@ -132,7 +138,7 @@ Reglas:
 - `service`: `ITutorRatingHistoryService` + `TutorRatingHistoryServiceImpl` - arma el resumen y la pagina de comentarios (`@Transactional(readOnly = true)`)
 - `repository`: queries nuevas en `IRatingRepository` (JPQL `GROUP BY` por materia; página ordenada `ratingDate DESC, ratingId DESC`; conteos y promedios resueltos en BD)
 - `proyecciones`: `OverallRatingSummary`, `SubjectRatingSummary` en `tutors/data/projections/`
-- `dto` (records): `TutorRatingHistoryResponse`, `SubjectAverageResponse`, `RatingCommentResponse`, `PagedCommentsResponse`
+- `dto` (records): `TutorRatingHistoryResponse`, `SubjectAverageResponse`, `RatingAuthorResponse`, `RatingCommentResponse`, `PagedCommentsResponse`
 
 Notas de implementación:
 
