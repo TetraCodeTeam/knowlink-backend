@@ -104,7 +104,7 @@ class MaterialServiceImplTest {
 
         when(materialRepository.findActiveBySubjectId(subjectId)).thenReturn(List.of(material));
         when(reportRepository.findReportedMaterialIds(studentId, List.of(materialId))).thenReturn(Set.of());
-        when(materialAccessService.listarMaterialesAccesibles(studentId, tutorUserId, subjectId))
+        when(materialAccessService.listAccessibleMaterials(studentId, tutorUserId, subjectId))
                 .thenReturn(List.of(new MaterialResponse(
                         materialId,
                         material.getName(),
@@ -125,6 +125,6 @@ class MaterialServiceImplTest {
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).id()).isEqualTo(materialId);
-        verify(materialAccessService).listarMaterialesAccesibles(studentId, tutorUserId, subjectId);
+        verify(materialAccessService).listAccessibleMaterials(studentId, tutorUserId, subjectId);
     }
 }

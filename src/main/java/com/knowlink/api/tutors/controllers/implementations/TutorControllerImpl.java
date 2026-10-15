@@ -15,6 +15,7 @@ import com.knowlink.api.tutors.data.models.TutorSearchResponse;
 import com.knowlink.api.tutors.services.interfaces.ITutorProfileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.DayOfWeek;
 import java.util.List;
@@ -65,5 +66,10 @@ public class TutorControllerImpl implements ITutorController {
     @Override
     public ActivateStudentRoleResponse activateStudentRole(UserPrincipal principal) {
         return tutorProfileService.activateStudentRole(principal.getUser().getUserId());
+    }
+
+    @Override
+    public TutorSelfProfileResponse uploadProfilePicture(MultipartFile file, UserPrincipal principal) {
+        return tutorProfileService.uploadProfilePicture(principal.getUser().getUserId(), file);
     }
 }

@@ -34,7 +34,7 @@ public class TutorProfile {
     @Column(name = "biography", columnDefinition = "TEXT")
     private String biography;
 
-    @Column(name = "profile_picture_url")
+    @Column(name = "profile_picture_url", length = 2048)
     private String profilePictureUrl;
 
     @Column(name = "institutional_id")

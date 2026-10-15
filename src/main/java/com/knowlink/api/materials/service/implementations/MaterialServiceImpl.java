@@ -9,7 +9,7 @@ import com.knowlink.api.materials.repositories.IAcademicMaterialRepository;
 import com.knowlink.api.materials.controller.responses.MaterialResponse;
 import com.knowlink.api.materials.controller.requests.MaterialUploadRequest;
 import com.knowlink.api.materials.exception.FormatNotAllowedException;
-import com.knowlink.api.materials.exception.SinReservaActivaException;
+import com.knowlink.api.materials.exception.NoActiveReservationException;
 import com.knowlink.api.materials.exception.SubjectNotAssociatedException;
 import com.knowlink.api.materials.service.interfaces.IMaterialAccessService;
 import com.knowlink.api.materials.service.interfaces.IMaterialService;
@@ -108,12 +108,12 @@ public class MaterialServiceImpl implements IMaterialService {
                     .map(m -> m.getTutorSubject().getTutorProfile().getUser().getUserId())
                     .distinct()
                     .filter(tutorUserId -> !materialAccessService
-                            .listarMaterialesAccesibles(userId, tutorUserId, subjectId)
+                            .listAccessibleMaterials(userId, tutorUserId, subjectId)
                             .isEmpty())
                     .toList();
 
             if (accessibleTutorIds.isEmpty()) {
-                throw new SinReservaActivaException("El alumno no tiene reserva activa con este tutor");
+                throw new NoActiveReservationException("El alumno no tiene reserva activa con este tutor");
             }
 
             materials = materials.stream()
@@ -150,7 +150,7 @@ public class MaterialServiceImpl implements IMaterialService {
                         "Material not found with id: " + materialId));
 
         if (role.equals(Role.STUDENT.name())) {
-            materialAccessService.validarAccesoODenegar(userId, materialId);
+            materialAccessService.validateAccessOrDeny(userId, materialId);
         }
 
         return supabaseStorageService.generateSignedUrl(material.getStoragePath(), 3600);

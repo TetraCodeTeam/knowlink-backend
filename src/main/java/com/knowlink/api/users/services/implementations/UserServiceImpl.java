@@ -94,6 +94,11 @@ public class UserServiceImpl implements IUserService {
     public User updateUser(UUID userId, UpdateUserRequest request) {
         User user = findByIdOrThrowException(userId);
         user.setFullName(request.firstName() + " " + request.lastName());
+
+        if (request.profilePicture() != null) {
+            user.setProfilePictureUrl(request.profilePicture());
+        }
+
         return userRepository.save(user);
     }
 

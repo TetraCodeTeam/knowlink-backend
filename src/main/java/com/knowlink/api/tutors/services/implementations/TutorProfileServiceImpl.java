@@ -4,10 +4,13 @@ import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.security.services.JwtService;
 import com.knowlink.api.students.services.interfaces.IStudentProfileService;
 import com.knowlink.api.users.services.interfaces.IUserProfileLookupService;
+import com.knowlink.api.users.repositories.IUserRepository;
 import com.knowlink.api.users.services.interfaces.IUserService;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
+import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
+import com.knowlink.api.materials.service.interfaces.IProfileImageService;
 import com.knowlink.api.tutors.availability.controllers.responses.AvailabilityBlockResponse;
 import com.knowlink.api.tutors.availability.repositories.IAvailabilityBlockRepository;
 import com.knowlink.api.tutors.controllers.responses.*;
@@ -28,6 +31,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.DayOfWeek;
 import java.util.ArrayList;
@@ -55,6 +59,8 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         private final IUserService userService;
         private final JwtService jwtService;
         private final IUserProfileLookupService userProfileLookupService;
+        private final IProfileImageService profileImageService;
+        private final IUserRepository userRepository;
 
         @Override
         @Transactional(readOnly = true)
@@ -111,6 +117,32 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
 
         @Override
         @Transactional
+        public TutorSelfProfileResponse uploadProfilePicture(UUID tutorUserId, MultipartFile file) {
+                TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
+
+                profileImageService.deleteByUserId(tutorUserId);
+
+                String imagePath = profileImageService.upload(file, tutorUserId);
+                String signedUrl = profileImageService.generateSignedUrl(imagePath, 60 * 60 * 24 * 7);
+
+                User user = userRepository.findById(tutorUserId)
+                        .orElseThrow(() -> new ResourceNotFoundException(
+                                "USER_NOT_FOUND", "Usuario no encontrado.",
+                                String.format("User con id '%s' no existe", tutorUserId)));
+                user.setProfilePictureUrl(signedUrl);
+                userRepository.save(user);
+
+                tutorProfile.setProfilePictureUrl(signedUrl);
+                tutorProfile = tutorProfileRepository.save(tutorProfile);
+
+                studentProfileService.syncProfilePicture(tutorUserId, signedUrl);
+
+                boolean hasStudentProfile = userProfileLookupService.hasStudentProfile(tutorUserId);
+                return tutorProfileMapper.toSelfProfileResponse(tutorProfile, hasStudentProfile);
+        }
+
+        @Override
+        @Transactional
         public void updateMinNoticeMinutes(UUID tutorUserId, Integer minNoticeMinutes) {
                 TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
                 tutorProfile.setMinNoticeMinutes(minNoticeMinutes);
@@ -126,7 +158,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
 
         @Override
         @Transactional(readOnly = true)
-        public List<TutorSearchResponse> searchTutor(String query, UUID alumnoUserId, TutorSearchFilters filters) {
+        public List<TutorSearchResponse> searchTutor(String query, UUID studentUserId, TutorSearchFilters filters) {
                 validateMinRating(filters.minRating());
 
                 Specification<TutorSubject> subjectSpec = TutorSearchSpecifications.subjectNameContains(query);

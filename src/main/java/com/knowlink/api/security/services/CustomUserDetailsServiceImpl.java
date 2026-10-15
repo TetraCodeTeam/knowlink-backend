@@ -1,6 +1,5 @@
 package com.knowlink.api.security.services;
 
-import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.repositories.IUserRepository;
@@ -19,9 +18,7 @@ public class CustomUserDetailsServiceImpl implements UserDetailsService {
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "USER_NOT_FOUND",
-                        "Usuario no encontrado.",
+                .orElseThrow(() -> new UsernameNotFoundException(
                         String.format("user con email '%s' no existe", email)));
         return new UserPrincipal(user);
     }

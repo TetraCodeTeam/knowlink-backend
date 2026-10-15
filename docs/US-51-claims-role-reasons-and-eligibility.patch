@@ -1,0 +1,1269 @@
+diff --git a/src/main/java/com/knowlink/api/bookings/services/implementations/BookingServiceImpl.java b/src/main/java/com/knowlink/api/bookings/services/implementations/BookingServiceImpl.java
+index 1b28a45..77c9a88 100644
+--- a/src/main/java/com/knowlink/api/bookings/services/implementations/BookingServiceImpl.java
++++ b/src/main/java/com/knowlink/api/bookings/services/implementations/BookingServiceImpl.java
+@@ -3,6 +3,7 @@ package com.knowlink.api.bookings.services.implementations;
+ import com.knowlink.api.claims.controllers.responses.ClaimEligibilityResponse;
+ import com.knowlink.api.claims.services.interfaces.ISessionClaimService;
+ import com.knowlink.api.events.services.BookingEventPublisher;
++import com.knowlink.api.exceptions.custom_exceptions.ConfirmationBlockedByClaimException;
+ import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
+ import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
+ import com.knowlink.api.bookings.controllers.requests.CreateBookingRequest;
+@@ -232,9 +233,20 @@ public class BookingServiceImpl implements IBookingService {
+         @Override
+         @Transactional(noRollbackFor = ValidationException.class)
+         public BookingConfirmationResponse confirmSession(UUID tutorUserId, UUID bookingId, String rawToken) {
+-                Booking booking = findBookingOrThrow(bookingId);
++                // Se bloquea la reserva para serializar la confirmación contra la creación de un reclamo
++                // (SessionClaimServiceImpl.create): si no, una sesión podría quedar confirmada con fondos retenidos.
++                Booking booking = bookingRepository.findByIdForUpdate(bookingId)
++                                .orElseThrow(() -> new ResourceNotFoundException(
++                                                "BOOKING_NOT_FOUND",
++                                                "La reserva no existe.",
++                                                "Booking not found for id: " + bookingId));
+                 bookingValidationService.validateCanConfirmSession(booking, tutorUserId);
+ 
++                if (sessionClaimService.hasActiveClaim(bookingId)) {
++                        throw new ConfirmationBlockedByClaimException(
++                                        "Booking " + bookingId + " has an open claim, token confirmation blocked");
++                }
++
+                 if (!confirmationTokenService.matches(rawToken, booking.getConfirmationToken())) {
+                         bookingRepository.incrementConfirmationTokenAttempts(booking.getBookingId());
+                         throw new ValidationException("El código ingresado no es válido. Verificá con tu alumno");
+diff --git a/src/main/java/com/knowlink/api/claims/controllers/interfaces/IClaimController.java b/src/main/java/com/knowlink/api/claims/controllers/interfaces/IClaimController.java
+index 5189397..6e7d01b 100644
+--- a/src/main/java/com/knowlink/api/claims/controllers/interfaces/IClaimController.java
++++ b/src/main/java/com/knowlink/api/claims/controllers/interfaces/IClaimController.java
+@@ -38,7 +38,7 @@ public interface IClaimController {
+     @ApiResponse(responseCode = "403", description = "El usuario no participa de la sesión")
+     @ApiResponse(responseCode = "404", description = "La sesión no existe")
+     @ApiResponse(responseCode = "409", description = "Ya existe un reclamo activo del usuario para esta sesión")
+-    @ApiResponse(responseCode = "422", description = "La sesión no finalizó o ya venció el plazo de reclamo")
++    @ApiResponse(responseCode = "422", description = "La sesión no terminó, ya fue confirmada con token, no admite reclamos, venció el plazo, o el motivo no corresponde al rol del usuario")
+     @ResponseStatus(CREATED)
+     ClaimResponse create(
+             @AuthenticationPrincipal UserPrincipal principal,
+@@ -48,7 +48,7 @@ public interface IClaimController {
+ 
+     @GetMapping("/{bookingId}/claims/eligibility")
+     @Operation(summary = "Consultar si el usuario autenticado puede reclamar una sesión")
+-    @ApiResponse(responseCode = "200", description = "Elegibilidad de la sesión: puede reclamar, hasta cuándo, y motivo de bloqueo si corresponde")
++    @ApiResponse(responseCode = "200", description = "Elegibilidad de la sesión: puede reclamar, hasta cuándo, motivo de bloqueo si corresponde y motivos permitidos según el rol")
+     @ApiResponse(responseCode = "404", description = "La sesión no existe")
+     @ResponseStatus(OK)
+     ClaimEligibilityResponse getEligibility(
+diff --git a/src/main/java/com/knowlink/api/claims/controllers/responses/ClaimEligibilityResponse.java b/src/main/java/com/knowlink/api/claims/controllers/responses/ClaimEligibilityResponse.java
+index 0bb0e4c..ccf8f4d 100644
+--- a/src/main/java/com/knowlink/api/claims/controllers/responses/ClaimEligibilityResponse.java
++++ b/src/main/java/com/knowlink/api/claims/controllers/responses/ClaimEligibilityResponse.java
+@@ -1,10 +1,13 @@
+ package com.knowlink.api.claims.controllers.responses;
+ 
+ import com.knowlink.api.claims.data.enums.ClaimBlockReason;
++import com.knowlink.api.claims.data.enums.ClaimReason;
+ 
+ import java.time.LocalDateTime;
++import java.util.List;
+ 
+ public record ClaimEligibilityResponse(
+         boolean canClaim,
+         LocalDateTime claimableUntil,
+-        ClaimBlockReason blockReason) {}
+\ No newline at end of file
++        ClaimBlockReason blockReason,
++        List<ClaimReason> allowedReasons) {}
+diff --git a/src/main/java/com/knowlink/api/claims/data/enums/ClaimBlockReason.java b/src/main/java/com/knowlink/api/claims/data/enums/ClaimBlockReason.java
+index 800af3c..385730a 100644
+--- a/src/main/java/com/knowlink/api/claims/data/enums/ClaimBlockReason.java
++++ b/src/main/java/com/knowlink/api/claims/data/enums/ClaimBlockReason.java
+@@ -2,7 +2,9 @@ package com.knowlink.api.claims.data.enums;
+ 
+ public enum ClaimBlockReason {
+     SESSION_NOT_PARTICIPANT,
++    SESSION_ALREADY_CONFIRMED,
++    SESSION_NOT_CLAIMABLE,
+     SESSION_NOT_FINALIZED,
+     CLAIM_DEADLINE_EXCEEDED,
+     ACTIVE_CLAIM_EXISTS
+-}
+\ No newline at end of file
++}
+diff --git a/src/main/java/com/knowlink/api/claims/data/enums/ClaimReason.java b/src/main/java/com/knowlink/api/claims/data/enums/ClaimReason.java
+index 4b08eca..c2821cf 100644
+--- a/src/main/java/com/knowlink/api/claims/data/enums/ClaimReason.java
++++ b/src/main/java/com/knowlink/api/claims/data/enums/ClaimReason.java
+@@ -1,6 +1,29 @@
+ package com.knowlink.api.claims.data.enums;
+ 
++import com.knowlink.api.security.enums.Role;
++
++import java.util.List;
++
+ public enum ClaimReason {
+     STUDENT_COULD_NOT_ATTEND,
+-    I_COULD_NOT_ATTEND
+-}
+\ No newline at end of file
++    TUTOR_COULD_NOT_ATTEND,
++    I_COULD_NOT_ATTEND;
++
++    /**
++     * Motivos que puede elegir cada rol: el alumno puede reportar al tutor y el tutor al alumno,
++     * y ambos pueden reportar su propia ausencia.
++     */
++    public static List<ClaimReason> allowedFor(Role role) {
++        if (role == Role.STUDENT) {
++            return List.of(TUTOR_COULD_NOT_ATTEND, I_COULD_NOT_ATTEND);
++        }
++        if (role == Role.TUTOR) {
++            return List.of(STUDENT_COULD_NOT_ATTEND, I_COULD_NOT_ATTEND);
++        }
++        return List.of();
++    }
++
++    public boolean isAllowedFor(Role role) {
++        return allowedFor(role).contains(this);
++    }
++}
+diff --git a/src/main/java/com/knowlink/api/claims/services/implementations/SessionClaimServiceImpl.java b/src/main/java/com/knowlink/api/claims/services/implementations/SessionClaimServiceImpl.java
+index e3177bf..51d7326 100644
+--- a/src/main/java/com/knowlink/api/claims/services/implementations/SessionClaimServiceImpl.java
++++ b/src/main/java/com/knowlink/api/claims/services/implementations/SessionClaimServiceImpl.java
+@@ -17,8 +17,11 @@ import com.knowlink.api.claims.repositories.SessionClaimRepository;
+ import com.knowlink.api.claims.services.interfaces.ISessionClaimService;
+ import com.knowlink.api.claims.utils.ClaimDeadlineCalculator;
+ import com.knowlink.api.exceptions.custom_exceptions.ClaimDeadlineExceededException;
++import com.knowlink.api.exceptions.custom_exceptions.ClaimReasonNotAllowedException;
+ import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
+ import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
++import com.knowlink.api.exceptions.custom_exceptions.SessionAlreadyConfirmedException;
++import com.knowlink.api.exceptions.custom_exceptions.SessionNotClaimableException;
+ import com.knowlink.api.exceptions.custom_exceptions.SessionNotFinalizedException;
+ import com.knowlink.api.exceptions.custom_exceptions.SessionNotParticipantException;
+ import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
+@@ -92,17 +95,24 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
+     @Override
+     @Transactional
+     public ClaimResponse create(UUID userId, UUID bookingId, CreateClaimRequest request, List<MultipartFile> files) {
+-        Booking booking = findBookingOrThrow(bookingId);
++        // Se bloquea la reserva para serializar el reclamo contra la confirmación con token (BookingServiceImpl.confirmSession)
++        Booking booking = findBookingForUpdateOrThrow(bookingId);
+ 
+         ClaimEligibilityResponse eligibility = evaluate(userId, booking, null);
+         if (!eligibility.canClaim()) {
+             throw toException(eligibility, bookingId, userId);
+         }
+ 
++        Role claimantRole = participantRole(userId, booking);
++        if (!request.reason().isAllowedFor(claimantRole)) {
++            throw new ClaimReasonNotAllowedException(
++                    "Reason " + request.reason() + " is not allowed for role " + claimantRole
++                            + " (user " + userId + ", booking " + bookingId + ")");
++        }
++
+         List<MultipartFile> attachments = normalize(files);
+         validateAttachments(attachments);
+ 
+-        Role claimantRole = participantRole(userId, booking);
+         User claimant = claimantRole == Role.STUDENT ? booking.getStudent() : booking.getTutor();
+         String activeKey = bookingId + ":" + userId;
+ 
+@@ -205,18 +215,42 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
+         return result;
+     }
+ 
+-    private ClaimEligibilityResponse evaluate(UUID userId, Booking booking, Boolean knownActiveClaim) {
+-        boolean finalized = deadlineCalculator.isFinalized(booking);
+-        LocalDateTime claimableUntil = finalized ? deadlineCalculator.deadline(booking) : null;
++    @Override
++    @Transactional(readOnly = true)
++    public boolean hasActiveClaim(UUID bookingId) {
++        return sessionClaimRepository.existsByBooking_BookingIdAndStatus(bookingId, ClaimStatus.OPEN);
++    }
+ 
+-        if (participantRole(userId, booking) == null) {
+-            return new ClaimEligibilityResponse(false, claimableUntil, ClaimBlockReason.SESSION_NOT_PARTICIPANT);
++    /**
++     * Una sesión es reclamable solo si: terminó por horario, NO fue confirmada con token
++     * (si hubo token, ambos asistieron) y está dentro de las 24 h desde su hora de fin programada.
++     */
++    private ClaimEligibilityResponse evaluate(UUID userId, Booking booking, Boolean knownActiveClaim) {
++        Role role = participantRole(userId, booking);
++        List<ClaimReason> allowedReasons = role == null ? List.of() : ClaimReason.allowedFor(role);
++
++        boolean confirmed = deadlineCalculator.isConfirmed(booking);
++        boolean claimableStatus = deadlineCalculator.isClaimableStatus(booking);
++        boolean ended = deadlineCalculator.hasEnded(booking);
++        LocalDateTime claimableUntil = (ended && !confirmed && claimableStatus)
++                ? deadlineCalculator.deadline(booking)
++                : null;
++
++        if (role == null) {
++            return new ClaimEligibilityResponse(false, null, ClaimBlockReason.SESSION_NOT_PARTICIPANT, allowedReasons);
+         }
+-        if (!finalized) {
+-            return new ClaimEligibilityResponse(false, null, ClaimBlockReason.SESSION_NOT_FINALIZED);
++        if (confirmed) {
++            return new ClaimEligibilityResponse(false, null, ClaimBlockReason.SESSION_ALREADY_CONFIRMED, allowedReasons);
++        }
++        if (!claimableStatus) {
++            return new ClaimEligibilityResponse(false, null, ClaimBlockReason.SESSION_NOT_CLAIMABLE, allowedReasons);
++        }
++        if (!ended) {
++            return new ClaimEligibilityResponse(false, null, ClaimBlockReason.SESSION_NOT_FINALIZED, allowedReasons);
+         }
+         if (!deadlineCalculator.isWithinDeadline(booking)) {
+-            return new ClaimEligibilityResponse(false, claimableUntil, ClaimBlockReason.CLAIM_DEADLINE_EXCEEDED);
++            return new ClaimEligibilityResponse(false, claimableUntil, ClaimBlockReason.CLAIM_DEADLINE_EXCEEDED,
++                    allowedReasons);
+         }
+ 
+         boolean activeClaim = knownActiveClaim != null
+@@ -224,9 +258,10 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
+                 : sessionClaimRepository.existsByBooking_BookingIdAndClaimant_UserIdAndStatus(
+                         booking.getBookingId(), userId, ClaimStatus.OPEN);
+         if (activeClaim) {
+-            return new ClaimEligibilityResponse(false, claimableUntil, ClaimBlockReason.ACTIVE_CLAIM_EXISTS);
++            return new ClaimEligibilityResponse(false, claimableUntil, ClaimBlockReason.ACTIVE_CLAIM_EXISTS,
++                    allowedReasons);
+         }
+-        return new ClaimEligibilityResponse(true, claimableUntil, null);
++        return new ClaimEligibilityResponse(true, claimableUntil, null, allowedReasons);
+     }
+ 
+     private RuntimeException toException(ClaimEligibilityResponse eligibility, UUID bookingId, UUID userId) {
+@@ -235,8 +270,14 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
+             return new SessionNotParticipantException(
+                     "User " + userId + " is not a participant of booking " + bookingId);
+         }
++        if (reason == ClaimBlockReason.SESSION_ALREADY_CONFIRMED) {
++            return new SessionAlreadyConfirmedException("Booking " + bookingId + " was already confirmed with token");
++        }
++        if (reason == ClaimBlockReason.SESSION_NOT_CLAIMABLE) {
++            return new SessionNotClaimableException("Booking " + bookingId + " status does not admit claims");
++        }
+         if (reason == ClaimBlockReason.SESSION_NOT_FINALIZED) {
+-            return new SessionNotFinalizedException("Booking " + bookingId + " is not finalized");
++            return new SessionNotFinalizedException("Booking " + bookingId + " has not ended yet");
+         }
+         if (reason == ClaimBlockReason.CLAIM_DEADLINE_EXCEEDED) {
+             return new ClaimDeadlineExceededException("Claim deadline exceeded for booking " + bookingId);
+@@ -270,6 +311,14 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
+                         "Booking not found for id: " + bookingId));
+     }
+ 
++    private Booking findBookingForUpdateOrThrow(UUID bookingId) {
++        return bookingRepository.findByIdForUpdate(bookingId)
++                .orElseThrow(() -> new ResourceNotFoundException(
++                        "SESSION_NOT_FOUND",
++                        "La sesión no existe.",
++                        "Booking not found for id: " + bookingId));
++    }
++
+     private List<MultipartFile> normalize(List<MultipartFile> files) {
+         if (files == null) {
+             return List.of();
+diff --git a/src/main/java/com/knowlink/api/claims/services/interfaces/ISessionClaimService.java b/src/main/java/com/knowlink/api/claims/services/interfaces/ISessionClaimService.java
+index bef811e..4b345ea 100644
+--- a/src/main/java/com/knowlink/api/claims/services/interfaces/ISessionClaimService.java
++++ b/src/main/java/com/knowlink/api/claims/services/interfaces/ISessionClaimService.java
+@@ -23,4 +23,7 @@ public interface ISessionClaimService {
+     List<ClaimAttachmentUrlResponse> getAttachments(UUID userId, Role role, UUID bookingId, UUID claimId);
+ 
+     Map<UUID, ClaimEligibilityResponse> evaluateForListing(UUID userId, Collection<Booking> bookings);
++
++    /** Indica si la reserva tiene algún reclamo abierto (de cualquiera de las partes). */
++    boolean hasActiveClaim(UUID bookingId);
+ }
+\ No newline at end of file
+diff --git a/src/main/java/com/knowlink/api/claims/utils/ClaimDeadlineCalculator.java b/src/main/java/com/knowlink/api/claims/utils/ClaimDeadlineCalculator.java
+index 810a72a..ddb975c 100644
+--- a/src/main/java/com/knowlink/api/claims/utils/ClaimDeadlineCalculator.java
++++ b/src/main/java/com/knowlink/api/claims/utils/ClaimDeadlineCalculator.java
+@@ -8,10 +8,18 @@ import org.springframework.stereotype.Component;
+ 
+ import java.time.Clock;
+ import java.time.LocalDateTime;
++import java.util.Set;
+ 
+ @Component
+ public class ClaimDeadlineCalculator {
+ 
++    /**
++     * Estados de una sesión que no fue confirmada con token y puede ser objeto de un reclamo de asistencia.
++     * Las canceladas, vencidas o ya resueltas por fondos quedan afuera.
++     */
++    private static final Set<BookingStatus> CLAIMABLE_STATUSES = Set.of(
++            BookingStatus.BOOKED, BookingStatus.IN_PROGRESS, BookingStatus.NOT_CONFIRMED);
++
+     private final Clock clock;
+     private final long deadlineHours;
+ 
+@@ -21,15 +29,30 @@ public class ClaimDeadlineCalculator {
+         this.deadlineHours = deadlineHours;
+     }
+ 
+-    public boolean isFinalized(Booking booking) {
+-        return booking.getBookingStatus() == BookingStatus.COMPLETED;
++    /** Si ambos asistieron (token ingresado), el reclamo por asistencia no tiene sentido. */
++    public boolean isConfirmed(Booking booking) {
++        return booking.getConfirmedAt() != null || booking.getBookingStatus() == BookingStatus.COMPLETED;
++    }
++
++    public boolean isClaimableStatus(Booking booking) {
++        return CLAIMABLE_STATUSES.contains(booking.getBookingStatus());
+     }
+ 
++    /** La sesión terminó por horario programado, sin importar su estado. */
++    public boolean hasEnded(Booking booking) {
++        return !LocalDateTime.now(clock).isBefore(sessionEnd(booking));
++    }
++
++    /** El plazo se cuenta desde la hora de fin programada: una sesión sin confirmar no tiene otro evento de cierre. */
+     public LocalDateTime deadline(Booking booking) {
+-        return LocalDateTime.of(booking.getSessionDate(), booking.getEndTime()).plusHours(deadlineHours);
++        return sessionEnd(booking).plusHours(deadlineHours);
+     }
+ 
+     public boolean isWithinDeadline(Booking booking) {
+         return !LocalDateTime.now(clock).isAfter(deadline(booking));
+     }
+-}
+\ No newline at end of file
++
++    private LocalDateTime sessionEnd(Booking booking) {
++        return LocalDateTime.of(booking.getSessionDate(), booking.getEndTime());
++    }
++}
+diff --git a/src/main/java/com/knowlink/api/exceptions/custom_exceptions/ClaimReasonNotAllowedException.java b/src/main/java/com/knowlink/api/exceptions/custom_exceptions/ClaimReasonNotAllowedException.java
+new file mode 100644
+index 0000000..a7be967
+--- /dev/null
++++ b/src/main/java/com/knowlink/api/exceptions/custom_exceptions/ClaimReasonNotAllowedException.java
+@@ -0,0 +1,10 @@
++package com.knowlink.api.exceptions.custom_exceptions;
++
++public class ClaimReasonNotAllowedException extends UnprocessableEntityException {
++
++    public ClaimReasonNotAllowedException(String technicalMessage) {
++        super("CLAIM_REASON_NOT_ALLOWED_FOR_ROLE",
++                "El motivo seleccionado no corresponde a tu rol en esta sesión.",
++                technicalMessage);
++    }
++}
+diff --git a/src/main/java/com/knowlink/api/exceptions/custom_exceptions/ConfirmationBlockedByClaimException.java b/src/main/java/com/knowlink/api/exceptions/custom_exceptions/ConfirmationBlockedByClaimException.java
+new file mode 100644
+index 0000000..20db501
+--- /dev/null
++++ b/src/main/java/com/knowlink/api/exceptions/custom_exceptions/ConfirmationBlockedByClaimException.java
+@@ -0,0 +1,10 @@
++package com.knowlink.api.exceptions.custom_exceptions;
++
++public class ConfirmationBlockedByClaimException extends UnprocessableEntityException {
++
++    public ConfirmationBlockedByClaimException(String technicalMessage) {
++        super("CONFIRMATION_BLOCKED_BY_ACTIVE_CLAIM",
++                "No se puede confirmar la clase porque hay un reclamo activo sobre esta sesión.",
++                technicalMessage);
++    }
++}
+diff --git a/src/main/java/com/knowlink/api/exceptions/custom_exceptions/SessionAlreadyConfirmedException.java b/src/main/java/com/knowlink/api/exceptions/custom_exceptions/SessionAlreadyConfirmedException.java
+new file mode 100644
+index 0000000..1dc9c05
+--- /dev/null
++++ b/src/main/java/com/knowlink/api/exceptions/custom_exceptions/SessionAlreadyConfirmedException.java
+@@ -0,0 +1,10 @@
++package com.knowlink.api.exceptions.custom_exceptions;
++
++public class SessionAlreadyConfirmedException extends UnprocessableEntityException {
++
++    public SessionAlreadyConfirmedException(String technicalMessage) {
++        super("SESSION_ALREADY_CONFIRMED",
++                "La sesión ya fue confirmada con el código, por lo que no se puede reclamar por asistencia.",
++                technicalMessage);
++    }
++}
+diff --git a/src/main/java/com/knowlink/api/exceptions/custom_exceptions/SessionNotClaimableException.java b/src/main/java/com/knowlink/api/exceptions/custom_exceptions/SessionNotClaimableException.java
+new file mode 100644
+index 0000000..ec2d9cf
+--- /dev/null
++++ b/src/main/java/com/knowlink/api/exceptions/custom_exceptions/SessionNotClaimableException.java
+@@ -0,0 +1,8 @@
++package com.knowlink.api.exceptions.custom_exceptions;
++
++public class SessionNotClaimableException extends UnprocessableEntityException {
++
++    public SessionNotClaimableException(String technicalMessage) {
++        super("SESSION_NOT_CLAIMABLE", "Esta sesión no admite reclamos.", technicalMessage);
++    }
++}
+diff --git a/src/test/java/com/knowlink/api/bookings/services/BookingServiceImplConfirmSessionTest.java b/src/test/java/com/knowlink/api/bookings/services/BookingServiceImplConfirmSessionTest.java
+new file mode 100644
+index 0000000..3c6900c
+--- /dev/null
++++ b/src/test/java/com/knowlink/api/bookings/services/BookingServiceImplConfirmSessionTest.java
+@@ -0,0 +1,101 @@
++package com.knowlink.api.bookings.services;
++
++import com.knowlink.api.bookings.data.enums.BookingStatus;
++import com.knowlink.api.bookings.data.mappers.BookingMapper;
++import com.knowlink.api.bookings.data.models.Booking;
++import com.knowlink.api.bookings.events.SessionConfirmedEvent;
++import com.knowlink.api.bookings.repositories.IBookingRepository;
++import com.knowlink.api.bookings.services.implementations.BookingServiceImpl;
++import com.knowlink.api.bookings.services.interfaces.IBookingConfirmationTokenService;
++import com.knowlink.api.bookings.validations.IBookingValidationService;
++import com.knowlink.api.claims.services.interfaces.ISessionClaimService;
++import com.knowlink.api.exceptions.custom_exceptions.ConfirmationBlockedByClaimException;
++import com.knowlink.api.users.data.models.User;
++
++import org.junit.jupiter.api.BeforeEach;
++import org.junit.jupiter.api.DisplayName;
++import org.junit.jupiter.api.Test;
++import org.junit.jupiter.api.extension.ExtendWith;
++import org.mockito.InjectMocks;
++import org.mockito.Mock;
++import org.mockito.junit.jupiter.MockitoExtension;
++import org.springframework.context.ApplicationEventPublisher;
++
++import java.util.Optional;
++import java.util.UUID;
++
++import static org.assertj.core.api.Assertions.assertThat;
++import static org.assertj.core.api.Assertions.assertThatThrownBy;
++import static org.mockito.ArgumentMatchers.any;
++import static org.mockito.Mockito.never;
++import static org.mockito.Mockito.verify;
++import static org.mockito.Mockito.verifyNoInteractions;
++import static org.mockito.Mockito.when;
++
++@ExtendWith(MockitoExtension.class)
++class BookingServiceImplConfirmSessionTest {
++
++    private static final String RAW_TOKEN = "1234";
++    private static final String ENCRYPTED_TOKEN = "encrypted";
++
++    @Mock
++    private IBookingRepository bookingRepository;
++    @Mock
++    private IBookingValidationService bookingValidationService;
++    @Mock
++    private IBookingConfirmationTokenService confirmationTokenService;
++    @Mock
++    private ISessionClaimService sessionClaimService;
++    @Mock
++    private ApplicationEventPublisher applicationEventPublisher;
++    @Mock
++    private BookingMapper bookingMapper;
++
++    @InjectMocks
++    private BookingServiceImpl service;
++
++    private UUID tutorId;
++    private Booking booking;
++
++    @BeforeEach
++    void setUp() {
++        tutorId = UUID.randomUUID();
++        booking = Booking.builder()
++                .bookingId(UUID.randomUUID())
++                .bookingStatus(BookingStatus.IN_PROGRESS)
++                .confirmationToken(ENCRYPTED_TOKEN)
++                .tutor(User.builder().userId(tutorId).build())
++                .build();
++        when(bookingRepository.findByIdForUpdate(booking.getBookingId())).thenReturn(Optional.of(booking));
++    }
++
++    @Test
++    @DisplayName("Confirmar - con reclamo activo: 422 CONFIRMATION_BLOCKED_BY_ACTIVE_CLAIM sin consumir intentos ni completar la sesion")
++    void confirmSession_withActiveClaim_isBlocked() {
++        when(sessionClaimService.hasActiveClaim(booking.getBookingId())).thenReturn(true);
++
++        assertThatThrownBy(() -> service.confirmSession(tutorId, booking.getBookingId(), RAW_TOKEN))
++                .isInstanceOf(ConfirmationBlockedByClaimException.class)
++                .hasFieldOrPropertyWithValue("errorCode", "CONFIRMATION_BLOCKED_BY_ACTIVE_CLAIM");
++
++        assertThat(booking.getBookingStatus()).isEqualTo(BookingStatus.IN_PROGRESS);
++        assertThat(booking.getConfirmedAt()).isNull();
++        verify(bookingRepository, never()).save(any());
++        verify(bookingRepository, never()).incrementConfirmationTokenAttempts(any());
++        verifyNoInteractions(confirmationTokenService, applicationEventPublisher);
++    }
++
++    @Test
++    @DisplayName("Confirmar - sin reclamo activo y token valido: completa la sesion y publica el evento")
++    void confirmSession_withoutActiveClaim_completesSession() {
++        when(sessionClaimService.hasActiveClaim(booking.getBookingId())).thenReturn(false);
++        when(confirmationTokenService.matches(RAW_TOKEN, ENCRYPTED_TOKEN)).thenReturn(true);
++
++        service.confirmSession(tutorId, booking.getBookingId(), RAW_TOKEN);
++
++        assertThat(booking.getBookingStatus()).isEqualTo(BookingStatus.COMPLETED);
++        assertThat(booking.getConfirmedAt()).isNotNull();
++        verify(bookingRepository).save(booking);
++        verify(applicationEventPublisher).publishEvent(any(SessionConfirmedEvent.class));
++    }
++}
+diff --git a/src/test/java/com/knowlink/api/claims/controllers/ClaimAttachmentRealUploadIntegrationTest.java b/src/test/java/com/knowlink/api/claims/controllers/ClaimAttachmentRealUploadIntegrationTest.java
+index 61cbbd6..5e42b0f 100644
+--- a/src/test/java/com/knowlink/api/claims/controllers/ClaimAttachmentRealUploadIntegrationTest.java
++++ b/src/test/java/com/knowlink/api/claims/controllers/ClaimAttachmentRealUploadIntegrationTest.java
+@@ -13,6 +13,7 @@ import com.knowlink.api.payments.domain.FundsRecipient;
+ import com.knowlink.api.payments.domain.FundsStatus;
+ import com.knowlink.api.payments.repositories.IFundsTransferRepository;
+ import com.knowlink.api.materials.service.interfaces.ISupabaseStorageService;
++import com.knowlink.api.shared.utils.AppTimeZone;
+ import com.knowlink.api.security.enums.Role;
+ import com.knowlink.api.students.data.models.StudentProfile;
+ import com.knowlink.api.students.repositories.IStudentProfileRepository;
+@@ -65,6 +66,7 @@ import java.nio.charset.StandardCharsets;
+ import java.nio.file.Files;
+ import java.nio.file.Path;
+ import java.time.LocalDate;
++import java.time.LocalDateTime;
+ import java.time.LocalTime;
+ import java.util.List;
+ import java.util.Objects;
+@@ -231,21 +233,23 @@ class ClaimAttachmentRealUploadIntegrationTest {
+     }
+ 
+     private Booking withinDeadlineBooking() {
++        // Sesion terminada hace 2 h (relativa al reloj) y sin confirmar con token: reclamable
++        LocalDateTime end = LocalDateTime.now(AppTimeZone.ZONE).minusHours(2);
+         TimeSlot slot = timeSlotRepository.save(TimeSlot.builder()
+-                .date(LocalDate.now())
+-                .startTime(LocalTime.NOON)
+-                .endTime(LocalTime.of(15, 0))
++                .date(end.toLocalDate())
++                .startTime(end.toLocalTime().minusHours(1))
++                .endTime(end.toLocalTime())
+                 .status(SlotStatus.OCCUPIED)
+                 .tutorProfileId(tutorProfile.getTutorProfileId())
+                 .build());
+         return bookingRepository.save(Booking.builder()
+                 .amount(new BigDecimal("2100.00"))
+-                .sessionDate(LocalDate.now())
+-                .startTime(LocalTime.NOON)
+-                .endTime(LocalTime.of(15, 0))
++                .sessionDate(end.toLocalDate())
++                .startTime(end.toLocalTime().minusHours(1))
++                .endTime(end.toLocalTime())
+                 .topic("Real upload E2E topic")
+                 .modality(Modality.VIRTUAL)
+-                .bookingStatus(BookingStatus.COMPLETED)
++                .bookingStatus(BookingStatus.NOT_CONFIRMED)
+                 .timeSlot(slot)
+                 .tutorSubject(tutorSubject)
+                 .student(student)
+@@ -299,7 +303,7 @@ class ClaimAttachmentRealUploadIntegrationTest {
+                 "files", "evidencia-real.pdf", "application/pdf", pdfBytes);
+ 
+         MvcResult created = mockMvc.perform(postClaim(token, booking.getBookingId(),
+-                        "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\",\"comment\":\"e2e real upload\"}", file))
++                        "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\",\"comment\":\"e2e real upload\"}", file))
+                 .andExpect(status().isCreated())
+                 .andExpect(jsonPath("$.status").value("OPEN"))
+                 .andExpect(jsonPath("$.attachments.length()").value(1))
+diff --git a/src/test/java/com/knowlink/api/claims/controllers/ClaimControllerIntegrationTest.java b/src/test/java/com/knowlink/api/claims/controllers/ClaimControllerIntegrationTest.java
+index 5d8ab48..1186cf8 100644
+--- a/src/test/java/com/knowlink/api/claims/controllers/ClaimControllerIntegrationTest.java
++++ b/src/test/java/com/knowlink/api/claims/controllers/ClaimControllerIntegrationTest.java
+@@ -18,6 +18,7 @@ import com.knowlink.api.payments.domain.FundsStatus;
+ import com.knowlink.api.payments.repositories.IFundsTransferRepository;
+ import com.knowlink.api.payments.services.FundsLedgerService;
+ import com.knowlink.api.materials.service.interfaces.ISupabaseStorageService;
++import com.knowlink.api.shared.utils.AppTimeZone;
+ import com.knowlink.api.security.enums.Role;
+ import com.knowlink.api.students.data.models.StudentProfile;
+ import com.knowlink.api.students.repositories.IStudentProfileRepository;
+@@ -62,6 +63,7 @@ import org.springframework.web.multipart.MultipartFile;
+ import java.math.BigDecimal;
+ import java.nio.charset.StandardCharsets;
+ import java.time.LocalDate;
++import java.time.LocalDateTime;
+ import java.time.LocalTime;
+ import java.util.UUID;
+ import java.util.concurrent.CountDownLatch;
+@@ -219,13 +221,25 @@ class ClaimControllerIntegrationTest {
+                 .build());
+     }
+ 
++    /** Sesion que termino hace 'hoursAgo' horas (relativa al reloj, para no depender de la hora del dia). */
++    private Booking endedBooking(long hoursAgo, BookingStatus status) {
++        LocalDateTime end = LocalDateTime.now(AppTimeZone.ZONE).minusHours(hoursAgo);
++        return createBooking(end.toLocalDate(), end.toLocalTime().minusHours(1), end.toLocalTime(), status);
++    }
++
++    /** Sesion terminada hace 2 h sin confirmar con token: reclamable. */
+     private Booking withinDeadlineBooking() {
+-        return createBooking(LocalDate.now(), LocalTime.NOON, LocalTime.of(15, 0), BookingStatus.COMPLETED);
++        return endedBooking(2, BookingStatus.NOT_CONFIRMED);
+     }
+ 
+     private Booking expiredBooking() {
+         return createBooking(LocalDate.now().minusDays(5), LocalTime.NOON, LocalTime.of(15, 0),
+-                BookingStatus.COMPLETED);
++                BookingStatus.NOT_CONFIRMED);
++    }
++
++    /** Sesion que todavia no termino (manana). */
++    private Booking futureBooking(BookingStatus status) {
++        return createBooking(LocalDate.now().plusDays(1), LocalTime.NOON, LocalTime.of(15, 0), status);
+     }
+ 
+     private FundsTransfer heldTransfer(Booking booking) {
+@@ -283,13 +297,13 @@ class ClaimControllerIntegrationTest {
+         Booking booking = withinDeadlineBooking();
+         heldTransfer(booking);
+         String token = login(student);
+-        String json = "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\",\"comment\":\"no pude conectarme\"}";
++        String json = "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\",\"comment\":\"no pude conectarme\"}";
+ 
+         mockMvc.perform(postClaim(token, booking.getBookingId(), json, pdfFile("evidence.pdf"), pngFile("photo.png")))
+                 .andExpect(status().isCreated())
+                 .andExpect(jsonPath("$.status").value("OPEN"))
+                 .andExpect(jsonPath("$.claimantRole").value("STUDENT"))
+-                .andExpect(jsonPath("$.reason").value("STUDENT_COULD_NOT_ATTEND"))
++                .andExpect(jsonPath("$.reason").value("TUTOR_COULD_NOT_ATTEND"))
+                 .andExpect(jsonPath("$.bookingId").value(booking.getBookingId().toString()))
+                 .andExpect(jsonPath("$.comment").value("no pude conectarme"))
+                 .andExpect(jsonPath("$.attachments.length()").value(2))
+@@ -323,7 +337,7 @@ class ClaimControllerIntegrationTest {
+     void create_duplicateSecondRequest_returns409WithExactMessage() throws Exception {
+         Booking booking = withinDeadlineBooking();
+         String token = login(student);
+-        String json = "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}";
++        String json = "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}";
+ 
+         mockMvc.perform(postClaim(token, booking.getBookingId(), json, pdfFile("a.pdf")))
+                 .andExpect(status().isCreated());
+@@ -342,7 +356,7 @@ class ClaimControllerIntegrationTest {
+         Booking booking = withinDeadlineBooking();
+         String token = login(outsider);
+ 
+-        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
++        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
+                 .andExpect(status().isForbidden())
+                 .andExpect(jsonPath("$.detail").value("SESSION_NOT_PARTICIPANT"));
+     }
+@@ -352,7 +366,7 @@ class ClaimControllerIntegrationTest {
+     void create_unknownBooking_returns404() throws Exception {
+         String token = login(student);
+ 
+-        mockMvc.perform(postClaim(token, UUID.randomUUID(), "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
++        mockMvc.perform(postClaim(token, UUID.randomUUID(), "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
+                 .andExpect(status().isNotFound())
+                 .andExpect(jsonPath("$.detail").value("SESSION_NOT_FOUND"));
+     }
+@@ -360,11 +374,10 @@ class ClaimControllerIntegrationTest {
+     @Test
+     @DisplayName("CP-06 - sesion no finalizada: 422 SESSION_NOT_FINALIZED")
+     void create_notFinalized_returns422() throws Exception {
+-        Booking booking = createBooking(LocalDate.now(), LocalTime.NOON, LocalTime.of(15, 0),
+-                BookingStatus.IN_PROGRESS);
++        Booking booking = futureBooking(BookingStatus.IN_PROGRESS);
+         String token = login(student);
+ 
+-        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
++        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
+                 .andExpect(status().isUnprocessableEntity())
+                 .andExpect(jsonPath("$.detail").value("SESSION_NOT_FINALIZED"));
+     }
+@@ -375,7 +388,7 @@ class ClaimControllerIntegrationTest {
+         Booking booking = expiredBooking();
+         String token = login(student);
+ 
+-        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
++        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
+                 .andExpect(status().isUnprocessableEntity())
+                 .andExpect(jsonPath("$.detail").value("CLAIM_DEADLINE_EXCEEDED"));
+ 
+@@ -387,7 +400,7 @@ class ClaimControllerIntegrationTest {
+     void create_unauthenticated_returns401() throws Exception {
+         Booking booking = withinDeadlineBooking();
+ 
+-        mockMvc.perform(postClaim("", booking.getBookingId(), "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
++        mockMvc.perform(postClaim("", booking.getBookingId(), "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
+                 .andExpect(status().isUnauthorized());
+     }
+ 
+@@ -409,7 +422,7 @@ class ClaimControllerIntegrationTest {
+         String longComment = "x".repeat(501);
+ 
+         mockMvc.perform(postClaim(token, booking.getBookingId(),
+-                        "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\",\"comment\":\"" + longComment + "\"}"))
++                        "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\",\"comment\":\"" + longComment + "\"}"))
+                 .andExpect(status().isBadRequest());
+     }
+ 
+@@ -431,7 +444,7 @@ class ClaimControllerIntegrationTest {
+         Booking booking = withinDeadlineBooking();
+         String token = login(student);
+ 
+-        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}",
++        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}",
+                         pdfFile("a.pdf"), pdfFile("b.pdf"), pdfFile("c.pdf"), pdfFile("d.pdf")))
+                 .andExpect(status().isBadRequest())
+                 .andExpect(jsonPath("$.message").value("No podés adjuntar más de 3 archivos."));
+@@ -446,7 +459,7 @@ class ClaimControllerIntegrationTest {
+                 "zip-bytes".getBytes(StandardCharsets.UTF_8));
+ 
+         mockMvc.perform(postClaim(token, booking.getBookingId(),
+-                        "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}", zip))
++                        "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}", zip))
+                 .andExpect(status().isBadRequest())
+                 .andExpect(jsonPath("$.detail").value("FORMAT_NOT_ALLOWED"));
+     }
+@@ -469,7 +482,7 @@ class ClaimControllerIntegrationTest {
+     void eligibility_afterClaim_blocked() throws Exception {
+         Booking booking = withinDeadlineBooking();
+         String token = login(student);
+-        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
++        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
+                 .andExpect(status().isCreated());
+ 
+         mockMvc.perform(get("/api/v1/bookings/{bookingId}/claims/eligibility", booking.getBookingId())
+@@ -495,8 +508,7 @@ class ClaimControllerIntegrationTest {
+     @Test
+     @DisplayName("CP-17 - elegibilidad sin finalizar: bloqueo SESSION_NOT_FINALIZED sin fecha")
+     void eligibility_notFinalized_blocked() throws Exception {
+-        Booking booking = createBooking(LocalDate.now(), LocalTime.NOON, LocalTime.of(15, 0),
+-                BookingStatus.BOOKED);
++        Booking booking = futureBooking(BookingStatus.BOOKED);
+         String token = login(student);
+ 
+         mockMvc.perform(get("/api/v1/bookings/{bookingId}/claims/eligibility", booking.getBookingId())
+@@ -512,7 +524,7 @@ class ClaimControllerIntegrationTest {
+         Booking booking = withinDeadlineBooking();
+         String token = login(student);
+         MvcResult created = mockMvc.perform(postClaim(token, booking.getBookingId(),
+-                        "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}", pdfFile("evidence.pdf")))
++                        "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}", pdfFile("evidence.pdf")))
+                 .andExpect(status().isCreated())
+                 .andReturn();
+         String claimId = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
+@@ -532,7 +544,7 @@ class ClaimControllerIntegrationTest {
+         Booking booking = withinDeadlineBooking();
+         String studentToken = login(student);
+         MvcResult created = mockMvc.perform(postClaim(studentToken, booking.getBookingId(),
+-                        "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
++                        "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
+                 .andExpect(status().isCreated())
+                 .andReturn();
+         String claimId = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
+@@ -562,16 +574,15 @@ class ClaimControllerIntegrationTest {
+     @DisplayName("CP-21 - listado /mine expone canClaim y claimableUntil por reserva")
+     void listing_exposesClaimFlags() throws Exception {
+         Booking freshBooking = withinDeadlineBooking();
+-        Booking claimedBooking = createBooking(LocalDate.now(), LocalTime.of(16, 0), LocalTime.of(17, 0),
+-                BookingStatus.COMPLETED);
++        Booking claimedBooking = endedBooking(3, BookingStatus.NOT_CONFIRMED);
+         Booking oldBooking = expiredBooking();
+         String token = login(student);
+-        mockMvc.perform(postClaim(token, claimedBooking.getBookingId(), "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
++        mockMvc.perform(postClaim(token, claimedBooking.getBookingId(), "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
+                 .andExpect(status().isCreated());
+ 
+         MvcResult result = mockMvc.perform(get("/api/v1/bookings/mine")
+                         .param("role", Role.STUDENT.name())
+-                        .param("category", BookingHistoryCategory.COMPLETED.name())
++                        .param("category", BookingHistoryCategory.CANCELLED.name())
+                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
+                 .andExpect(status().isOk())
+                 .andReturn();
+@@ -590,6 +601,72 @@ class ClaimControllerIntegrationTest {
+         assertThat(oldItem.get("canClaim").asBoolean()).isFalse();
+     }
+ 
++    @Test
++    @DisplayName("CP-25 - sesion confirmada con token: 422 SESSION_ALREADY_CONFIRMED y elegibilidad bloqueada")
++    void create_confirmedSession_returns422() throws Exception {
++        Booking booking = endedBooking(2, BookingStatus.COMPLETED);
++        booking.setConfirmedAt(LocalDateTime.now(AppTimeZone.ZONE).minusHours(3));
++        bookingRepository.save(booking);
++        String token = login(student);
++
++        mockMvc.perform(postClaim(token, booking.getBookingId(), "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
++                .andExpect(status().isUnprocessableEntity())
++                .andExpect(jsonPath("$.detail").value("SESSION_ALREADY_CONFIRMED"));
++
++        mockMvc.perform(get("/api/v1/bookings/{bookingId}/claims/eligibility", booking.getBookingId())
++                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
++                .andExpect(status().isOk())
++                .andExpect(jsonPath("$.canClaim").value(false))
++                .andExpect(jsonPath("$.blockReason").value("SESSION_ALREADY_CONFIRMED"));
++    }
++
++    @Test
++    @DisplayName("CP-26 - motivo que no corresponde al rol: 422 CLAIM_REASON_NOT_ALLOWED_FOR_ROLE")
++    void create_reasonNotAllowedForRole_returns422() throws Exception {
++        Booking booking = withinDeadlineBooking();
++        String studentToken = login(student);
++        String tutorToken = login(tutor);
++
++        mockMvc.perform(postClaim(studentToken, booking.getBookingId(), "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
++                .andExpect(status().isUnprocessableEntity())
++                .andExpect(jsonPath("$.detail").value("CLAIM_REASON_NOT_ALLOWED_FOR_ROLE"));
++        mockMvc.perform(postClaim(tutorToken, booking.getBookingId(), "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
++                .andExpect(status().isUnprocessableEntity())
++                .andExpect(jsonPath("$.detail").value("CLAIM_REASON_NOT_ALLOWED_FOR_ROLE"));
++
++        assertThat(claimCount(booking)).isZero();
++    }
++
++    @Test
++    @DisplayName("CP-27 - el tutor reclama con 'el alumno no pudo asistir': 201")
++    void create_tutorReportsStudentAbsence_returns201() throws Exception {
++        Booking booking = withinDeadlineBooking();
++        String tutorToken = login(tutor);
++
++        mockMvc.perform(postClaim(tutorToken, booking.getBookingId(), "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
++                .andExpect(status().isCreated())
++                .andExpect(jsonPath("$.reason").value("STUDENT_COULD_NOT_ATTEND"))
++                .andExpect(jsonPath("$.claimantRole").value("TUTOR"));
++    }
++
++    @Test
++    @DisplayName("CP-28 - elegibilidad expone los motivos permitidos segun el rol")
++    void eligibility_exposesAllowedReasonsByRole() throws Exception {
++        Booking booking = withinDeadlineBooking();
++
++        mockMvc.perform(get("/api/v1/bookings/{bookingId}/claims/eligibility", booking.getBookingId())
++                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + login(student)))
++                .andExpect(status().isOk())
++                .andExpect(jsonPath("$.canClaim").value(true))
++                .andExpect(jsonPath("$.allowedReasons[0]").value("TUTOR_COULD_NOT_ATTEND"))
++                .andExpect(jsonPath("$.allowedReasons[1]").value("I_COULD_NOT_ATTEND"));
++        mockMvc.perform(get("/api/v1/bookings/{bookingId}/claims/eligibility", booking.getBookingId())
++                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + login(tutor)))
++                .andExpect(status().isOk())
++                .andExpect(jsonPath("$.allowedReasons[0]").value("STUDENT_COULD_NOT_ATTEND"))
++                .andExpect(jsonPath("$.allowedReasons[1]").value("I_COULD_NOT_ATTEND"));
++    }
++
+     @Test
+     @DisplayName("CP-24 - la contraparte reclama la misma sesion: 201 y la retencion no se duplica")
+     void create_counterpartyClaimsSameSession_returns201WithoutDuplicatingRetention() throws Exception {
+@@ -597,7 +674,7 @@ class ClaimControllerIntegrationTest {
+         heldTransfer(booking);
+         String studentToken = login(student);
+         MvcResult studentClaim = mockMvc.perform(postClaim(studentToken, booking.getBookingId(),
+-                        "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}"))
++                        "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
+                 .andExpect(status().isCreated())
+                 .andReturn();
+         String studentClaimId = objectMapper.readTree(studentClaim.getResponse().getContentAsString())
+@@ -624,7 +701,7 @@ class ClaimControllerIntegrationTest {
+                 .when(fundsLedgerService).markSuspendedByClaim(any(), any());
+ 
+         mockMvc.perform(postClaim(token, booking.getBookingId(),
+-                        "{\"reason\":\"STUDENT_COULD_NOT_ATTEND\"}", pdfFile("a.pdf")))
++                        "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}", pdfFile("a.pdf")))
+                 .andExpect(status().isInternalServerError());
+ 
+         assertThat(sessionClaimRepository.existsByBooking_BookingIdAndStatus(
+@@ -640,7 +717,7 @@ class ClaimControllerIntegrationTest {
+     void concurrentCreate_onlyOneClaimPersists() throws Exception {
+         Booking booking = withinDeadlineBooking();
+         String token = login(student);
+-        var request = new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null);
++        var request = new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null);
+ 
+         TransactionTemplate template = new TransactionTemplate(transactionManager);
+         CountDownLatch firstInserted = new CountDownLatch(1);
+diff --git a/src/test/java/com/knowlink/api/claims/services/implementations/SessionClaimServiceImplTest.java b/src/test/java/com/knowlink/api/claims/services/implementations/SessionClaimServiceImplTest.java
+index 8846e2a..4ca5c71 100644
+--- a/src/test/java/com/knowlink/api/claims/services/implementations/SessionClaimServiceImplTest.java
++++ b/src/test/java/com/knowlink/api/claims/services/implementations/SessionClaimServiceImplTest.java
+@@ -16,8 +16,11 @@ import com.knowlink.api.claims.repositories.ClaimAttachmentRepository;
+ import com.knowlink.api.claims.repositories.SessionClaimRepository;
+ import com.knowlink.api.claims.utils.ClaimDeadlineCalculator;
+ import com.knowlink.api.exceptions.custom_exceptions.ClaimDeadlineExceededException;
++import com.knowlink.api.exceptions.custom_exceptions.ClaimReasonNotAllowedException;
+ import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
+ import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
++import com.knowlink.api.exceptions.custom_exceptions.SessionAlreadyConfirmedException;
++import com.knowlink.api.exceptions.custom_exceptions.SessionNotClaimableException;
+ import com.knowlink.api.exceptions.custom_exceptions.SessionNotFinalizedException;
+ import com.knowlink.api.exceptions.custom_exceptions.SessionNotParticipantException;
+ import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
+@@ -66,6 +69,7 @@ class SessionClaimServiceImplTest {
+     private static final LocalDateTime WITHIN_DEADLINE_NOW = LocalDateTime.of(2026, 10, 1, 9, 0);
+     private static final LocalDateTime EXACT_DEADLINE_NOW = LocalDateTime.of(2026, 10, 1, 10, 0);
+     private static final LocalDateTime AFTER_DEADLINE_NOW = LocalDateTime.of(2026, 10, 1, 10, 1);
++    private static final LocalDateTime DURING_SESSION_NOW = LocalDateTime.of(2026, 9, 30, 9, 0);
+     private static final String ACTIVE_CLAIM_MESSAGE = "Ya tenés una disputa activa para esta sesión";
+ 
+     @Mock
+@@ -101,11 +105,12 @@ class SessionClaimServiceImplTest {
+                 .sessionDate(SESSION_DATE)
+                 .startTime(LocalTime.of(8, 0))
+                 .endTime(SESSION_END)
+-                .bookingStatus(BookingStatus.COMPLETED)
++                .bookingStatus(BookingStatus.NOT_CONFIRMED)
+                 .student(student)
+                 .tutor(tutor)
+                 .build();
+         lenient().when(bookingRepository.findById(booking.getBookingId())).thenReturn(Optional.of(booking));
++        lenient().when(bookingRepository.findByIdForUpdate(booking.getBookingId())).thenReturn(Optional.of(booking));
+     }
+ 
+     private SessionClaimServiceImpl newService(LocalDateTime now) {
+@@ -146,7 +151,7 @@ class SessionClaimServiceImplTest {
+         stubSaveAndFlush();
+ 
+         ClaimResponse response = service.create(studentId, booking.getBookingId(),
+-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), null);
++                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null);
+ 
+         ArgumentCaptor<SessionClaim> captor = ArgumentCaptor.forClass(SessionClaim.class);
+         verify(sessionClaimRepository).saveAndFlush(captor.capture());
+@@ -154,7 +159,7 @@ class SessionClaimServiceImplTest {
+         assertThat(saved.getStatus()).isEqualTo(ClaimStatus.OPEN);
+         assertThat(saved.getClaimantRole()).isEqualTo(Role.STUDENT);
+         assertThat(saved.getClaimant().getUserId()).isEqualTo(studentId);
+-        assertThat(saved.getReason()).isEqualTo(ClaimReason.STUDENT_COULD_NOT_ATTEND);
++        assertThat(saved.getReason()).isEqualTo(ClaimReason.TUTOR_COULD_NOT_ATTEND);
+         assertThat(saved.getComment()).isNull();
+         assertThat(saved.getActiveKey()).isEqualTo(booking.getBookingId() + ":" + studentId);
+         verify(fundsLedgerService).markSuspendedByClaim(booking.getBookingId(), saved.getClaimId());
+@@ -191,7 +196,7 @@ class SessionClaimServiceImplTest {
+         stubSaveAndFlush();
+ 
+         ClaimResponse response = service.create(studentId, booking.getBookingId(),
+-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), null);
++                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null);
+ 
+         assertThat(response.status()).isEqualTo(ClaimStatus.OPEN);
+     }
+@@ -202,7 +207,7 @@ class SessionClaimServiceImplTest {
+         service = newService(AFTER_DEADLINE_NOW);
+ 
+         assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
+-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), null))
++                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null))
+                 .isInstanceOf(ClaimDeadlineExceededException.class)
+                 .hasFieldOrPropertyWithValue("errorCode", "CLAIM_DEADLINE_EXCEEDED");
+ 
+@@ -211,25 +216,134 @@ class SessionClaimServiceImplTest {
+     }
+ 
+     @Test
+-    @DisplayName("Crear - sesion no finalizada: 422 SESSION_NOT_FINALIZED")
+-    void create_sessionNotFinalized_throwsSessionNotFinalized() {
++    @DisplayName("Crear - sesion en curso (antes de la hora de fin): 422 SESSION_NOT_FINALIZED")
++    void create_sessionStillInProgress_throwsSessionNotFinalized() {
++        service = newService(DURING_SESSION_NOW);
+         booking.setBookingStatus(BookingStatus.IN_PROGRESS);
+ 
+         assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
+-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), null))
++                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null))
+                 .isInstanceOf(SessionNotFinalizedException.class)
+                 .hasFieldOrPropertyWithValue("errorCode", "SESSION_NOT_FINALIZED");
+ 
+         verify(sessionClaimRepository, never()).saveAndFlush(any());
+     }
+ 
++    @Test
++    @DisplayName("Crear - sesion terminada por horario pero sin estado final (BOOKED/IN_PROGRESS): reclamo aceptado")
++    void create_endedByScheduleWithoutFinalStatus_returnsCreated() {
++        booking.setBookingStatus(BookingStatus.IN_PROGRESS);
++        stubNoActiveClaim();
++        stubSaveAndFlush();
++
++        ClaimResponse response = service.create(studentId, booking.getBookingId(),
++                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null);
++
++        assertThat(response.status()).isEqualTo(ClaimStatus.OPEN);
++    }
++
++    @Test
++    @DisplayName("Crear - sesion confirmada con token (COMPLETED): 422 SESSION_ALREADY_CONFIRMED")
++    void create_sessionConfirmedWithToken_throwsSessionAlreadyConfirmed() {
++        booking.setBookingStatus(BookingStatus.COMPLETED);
++        booking.setConfirmedAt(LocalDateTime.of(2026, 9, 30, 9, 30));
++
++        assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
++                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null))
++                .isInstanceOf(SessionAlreadyConfirmedException.class)
++                .hasFieldOrPropertyWithValue("errorCode", "SESSION_ALREADY_CONFIRMED");
++
++        verify(sessionClaimRepository, never()).saveAndFlush(any());
++        verifyNoInteractions(fundsLedgerService);
++    }
++
++    @Test
++    @DisplayName("Crear - sesion confirmada con token durante la clase: bloquea por confirmada, no por en curso")
++    void create_confirmedWhileStillInProgress_throwsSessionAlreadyConfirmed() {
++        service = newService(DURING_SESSION_NOW);
++        booking.setBookingStatus(BookingStatus.COMPLETED);
++        booking.setConfirmedAt(LocalDateTime.of(2026, 9, 30, 9, 30));
++
++        assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
++                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null))
++                .isInstanceOf(SessionAlreadyConfirmedException.class);
++
++        verify(sessionClaimRepository, never()).saveAndFlush(any());
++    }
++
++    @Test
++    @DisplayName("Crear - sesion cancelada: 422 SESSION_NOT_CLAIMABLE")
++    void create_cancelledSession_throwsSessionNotClaimable() {
++        booking.setBookingStatus(BookingStatus.CANCELLED);
++
++        assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
++                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null))
++                .isInstanceOf(SessionNotClaimableException.class)
++                .hasFieldOrPropertyWithValue("errorCode", "SESSION_NOT_CLAIMABLE");
++
++        verify(sessionClaimRepository, never()).saveAndFlush(any());
++    }
++
++    @Test
++    @DisplayName("Crear - alumno reclama con motivo de tutor ausente: aceptado")
++    void create_studentWithTutorCouldNotAttend_returnsCreated() {
++        stubNoActiveClaim();
++        stubSaveAndFlush();
++
++        service.create(studentId, booking.getBookingId(),
++                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null);
++
++        ArgumentCaptor<SessionClaim> captor = ArgumentCaptor.forClass(SessionClaim.class);
++        verify(sessionClaimRepository).saveAndFlush(captor.capture());
++        assertThat(captor.getValue().getReason()).isEqualTo(ClaimReason.TUTOR_COULD_NOT_ATTEND);
++        assertThat(captor.getValue().getClaimantRole()).isEqualTo(Role.STUDENT);
++    }
++
++    @Test
++    @DisplayName("Crear - tutor reclama con motivo de alumno ausente: aceptado")
++    void create_tutorWithStudentCouldNotAttend_returnsCreated() {
++        stubNoActiveClaim();
++        stubSaveAndFlush();
++
++        service.create(tutorId, booking.getBookingId(),
++                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), null);
++
++        ArgumentCaptor<SessionClaim> captor = ArgumentCaptor.forClass(SessionClaim.class);
++        verify(sessionClaimRepository).saveAndFlush(captor.capture());
++        assertThat(captor.getValue().getReason()).isEqualTo(ClaimReason.STUDENT_COULD_NOT_ATTEND);
++        assertThat(captor.getValue().getClaimantRole()).isEqualTo(Role.TUTOR);
++    }
++
++    @Test
++    @DisplayName("Crear - alumno con motivo de alumno ausente: 422 CLAIM_REASON_NOT_ALLOWED_FOR_ROLE")
++    void create_studentWithStudentCouldNotAttend_throwsReasonNotAllowed() {
++        assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
++                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), null))
++                .isInstanceOf(ClaimReasonNotAllowedException.class)
++                .hasFieldOrPropertyWithValue("errorCode", "CLAIM_REASON_NOT_ALLOWED_FOR_ROLE");
++
++        verify(sessionClaimRepository, never()).saveAndFlush(any());
++        verifyNoInteractions(fundsLedgerService);
++    }
++
++    @Test
++    @DisplayName("Crear - tutor con motivo de tutor ausente: 422 CLAIM_REASON_NOT_ALLOWED_FOR_ROLE")
++    void create_tutorWithTutorCouldNotAttend_throwsReasonNotAllowed() {
++        assertThatThrownBy(() -> service.create(tutorId, booking.getBookingId(),
++                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null))
++                .isInstanceOf(ClaimReasonNotAllowedException.class)
++                .hasFieldOrPropertyWithValue("errorCode", "CLAIM_REASON_NOT_ALLOWED_FOR_ROLE");
++
++        verify(sessionClaimRepository, never()).saveAndFlush(any());
++    }
++
+     @Test
+     @DisplayName("Crear - usuario ajeno a la sesion: 403 SESSION_NOT_PARTICIPANT")
+     void create_notParticipant_throwsSessionNotParticipant() {
+         UUID outsiderId = UUID.randomUUID();
+ 
+         assertThatThrownBy(() -> service.create(outsiderId, booking.getBookingId(),
+-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), null))
++                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null))
+                 .isInstanceOf(SessionNotParticipantException.class)
+                 .hasFieldOrPropertyWithValue("errorCode", "SESSION_NOT_PARTICIPANT");
+ 
+@@ -240,10 +354,10 @@ class SessionClaimServiceImplTest {
+     @DisplayName("Crear - sesion inexistente: 404 SESSION_NOT_FOUND")
+     void create_bookingNotFound_throwsResourceNotFound() {
+         UUID missingId = UUID.randomUUID();
+-        when(bookingRepository.findById(missingId)).thenReturn(Optional.empty());
++        when(bookingRepository.findByIdForUpdate(missingId)).thenReturn(Optional.empty());
+ 
+         assertThatThrownBy(() -> service.create(studentId, missingId,
+-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), null))
++                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null))
+                 .isInstanceOf(ResourceNotFoundException.class)
+                 .hasFieldOrPropertyWithValue("errorCode", "SESSION_NOT_FOUND");
+     }
+@@ -255,7 +369,7 @@ class SessionClaimServiceImplTest {
+                 booking.getBookingId(), studentId, ClaimStatus.OPEN)).thenReturn(true);
+ 
+         assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
+-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), null))
++                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null))
+                 .isInstanceOf(DuplicateResourceException.class)
+                 .hasFieldOrPropertyWithValue("errorCode", "ACTIVE_CLAIM_EXISTS")
+                 .hasFieldOrPropertyWithValue("userMessage", ACTIVE_CLAIM_MESSAGE);
+@@ -271,7 +385,7 @@ class SessionClaimServiceImplTest {
+                 .thenThrow(new DataIntegrityViolationException("uk_session_claim_active_key"));
+ 
+         assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
+-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), null))
++                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null))
+                 .isInstanceOf(DuplicateResourceException.class)
+                 .hasFieldOrPropertyWithValue("errorCode", "ACTIVE_CLAIM_EXISTS")
+                 .hasFieldOrPropertyWithValue("userMessage", ACTIVE_CLAIM_MESSAGE);
+@@ -286,7 +400,7 @@ class SessionClaimServiceImplTest {
+         List<MultipartFile> files = List.of(pdfFile("a.pdf"), pdfFile("b.pdf"), pdfFile("c.pdf"), pdfFile("d.pdf"));
+ 
+         assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
+-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), files))
++                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), files))
+                 .isInstanceOf(ValidationException.class)
+                 .hasMessage("No podés adjuntar más de 3 archivos.");
+ 
+@@ -300,7 +414,7 @@ class SessionClaimServiceImplTest {
+         MockMultipartFile empty = new MockMultipartFile("files", "a.pdf", "application/pdf", new byte[0]);
+ 
+         assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
+-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), List.of(empty)))
++                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), List.of(empty)))
+                 .isInstanceOf(ValidationException.class)
+                 .hasMessage("El archivo adjunto no puede estar vacío.");
+ 
+@@ -314,7 +428,7 @@ class SessionClaimServiceImplTest {
+         MockMultipartFile big = new MockMultipartFile("files", "big.pdf", "application/pdf", new byte[6 * 1024 * 1024]);
+ 
+         assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
+-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), List.of(big)))
++                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), List.of(big)))
+                 .isInstanceOf(ValidationException.class)
+                 .hasMessage("Cada archivo adjunto no puede superar los 5MB.");
+     }
+@@ -326,7 +440,7 @@ class SessionClaimServiceImplTest {
+         MockMultipartFile zip = new MockMultipartFile("files", "evidence.zip", "application/zip", "zip".getBytes(StandardCharsets.UTF_8));
+ 
+         assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
+-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), List.of(zip)))
++                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), List.of(zip)))
+                 .isInstanceOf(FormatNotAllowedException.class)
+                 .hasMessage("El formato del archivo no está permitido");
+ 
+@@ -344,7 +458,7 @@ class SessionClaimServiceImplTest {
+         when(claimAttachmentRepository.saveAll(any())).thenAnswer(invocation -> invocation.getArgument(0));
+ 
+         ClaimResponse response = service.create(studentId, booking.getBookingId(),
+-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null),
++                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null),
+                 List.of(pdfFile("evidence.pdf"),
+                         new MockMultipartFile("files", "photo.png", "image/png", "png".getBytes(StandardCharsets.UTF_8))));
+ 
+@@ -370,7 +484,7 @@ class SessionClaimServiceImplTest {
+                 .thenThrow(new RuntimeException("storage down"));
+ 
+         assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
+-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null),
++                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null),
+                 List.of(pdfFile("a.pdf"), pdfFile("b.pdf"))))
+                 .isInstanceOf(RuntimeException.class)
+                 .hasMessage("storage down");
+@@ -391,7 +505,7 @@ class SessionClaimServiceImplTest {
+                 .markSuspendedByClaim(any(), any());
+ 
+         assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
+-                new CreateClaimRequest(ClaimReason.STUDENT_COULD_NOT_ATTEND, null), List.of(pdfFile("a.pdf"))))
++                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), List.of(pdfFile("a.pdf"))))
+                 .isInstanceOf(RuntimeException.class)
+                 .hasMessage("ledger down");
+ 
+@@ -436,9 +550,10 @@ class SessionClaimServiceImplTest {
+     }
+ 
+     @Test
+-    @DisplayName("Elegibilidad - sesion no finalizada: bloqueo SESSION_NOT_FINALIZED sin fecha")
+-    void getEligibility_sessionNotFinalized_blocksWithoutClaimableUntil() {
+-        booking.setBookingStatus(BookingStatus.NOT_FULFILLED_BY_TUTOR);
++    @DisplayName("Elegibilidad - sesion en curso: bloqueo SESSION_NOT_FINALIZED sin fecha")
++    void getEligibility_sessionNotEnded_blocksWithoutClaimableUntil() {
++        service = newService(DURING_SESSION_NOW);
++        booking.setBookingStatus(BookingStatus.IN_PROGRESS);
+ 
+         ClaimEligibilityResponse eligibility = service.getEligibility(studentId, booking.getBookingId());
+ 
+@@ -447,6 +562,63 @@ class SessionClaimServiceImplTest {
+         assertThat(eligibility.claimableUntil()).isNull();
+     }
+ 
++    @Test
++    @DisplayName("Elegibilidad - sesion confirmada con token: bloqueo SESSION_ALREADY_CONFIRMED sin fecha")
++    void getEligibility_sessionConfirmed_blocksWithAlreadyConfirmed() {
++        booking.setBookingStatus(BookingStatus.COMPLETED);
++        booking.setConfirmedAt(LocalDateTime.of(2026, 9, 30, 9, 30));
++
++        ClaimEligibilityResponse eligibility = service.getEligibility(studentId, booking.getBookingId());
++
++        assertThat(eligibility.canClaim()).isFalse();
++        assertThat(eligibility.blockReason()).isEqualTo(ClaimBlockReason.SESSION_ALREADY_CONFIRMED);
++        assertThat(eligibility.claimableUntil()).isNull();
++    }
++
++    @Test
++    @DisplayName("Elegibilidad - estado que no admite reclamos (resuelto por fondos): bloqueo SESSION_NOT_CLAIMABLE")
++    void getEligibility_nonClaimableStatus_blocksWithNotClaimable() {
++        booking.setBookingStatus(BookingStatus.NOT_FULFILLED_BY_TUTOR);
++
++        ClaimEligibilityResponse eligibility = service.getEligibility(studentId, booking.getBookingId());
++
++        assertThat(eligibility.canClaim()).isFalse();
++        assertThat(eligibility.blockReason()).isEqualTo(ClaimBlockReason.SESSION_NOT_CLAIMABLE);
++        assertThat(eligibility.claimableUntil()).isNull();
++    }
++
++    @Test
++    @DisplayName("Elegibilidad - devuelve los motivos permitidos segun el rol")
++    void getEligibility_returnsAllowedReasonsByRole() {
++        stubNoActiveClaim();
++
++        ClaimEligibilityResponse student = service.getEligibility(studentId, booking.getBookingId());
++        ClaimEligibilityResponse tutor = service.getEligibility(tutorId, booking.getBookingId());
++
++        assertThat(student.allowedReasons())
++                .containsExactly(ClaimReason.TUTOR_COULD_NOT_ATTEND, ClaimReason.I_COULD_NOT_ATTEND);
++        assertThat(tutor.allowedReasons())
++                .containsExactly(ClaimReason.STUDENT_COULD_NOT_ATTEND, ClaimReason.I_COULD_NOT_ATTEND);
++    }
++
++    @Test
++    @DisplayName("Elegibilidad - usuario ajeno: sin motivos permitidos")
++    void getEligibility_notParticipant_hasNoAllowedReasons() {
++        ClaimEligibilityResponse eligibility = service.getEligibility(UUID.randomUUID(), booking.getBookingId());
++
++        assertThat(eligibility.blockReason()).isEqualTo(ClaimBlockReason.SESSION_NOT_PARTICIPANT);
++        assertThat(eligibility.allowedReasons()).isEmpty();
++    }
++
++    @Test
++    @DisplayName("hasActiveClaim - delega en el repositorio por reserva (cualquiera de las partes)")
++    void hasActiveClaim_delegatesToRepository() {
++        when(sessionClaimRepository.existsByBooking_BookingIdAndStatus(booking.getBookingId(), ClaimStatus.OPEN))
++                .thenReturn(true);
++
++        assertThat(service.hasActiveClaim(booking.getBookingId())).isTrue();
++    }
++
+     @Test
+     @DisplayName("Listado - evalua todo el lote con una sola consulta (sin N+1)")
+     void evaluateForListing_batchesSingleQuery() {
+@@ -456,7 +628,7 @@ class SessionClaimServiceImplTest {
+                 .sessionDate(SESSION_DATE)
+                 .startTime(LocalTime.of(8, 0))
+                 .endTime(SESSION_END)
+-                .bookingStatus(BookingStatus.COMPLETED)
++                .bookingStatus(BookingStatus.NOT_CONFIRMED)
+                 .student(booking.getStudent())
+                 .tutor(booking.getTutor())
+                 .build();

@@ -2,9 +2,13 @@ package com.knowlink.api.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knowlink.api.security.enums.Role;
+import com.knowlink.api.students.data.models.StudentProfile;
+import com.knowlink.api.tutors.data.models.Career;
+import com.knowlink.api.tutors.repositories.ICareerRepository;
 import com.knowlink.api.users.data.enums.AccountStatus;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.repositories.IUserRepository;
+import com.knowlink.api.students.repositories.IStudentProfileRepository;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
@@ -23,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.Key;
+import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.UUID;
 
@@ -47,6 +52,12 @@ class LogoutFlowIntegrationTest {
     private IUserRepository userRepository;
 
     @Autowired
+    private IStudentProfileRepository studentProfileRepository;
+
+    @Autowired
+    private ICareerRepository careerRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -56,6 +67,10 @@ class LogoutFlowIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        Career career = careerRepository.save(Career.builder()
+                .name("Test Career " + UUID.randomUUID())
+                .build());
+
         User student = User.builder()
                 .fullName("Estudiante Logout")
                 .email(STUDENT_EMAIL)
@@ -64,6 +79,12 @@ class LogoutFlowIntegrationTest {
                 .accountStatus(AccountStatus.ACTIVE)
                 .build();
         userId = userRepository.save(student).getUserId();
+
+        studentProfileRepository.save(StudentProfile.builder()
+                .user(student)
+                .career(career)
+                .createdAt(LocalDateTime.now())
+                .build());
     }
 
     private String loginAndGetToken() throws Exception {

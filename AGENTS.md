@@ -24,6 +24,7 @@ src/main/java/com/knowlink/api/{modulo}/
 - `@Slf4j` para logging, nunca `System.out.println`
 - `@Operation` + `@ApiResponse` en todos los endpoints nuevos
 - Registrar endpoints nuevos en la configuración de Spring Security (`config/`)
+- El código implementado (clases, métodos, variables, comentarios y logs) debe estar escrito en inglés, a excepción de los mensajes de texto dirigidos al usuario final (errores de validación, notificaciones, contenido de UI).
 
 ### Lo que nunca debe hacer
 

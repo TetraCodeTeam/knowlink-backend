@@ -41,10 +41,10 @@ spring:
         sort-parameter-name: sort
   
   mail:
-    host: ${MAIL_HOST}
-    port: ${MAIL_PORT}
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:25}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
@@ -52,11 +52,24 @@ spring:
           starttls:
             enable: true
 
+jwt:
+  secret: ${JWT_SECRET:}
+  access-token-expiration: ${JWT_EXPIRATION:86400000}
+
+confirmation-token:
+  encryption-key: ${ENCRYPTION_KEY:}
+
 frontend:
   url: ${FRONTEND_URL}
 
 app:
   url: ${APP_URL}
+
+knowlink:
+  claims:
+    deadline-hours: 24
+    max-attachments: 3
+    max-attachment-mb: 5
 
 supabase:
   url: ${SUPABASE_URL}

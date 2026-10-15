@@ -9,7 +9,7 @@ import com.knowlink.api.materials.repositories.IAcademicMaterialReportRepository
 import com.knowlink.api.materials.repositories.IAcademicMaterialRepository;
 import com.knowlink.api.materials.controller.requests.MaterialReportRequest;
 import com.knowlink.api.materials.controller.responses.MaterialReportResponse;
-import com.knowlink.api.materials.exception.AccesoDenegadoException;
+import com.knowlink.api.materials.exception.ResourceAccessDeniedException;
 import com.knowlink.api.materials.service.interfaces.IMaterialAccessService;
 import com.knowlink.api.materials.service.interfaces.IMaterialReportService;
 import com.knowlink.api.users.data.models.User;
@@ -46,10 +46,10 @@ public class MaterialReportServiceImpl implements IMaterialReportService {
 
         UUID tutorUserId = material.getTutorSubject().getTutorProfile().getUser().getUserId();
         if (tutorUserId.equals(studentId)) {
-            throw new AccesoDenegadoException("No podés denunciar tu propio material.");
+            throw new ResourceAccessDeniedException("No podés denunciar tu propio material.");
         }
 
-        materialAccessService.validarAccesoODenegar(studentId, materialId);
+        materialAccessService.validateAccessOrDeny(studentId, materialId);
         if (reportRepository.existsByMaterialAcademicMaterialIdAndReporterUserId(materialId, studentId)) {
             throw duplicateReport(studentId, materialId);
         }

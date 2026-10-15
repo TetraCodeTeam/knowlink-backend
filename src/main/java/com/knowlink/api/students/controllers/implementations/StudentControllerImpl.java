@@ -8,6 +8,7 @@ import com.knowlink.api.students.controllers.responses.StudentSelfProfileRespons
 import com.knowlink.api.students.services.interfaces.IStudentProfileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequiredArgsConstructor
@@ -23,5 +24,10 @@ public class StudentControllerImpl implements IStudentController {
     @Override
     public ActivateTutorRoleResponse activateTutorRole(ActivateTutorRoleRequest request, UserPrincipal principal) {
         return studentProfileService.activateTutorRole(principal.getUser().getUserId(), request);
+    }
+
+    @Override
+    public StudentSelfProfileResponse uploadProfilePicture(MultipartFile file, UserPrincipal principal) {
+        return studentProfileService.uploadProfilePicture(principal.getUser().getUserId(), file);
     }
 }

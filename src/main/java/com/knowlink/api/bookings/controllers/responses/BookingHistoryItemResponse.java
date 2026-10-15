@@ -18,5 +18,7 @@ public record BookingHistoryItemResponse(
         LocalTime endTime,
         Modality modality,
         BookingStatus status,
-        LocalDateTime confirmationTokenExpiresAt
+        LocalDateTime confirmationTokenExpiresAt,
+        boolean canClaim,
+        LocalDateTime claimableUntil
 ) {}

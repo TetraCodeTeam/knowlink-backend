@@ -30,7 +30,7 @@ public class StudentProfile {
     @JoinColumn(name = "career_id", nullable = false)
     private Career career;
 
-    @Column(name = "profile_picture_url")
+    @Column(name = "profile_picture_url", length = 2048)
     private String profilePictureUrl;
 
     @Column(name = "institutional_id")
