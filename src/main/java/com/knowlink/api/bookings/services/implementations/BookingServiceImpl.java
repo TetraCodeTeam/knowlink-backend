@@ -155,13 +155,25 @@ public class BookingServiceImpl implements IBookingService {
                 int safePage = Math.max(page, 0);
                 int safeSize = Math.min(Math.max(size, 1), BookingConstants.MAX_HISTORY_PAGE_SIZE);
                 Pageable pageable = PageRequest.of(safePage, safeSize);
+                LocalDateTime now = LocalDateTime.now(AppTimeZone.ZONE);
+                boolean includeRunningCompleted = category == BookingHistoryCategory.IN_PROGRESS;
+                boolean excludeRunningCompleted = category == BookingHistoryCategory.COMPLETED;
 
                 Page<Booking> bookings = role == Role.STUDENT
-                                ? (upcoming ? bookingRepository.findHistoryByStudentAsc(userId, statuses, pageable)
-                                                : bookingRepository.findHistoryByStudentDesc(userId, statuses,
-                                                                pageable))
-                                : (upcoming ? bookingRepository.findHistoryByTutorAsc(userId, statuses, pageable)
-                                                : bookingRepository.findHistoryByTutorDesc(userId, statuses, pageable));
+                                ? (upcoming ? bookingRepository.findHistoryByStudentAsc(
+                                                userId, statuses, includeRunningCompleted, excludeRunningCompleted,
+                                                now.toLocalDate(), now.toLocalTime(), pageable)
+                                                : bookingRepository.findHistoryByStudentDesc(
+                                                                userId, statuses, includeRunningCompleted,
+                                                                excludeRunningCompleted, now.toLocalDate(),
+                                                                now.toLocalTime(), pageable))
+                                : (upcoming ? bookingRepository.findHistoryByTutorAsc(
+                                                userId, statuses, includeRunningCompleted, excludeRunningCompleted,
+                                                now.toLocalDate(), now.toLocalTime(), pageable)
+                                                : bookingRepository.findHistoryByTutorDesc(
+                                                                userId, statuses, includeRunningCompleted,
+                                                                excludeRunningCompleted, now.toLocalDate(),
+                                                                now.toLocalTime(), pageable));
 
                 Map<UUID, String> studentProfilePictureByUserId = (role == Role.TUTOR
                                 && !bookings.getContent().isEmpty())

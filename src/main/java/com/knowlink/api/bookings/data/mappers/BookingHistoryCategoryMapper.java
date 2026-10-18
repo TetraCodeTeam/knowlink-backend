@@ -12,12 +12,15 @@ public final class BookingHistoryCategoryMapper {
 
     public static List<BookingStatus> toStatuses(BookingHistoryCategory category) {
         return switch (category) {
-            case RESERVED -> List.of(BookingStatus.BOOKED);
+            case RESERVED -> List.of(BookingStatus.PENDING, BookingStatus.BOOKED);
             case IN_PROGRESS -> List.of(BookingStatus.IN_PROGRESS);
             case COMPLETED -> List.of(BookingStatus.COMPLETED);
-            // PENDING y EXPIRED quedan afuera a propósito: son solicitudes que
-            // nunca llegaron a ser reserva confirmada, no una "clase" en Mis Clases.
-            case CANCELLED -> List.of(BookingStatus.CANCELLED, BookingStatus.NOT_CONFIRMED);
+            case CANCELLED -> List.of(
+                    BookingStatus.CANCELLED,
+                    BookingStatus.NOT_CONFIRMED,
+                    BookingStatus.NOT_FULFILLED_BY_TUTOR,
+                    BookingStatus.SESSION_NOT_HELD,
+                    BookingStatus.EXPIRED);
         };
     }
 }

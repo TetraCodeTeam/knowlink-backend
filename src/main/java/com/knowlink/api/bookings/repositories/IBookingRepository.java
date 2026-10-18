@@ -16,6 +16,7 @@ import jakarta.persistence.LockModeType;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -77,11 +78,27 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
                         JOIN FETCH ts.subject
                         JOIN FETCH ts.tutorProfile
                         WHERE b.student.userId = :studentUserId
-                        AND b.bookingStatus IN :statuses
+                        AND (
+                            (b.bookingStatus IN :statuses
+                                AND (:excludeRunningCompleted = false
+                                    OR b.bookingStatus <> com.knowlink.api.bookings.data.enums.BookingStatus.COMPLETED
+                                    OR b.sessionDate <> :currentDate
+                                    OR b.startTime > :currentTime
+                                    OR b.endTime <= :currentTime))
+                            OR (:includeRunningCompleted = true
+                                AND b.bookingStatus = com.knowlink.api.bookings.data.enums.BookingStatus.COMPLETED
+                                AND b.sessionDate = :currentDate
+                                AND b.startTime <= :currentTime
+                                AND b.endTime > :currentTime)
+                        )
                         ORDER BY b.sessionDate ASC, b.startTime ASC
                         """)
         Page<Booking> findHistoryByStudentAsc(
                         @Param("studentUserId") UUID studentUserId, @Param("statuses") List<BookingStatus> statuses,
+                        @Param("includeRunningCompleted") boolean includeRunningCompleted,
+                        @Param("excludeRunningCompleted") boolean excludeRunningCompleted,
+                        @Param("currentDate") LocalDate currentDate,
+                        @Param("currentTime") LocalTime currentTime,
                         Pageable pageable);
 
         @Query("""
@@ -92,11 +109,27 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
                         JOIN FETCH ts.subject
                         JOIN FETCH ts.tutorProfile
                         WHERE b.student.userId = :studentUserId
-                        AND b.bookingStatus IN :statuses
+                        AND (
+                            (b.bookingStatus IN :statuses
+                                AND (:excludeRunningCompleted = false
+                                    OR b.bookingStatus <> com.knowlink.api.bookings.data.enums.BookingStatus.COMPLETED
+                                    OR b.sessionDate <> :currentDate
+                                    OR b.startTime > :currentTime
+                                    OR b.endTime <= :currentTime))
+                            OR (:includeRunningCompleted = true
+                                AND b.bookingStatus = com.knowlink.api.bookings.data.enums.BookingStatus.COMPLETED
+                                AND b.sessionDate = :currentDate
+                                AND b.startTime <= :currentTime
+                                AND b.endTime > :currentTime)
+                        )
                         ORDER BY b.sessionDate DESC, b.startTime DESC
                         """)
         Page<Booking> findHistoryByStudentDesc(
                         @Param("studentUserId") UUID studentUserId, @Param("statuses") List<BookingStatus> statuses,
+                        @Param("includeRunningCompleted") boolean includeRunningCompleted,
+                        @Param("excludeRunningCompleted") boolean excludeRunningCompleted,
+                        @Param("currentDate") LocalDate currentDate,
+                        @Param("currentTime") LocalTime currentTime,
                         Pageable pageable);
 
         @Query("""
@@ -107,11 +140,27 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
                         JOIN FETCH ts.subject
                         JOIN FETCH ts.tutorProfile
                         WHERE b.tutor.userId = :tutorUserId
-                        AND b.bookingStatus IN :statuses
+                        AND (
+                            (b.bookingStatus IN :statuses
+                                AND (:excludeRunningCompleted = false
+                                    OR b.bookingStatus <> com.knowlink.api.bookings.data.enums.BookingStatus.COMPLETED
+                                    OR b.sessionDate <> :currentDate
+                                    OR b.startTime > :currentTime
+                                    OR b.endTime <= :currentTime))
+                            OR (:includeRunningCompleted = true
+                                AND b.bookingStatus = com.knowlink.api.bookings.data.enums.BookingStatus.COMPLETED
+                                AND b.sessionDate = :currentDate
+                                AND b.startTime <= :currentTime
+                                AND b.endTime > :currentTime)
+                        )
                         ORDER BY b.sessionDate ASC, b.startTime ASC
                         """)
         Page<Booking> findHistoryByTutorAsc(
                         @Param("tutorUserId") UUID tutorUserId, @Param("statuses") List<BookingStatus> statuses,
+                        @Param("includeRunningCompleted") boolean includeRunningCompleted,
+                        @Param("excludeRunningCompleted") boolean excludeRunningCompleted,
+                        @Param("currentDate") LocalDate currentDate,
+                        @Param("currentTime") LocalTime currentTime,
                         Pageable pageable);
 
         @Query("""
@@ -122,11 +171,27 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
                         JOIN FETCH ts.subject
                         JOIN FETCH ts.tutorProfile
                         WHERE b.tutor.userId = :tutorUserId
-                        AND b.bookingStatus IN :statuses
+                        AND (
+                            (b.bookingStatus IN :statuses
+                                AND (:excludeRunningCompleted = false
+                                    OR b.bookingStatus <> com.knowlink.api.bookings.data.enums.BookingStatus.COMPLETED
+                                    OR b.sessionDate <> :currentDate
+                                    OR b.startTime > :currentTime
+                                    OR b.endTime <= :currentTime))
+                            OR (:includeRunningCompleted = true
+                                AND b.bookingStatus = com.knowlink.api.bookings.data.enums.BookingStatus.COMPLETED
+                                AND b.sessionDate = :currentDate
+                                AND b.startTime <= :currentTime
+                                AND b.endTime > :currentTime)
+                        )
                         ORDER BY b.sessionDate DESC, b.startTime DESC
                         """)
         Page<Booking> findHistoryByTutorDesc(
                         @Param("tutorUserId") UUID tutorUserId, @Param("statuses") List<BookingStatus> statuses,
+                        @Param("includeRunningCompleted") boolean includeRunningCompleted,
+                        @Param("excludeRunningCompleted") boolean excludeRunningCompleted,
+                        @Param("currentDate") LocalDate currentDate,
+                        @Param("currentTime") LocalTime currentTime,
                         Pageable pageable);
 
         @Query("""
