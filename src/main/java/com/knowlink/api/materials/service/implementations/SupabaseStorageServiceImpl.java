@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.multipart.MultipartFile;
@@ -50,7 +51,8 @@ public class SupabaseStorageServiceImpl implements ISupabaseStorageService {
         try {
             bytes = file.getBytes();
         } catch (IOException e) {
-            throw new StorageServiceException("Failed to read file bytes", e);
+            log.error("No se pudieron leer los bytes del archivo {}", file.getOriginalFilename(), e);
+            throw new StorageServiceException("No se pudo leer el archivo enviado.", e);
         }
 
         try {
@@ -64,6 +66,9 @@ public class SupabaseStorageServiceImpl implements ISupabaseStorageService {
         } catch (RestClientResponseException e) {
             log.error("Supabase upload failed - bucket: {}, path: {}, status: {}, body: {}",
                     bucket, path, e.getStatusCode(), e.getResponseBodyAsString(), e);
+            throw new StorageServiceException(STORAGE_ERROR_MESSAGE, e);
+        } catch (ResourceAccessException e) {
+            log.error("Supabase upload unreachable - bucket: {}, path: {}", bucket, path, e);
             throw new StorageServiceException(STORAGE_ERROR_MESSAGE, e);
         }
 
@@ -94,6 +99,9 @@ public class SupabaseStorageServiceImpl implements ISupabaseStorageService {
             log.error("Supabase signed URL failed - bucket: {}, path: {}, status: {}, body: {}",
                     bucket, path, e.getStatusCode(), e.getResponseBodyAsString(), e);
             throw new StorageServiceException(STORAGE_ERROR_MESSAGE, e);
+        } catch (ResourceAccessException e) {
+            log.error("Supabase signed URL unreachable - bucket: {}, path: {}", bucket, path, e);
+            throw new StorageServiceException(STORAGE_ERROR_MESSAGE, e);
         }
     }
 
@@ -115,6 +123,9 @@ public class SupabaseStorageServiceImpl implements ISupabaseStorageService {
         } catch (RestClientResponseException e) {
             log.error("Supabase delete failed - bucket: {}, path: {}, status: {}, body: {}",
                     bucket, path, e.getStatusCode(), e.getResponseBodyAsString(), e);
+            throw new StorageServiceException(STORAGE_ERROR_MESSAGE, e);
+        } catch (ResourceAccessException e) {
+            log.error("Supabase delete unreachable - bucket: {}, path: {}", bucket, path, e);
             throw new StorageServiceException(STORAGE_ERROR_MESSAGE, e);
         }
 
