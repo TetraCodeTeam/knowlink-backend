@@ -55,7 +55,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import org.springframework.web.client.RestClientResponseException;
+import com.knowlink.api.materials.exception.StorageServiceException;
 
 import java.math.BigDecimal;
 import java.net.URI;
@@ -369,7 +369,7 @@ class ClaimAttachmentRealUploadIntegrationTest {
 
             assertThatThrownBy(() -> storageService.generateSignedUrl(BUCKET, storagePath, 3600))
                     .as("re-firmar un objeto borrado fallia con error del backend de storage")
-                    .isInstanceOf(RestClientResponseException.class);
+                    .isInstanceOf(StorageServiceException.class);
 
             FundsTransfer transfer = fundsTransferRepository
                     .findByBooking_BookingId(booking.getBookingId()).orElseThrow();
