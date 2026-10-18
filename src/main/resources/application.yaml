@@ -74,6 +74,8 @@ knowlink:
 supabase:
   url: ${SUPABASE_URL}
   service-role-key: ${SUPABASE_SERVICE_ROLE_KEY}
+  storage:
+    materials-bucket: ${SUPABASE_MATERIALS_BUCKET:materiales}
 
 management:
   endpoints:

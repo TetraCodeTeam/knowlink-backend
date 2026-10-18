@@ -2,6 +2,7 @@ package com.knowlink.api.exceptions;
 
 import com.knowlink.api.exceptions.custom_exceptions.*;
 import com.knowlink.api.materials.exception.FormatNotAllowedException;
+import com.knowlink.api.materials.exception.StorageServiceException;
 import com.knowlink.api.materials.exception.NoActiveReservationException;
 import com.knowlink.api.materials.exception.SubjectNotAssociatedException;
 import com.knowlink.api.materials.exception.ResourceAccessDeniedException;
@@ -190,6 +191,13 @@ public class GlobalExceptionHandler {
         ApiError error = new ApiError(HttpStatus.CONFLICT.value(), "Data integrity error",
                 "The operation could not be completed due to a conflict with existing data");
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
+    @ExceptionHandler(StorageServiceException.class)
+    public ResponseEntity<ApiError> handleStorageService(StorageServiceException ex) {
+        logger.error("Storage service error: {}", ex.getMessage(), ex);
+        ApiError error = new ApiError(HttpStatus.BAD_GATEWAY.value(), "Storage service error", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(error);
     }
 
     @ExceptionHandler({ RuntimeException.class, Exception.class })

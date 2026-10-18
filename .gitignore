@@ -22,3 +22,8 @@ Thumbs.db
 
 ### Logs ###
 run.log
+
+### Eclipse ###
+.settings/
+.classpath
+.project
