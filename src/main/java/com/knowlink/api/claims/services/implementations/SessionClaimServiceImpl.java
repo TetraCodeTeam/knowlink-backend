@@ -28,6 +28,8 @@ import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.payments.services.FundsLedgerService;
 import com.knowlink.api.materials.exception.FormatNotAllowedException;
 import com.knowlink.api.materials.service.interfaces.ISupabaseStorageService;
+import com.knowlink.api.notifications.data.enums.NotificationType;
+import com.knowlink.api.notifications.services.interfaces.INotificationService;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.users.data.models.User;
 
@@ -56,7 +58,7 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
 
     private static final String EVIDENCE_BUCKET = "claimEvidence";
     private static final int SIGNED_URL_EXPIRATION_SECONDS = 3600;
-    private static final String ACTIVE_CLAIM_MESSAGE = "Ya tenés una disputa activa para esta sesión";
+    private static final String ACTIVE_CLAIM_MESSAGE = "Ya tenés un reclamo activo para esta sesión";
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "jpg", "jpeg", "png");
     private static final Map<String, Set<String>> ALLOWED_CONTENT_TYPES = Map.of(
             "pdf", Set.of("application/pdf"),
@@ -70,6 +72,7 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
     private final FundsLedgerService fundsLedgerService;
     private final ISupabaseStorageService storageService;
     private final ClaimDeadlineCalculator deadlineCalculator;
+    private final INotificationService notificationService;
     private final int maxAttachments;
     private final long maxAttachmentBytes;
 
@@ -80,6 +83,7 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
             FundsLedgerService fundsLedgerService,
             ISupabaseStorageService storageService,
             ClaimDeadlineCalculator deadlineCalculator,
+            INotificationService notificationService,
             @Value("${knowlink.claims.max-attachments:3}") int maxAttachments,
             @Value("${knowlink.claims.max-attachment-mb:5}") long maxAttachmentMb) {
         this.bookingRepository = bookingRepository;
@@ -88,6 +92,7 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
         this.fundsLedgerService = fundsLedgerService;
         this.storageService = storageService;
         this.deadlineCalculator = deadlineCalculator;
+        this.notificationService = notificationService;
         this.maxAttachments = maxAttachments;
         this.maxAttachmentBytes = maxAttachmentMb * 1024 * 1024;
     }
@@ -154,6 +159,14 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
             claimAttachmentRepository.saveAll(attachmentEntities);
 
             fundsLedgerService.markSuspendedByClaim(bookingId, savedClaim.getClaimId());
+            User otherParticipant = claimantRole == Role.TUTOR ? booking.getStudent() : booking.getTutor();
+            notificationService.createSupportNotification(
+                    otherParticipant.getUserId(),
+                    NotificationType.SESSION_CLAIM_UPDATE,
+                    savedClaim.getClaimId(),
+                    "Nuevo reclamo de sesión",
+                    "Se inició un reclamo por tu sesión de "
+                            + booking.getTutorSubject().getSubject().getName() + ".");
         } catch (RuntimeException ex) {
             cleanupUploads(uploadedPaths);
             throw ex;
@@ -168,6 +181,47 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
     public ClaimEligibilityResponse getEligibility(UUID userId, UUID bookingId) {
         Booking booking = findBookingOrThrow(bookingId);
         return evaluate(userId, booking, null);
+    }
+
+    @Override
+    @Transactional
+    public void updateStatus(UUID claimId, ClaimStatus status) {
+        SessionClaim claim = sessionClaimRepository.findById(claimId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "CLAIM_NOT_FOUND",
+                        "El reclamo no existe.",
+                        "Claim not found for id: " + claimId));
+
+        ClaimStatus currentStatus = claim.getStatus();
+        if (!currentStatus.canTransitionTo(status)) {
+            throw new ValidationException("No se puede cambiar el estado del reclamo.");
+        }
+        if (currentStatus == status) {
+            return;
+        }
+
+        claim.setStatus(status);
+        if (status == ClaimStatus.RESOLVED) {
+            claim.setActiveKey(null);
+        }
+        sessionClaimRepository.save(claim);
+
+        notificationService.createSupportNotification(
+                claim.getBooking().getTutor().getUserId(),
+                NotificationType.SESSION_CLAIM_UPDATE,
+                claim.getClaimId(),
+                "Actualización de reclamo",
+                "El estado de tu reclamo por la sesión de "
+                        + claim.getBooking().getTutorSubject().getSubject().getName()
+                        + " cambió a " + statusLabel(status) + ".");
+        notificationService.createSupportNotification(
+                claim.getBooking().getStudent().getUserId(),
+                NotificationType.SESSION_CLAIM_UPDATE,
+                claim.getClaimId(),
+                "Actualización de reclamo",
+                "El estado de tu reclamo por la sesión de "
+                        + claim.getBooking().getTutorSubject().getSubject().getName()
+                        + " cambió a " + statusLabel(status) + ".");
     }
 
     @Override
@@ -205,7 +259,7 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
 
         Set<UUID> bookingIds = bookings.stream().map(Booking::getBookingId).collect(Collectors.toSet());
         Set<UUID> claimedBookingIds = sessionClaimRepository.findClaimedBookingIdsByUser(
-                userId, ClaimStatus.OPEN, bookingIds);
+                userId, ClaimStatus.ACTIVE_STATUSES, bookingIds);
 
         Map<UUID, ClaimEligibilityResponse> result = new HashMap<>();
         for (Booking booking : bookings) {
@@ -255,8 +309,8 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
 
         boolean activeClaim = knownActiveClaim != null
                 ? knownActiveClaim
-                : sessionClaimRepository.existsByBooking_BookingIdAndClaimant_UserIdAndStatus(
-                        booking.getBookingId(), userId, ClaimStatus.OPEN);
+                : sessionClaimRepository.existsByBooking_BookingIdAndClaimant_UserIdAndStatusIn(
+                        booking.getBookingId(), userId, ClaimStatus.ACTIVE_STATUSES);
         if (activeClaim) {
             return new ClaimEligibilityResponse(false, claimableUntil, ClaimBlockReason.ACTIVE_CLAIM_EXISTS,
                     allowedReasons);
@@ -283,6 +337,14 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
             return new ClaimDeadlineExceededException("Claim deadline exceeded for booking " + bookingId);
         }
         return activeClaimExists(bookingId, userId, null);
+    }
+
+    private String statusLabel(ClaimStatus status) {
+        return switch (status) {
+            case OPEN -> "Abierto";
+            case IN_REVIEW -> "En revisión";
+            case RESOLVED -> "Resuelto";
+        };
     }
 
     private DuplicateResourceException activeClaimExists(UUID bookingId, UUID userId, Throwable cause) {
