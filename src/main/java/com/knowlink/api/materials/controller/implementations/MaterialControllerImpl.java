@@ -62,7 +62,7 @@ public class MaterialControllerImpl implements IMaterialController {
     }
 
     @Override
-    @PreAuthorize("hasRole('STUDENT') or hasRole('TUTOR')")
+    @PreAuthorize("hasRole('STUDENT') or hasRole('TUTOR') or hasRole('ADMIN')")
     public ResponseEntity<String> download(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserDetails userDetails) {

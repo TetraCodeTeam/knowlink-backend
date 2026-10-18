@@ -22,6 +22,21 @@ public interface IAcademicMaterialRepository extends JpaRepository<AcademicMater
 
        Optional<AcademicMaterial> findByAcademicMaterialIdAndActiveTrueAndAvailableTrue(UUID id);
 
+    @Query("""
+            SELECT material FROM AcademicMaterial material
+            JOIN FETCH material.tutorSubject tutorSubject
+            JOIN FETCH tutorSubject.subject subject
+            JOIN FETCH subject.career
+            JOIN FETCH tutorSubject.tutorProfile tutorProfile
+            JOIN FETCH tutorProfile.user
+            WHERE material.academicMaterialId = :materialId
+            AND material.active = true
+            AND tutorProfile.user.userId = :tutorUserId
+            """)
+    Optional<AcademicMaterial> findActiveByIdAndTutorUserId(
+            @Param("materialId") UUID materialId,
+            @Param("tutorUserId") UUID tutorUserId);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
            UPDATE AcademicMaterial material
@@ -30,6 +45,15 @@ public interface IAcademicMaterialRepository extends JpaRepository<AcademicMater
            AND material.active = true
            """)
     int incrementReportsCount(@Param("materialId") UUID materialId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+           UPDATE AcademicMaterial material
+           SET material.available = false
+           WHERE material.academicMaterialId = :materialId
+           AND material.active = true
+           """)
+    int markUnavailable(@Param("materialId") UUID materialId);
 
     @Query("SELECT m FROM AcademicMaterial m " +
            "WHERE m.tutorSubject.tutorProfile.user.userId = :tutorUserId " +

@@ -39,8 +39,9 @@ public class FundsResolutionService {
                         "La reserva no existe.",
                         "Booking not found for id: " + bookingId));
 
-        if (sessionClaimRepository.existsByBooking_BookingIdAndStatus(bookingId, ClaimStatus.OPEN)) {
-            log.info("Booking {} has an open claim, funds resolution skipped", bookingId);
+        if (sessionClaimRepository.existsByBooking_BookingIdAndStatusIn(
+                bookingId, ClaimStatus.ACTIVE_STATUSES)) {
+            log.info("Booking {} has an active claim, funds resolution skipped", bookingId);
             return;
         }
 

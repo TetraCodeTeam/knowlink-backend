@@ -37,6 +37,14 @@ public class MaterialAccessServiceImpl implements IMaterialAccessService {
 
     @Override
     @Transactional(readOnly = true)
+    public boolean hasAccess(UUID studentId, UUID tutorUserId, UUID subjectId) {
+        List<UUID> completedSubjectIds = bookingRepository
+                .findCompletedSubjectIdsByStudentAndTutor(studentId, tutorUserId);
+        return completedSubjectIds.contains(subjectId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<MaterialResponse> listAccessibleMaterials(UUID studentId, UUID tutorUserId, UUID subjectId) {
         List<UUID> completedSubjectIds = bookingRepository
                 .findCompletedSubjectIdsByStudentAndTutor(studentId, tutorUserId);
@@ -84,6 +92,10 @@ public class MaterialAccessServiceImpl implements IMaterialAccessService {
         UUID tutorUserId = material.getTutorSubject().getTutorProfile().getUser().getUserId();
         UUID subjectId = material.getTutorSubject().getSubject().getSubjectId();
 
+        if (!material.isAvailable()) {
+            throw new ResourceAccessDeniedException("Este material no está disponible mientras se revisa una denuncia.");
+        }
+
         List<UUID> completedSubjectIds = bookingRepository
                 .findCompletedSubjectIdsByStudentAndTutor(studentId, tutorUserId);
 
@@ -91,6 +103,27 @@ public class MaterialAccessServiceImpl implements IMaterialAccessService {
             log.warn("Access denied: student {} tried to download material {} without completed session",
                     studentId, materialId);
             throw new ResourceAccessDeniedException("No tenés acceso a este material");
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void validateReportAccessOrDeny(UUID studentId, UUID materialId) {
+        AcademicMaterial material = materialRepository
+                .findByAcademicMaterialIdAndActiveTrue(materialId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "MATERIAL_NOT_FOUND",
+                        "Material not found",
+                        "Material not found with id: " + materialId));
+
+        UUID tutorUserId = material.getTutorSubject().getTutorProfile().getUser().getUserId();
+        UUID subjectId = material.getTutorSubject().getSubject().getSubjectId();
+        List<UUID> completedSubjectIds = bookingRepository
+                .findCompletedSubjectIdsByStudentAndTutor(studentId, tutorUserId);
+        if (!completedSubjectIds.contains(subjectId)) {
+            log.warn("Access denied: student {} tried to report material {} without a completed session",
+                    studentId, materialId);
+            throw new ResourceAccessDeniedException("No ten\u00e9s acceso a este material");
         }
     }
 

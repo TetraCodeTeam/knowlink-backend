@@ -125,7 +125,8 @@ Característica: Realizar reclamo de sesión
    **idempotente**: si la transferencia ya está `SUSPENDED_BY_CLAIM` conserva el `blockingClaimId`
    original y no vuelve a guardar. Sesión gratuita (sin `FundsTransfer`) → no-op sin error.
 3. **Colisión con la liberación automática (US-15):** `FundsResolutionService.resolve(...)` arranca con
-   un guard: si existe reclamo `OPEN` para la reserva, **no** libera ni devuelve fondos (y no toca la reserva).
+   un guard: si existe reclamo `OPEN` o `IN_REVIEW` para la reserva, **no** libera ni devuelve fondos
+   (y no toca la reserva). `IN_REVIEW` fue agregado por US-46.
 4. **Listado "Mis clases":** `BookingHistoryItemResponse` ahora incluye `canClaim` y `claimableUntil`;
    `BookingServiceImpl.getHistory` evalúa la página con **una sola consulta** batch
    (`SessionClaimRepository.findClaimedBookingIdsByUser`), sin N+1.
@@ -144,7 +145,7 @@ Característica: Realizar reclamo de sesión
 | claimant_role | VARCHAR(10) NOT NULL | `STUDENT` / `TUTOR` (calculado en backend, nunca del cliente) |
 | reason | VARCHAR(40) NOT NULL | enum `ClaimReason` |
 | comment | VARCHAR(500) NULL | opcional; trim; vacío → NULL |
-| status | VARCHAR(20) NOT NULL | enum `ClaimStatus`: `OPEN`, `RESOLVED` (la transición a `RESOLVED` queda fuera de esta US) |
+| status | VARCHAR(20) NOT NULL | enum `ClaimStatus`: `OPEN`, `IN_REVIEW`, `RESOLVED`; US-46 agrega la transición de seguimiento |
 | active_key | VARCHAR(100) NULL | `"{bookingId}:{userId}"` mientras está activo; **UNIQUE** `uk_session_claim_active_key` |
 | created_at / updated_at | DATETIME(6) NOT NULL | por `@PrePersist`/`@PreUpdate` en zona `AppTimeZone` |
 
@@ -168,10 +169,9 @@ Característica: Realizar reclamo de sesión
 ### 5.3 Enums (paquete `com.knowlink.api.claims.data.enums`)
 
 ```java
-public enum ClaimReason { STUDENT_COULD_NOT_ATTEND, TUTOR_COULD_NOT_ATTEND, I_COULD_NOT_ATTEND }
-public enum ClaimStatus { OPEN, RESOLVED }  // RESOLVED queda fuera de esta US
-public enum ClaimBlockReason { SESSION_NOT_PARTICIPANT, SESSION_ALREADY_CONFIRMED, SESSION_NOT_CLAIMABLE,
-        SESSION_NOT_FINALIZED, CLAIM_DEADLINE_EXCEEDED, ACTIVE_CLAIM_EXISTS }
+public enum ClaimReason { STUDENT_COULD_NOT_ATTEND, I_COULD_NOT_ATTEND }
+public enum ClaimStatus { OPEN, IN_REVIEW, RESOLVED }  // El seguimiento de estados se agrega en US-46
+public enum ClaimBlockReason { SESSION_NOT_PARTICIPANT, SESSION_NOT_FINALIZED, CLAIM_DEADLINE_EXCEEDED, ACTIVE_CLAIM_EXISTS }
 ```
 
 > **Motivos por rol** (`ClaimReason.allowedFor(role)`): el alumno elige `TUTOR_COULD_NOT_ATTEND`
@@ -315,10 +315,7 @@ Excepciones nuevas en `exceptions.custom_exceptions`:
 (422, bloquea `confirmSession`). `GlobalExceptionHandler` suma los handlers 403/422/400.
 
 Modificaciones en código existente (mínimas):
-- `FundsLedgerService.markSuspendedByClaim` → idempotente; `FundsResolutionService` → guard por reclamo `OPEN`.
-- `BookingServiceImpl.confirmSession` → lock `findByIdForUpdate` + `ConfirmationBlockedByClaimException`
-  (422 `CONFIRMATION_BLOCKED_BY_ACTIVE_CLAIM`) si hay reclamo `OPEN`: confirma y reclamo quedan serializados.
-- `ClaimDeadlineCalculator` → `isConfirmed` / `isClaimableStatus` / `hasEnded` reemplazan a `isFinalized`.
+- `FundsLedgerService.markSuspendedByClaim` → idempotente; `FundsResolutionService` → guard por reclamo activo.
 - `BookingHistoryItemResponse` + `BookingMapper.toListItem` → `canClaim`/`claimableUntil`; `BookingServiceImpl.getHistory` → evaluación batch.
 - `ISupabaseStorageService`/impl → sobrecargas `upload(file, bucket, folder)`, `generateSignedUrl(bucket, path, seconds)`, `delete(bucket, path)` (bucket `materials` intacto).
 - `ApplicationConfig` → bean `Clock`; `application.yaml` → bloque `knowlink.claims`.
@@ -338,7 +335,7 @@ Modificaciones en código existente (mínimas):
   se borran los archivos ya subidos (`delete`) y se propaga → rollback.
 - Plazo con `ClaimDeadlineCalculator` (reloj inyectable, límite inclusivo).
 - Normalizar `comment`: `trim()`, vacío → `null`. No loguear el contenido del comentario.
-- Si ya hay un reclamo `OPEN` de la contraparte sobre la misma sesión, **se permite** crear el propio
+- Si ya hay un reclamo activo de la contraparte sobre la misma sesión, **se permite** crear el propio
   (la regla es por usuario) y la retención no se duplica (idempotencia de `markSuspendedByClaim`).
 
 ## 8. No hacer
@@ -348,7 +345,8 @@ Modificaciones en código existente (mínimas):
 - No tocar la lógica de liberación/devolución de US-15 más allá del guard por reclamo `OPEN` y la
   retención idempotente.
 - No integrar Mercado Pago ni ningún proveedor de pago externo.
-- No enviar mails ni notificaciones nuevas (el link lo maneja el front).
+- US-51 no crea notificaciones por el enlace de reclamo; los avisos de seguimiento requeridos por US-46
+  se describen en [US-46-soporte-solicitudes-tutor-backend.md](./US-46-soporte-solicitudes-tutor-backend.md).
 - No confiar en `userId`, `role` ni fechas enviadas por el cliente.
 - **Adjuntos:** solo los 3 archivos del reclamo, en el bucket `claimEvidence`; no reutilizar ni modificar
   la estructura de adjuntos de US-26 ni el upload de US-16.
@@ -372,7 +370,7 @@ Ejecutados con `.\mvnw.cmd clean verify` — todos en verde (**suite completa: 2
 | 8 | Reclamo sobre sesión que aún no terminó por horario | 422 `SESSION_NOT_FINALIZED` | Sí / CP-06 |
 | 9 | Usuario que no participa reclama | 403, no se crea reclamo | Sí / CP-04 |
 | 10 | Sesión inexistente | 404 `SESSION_NOT_FOUND` | Sí / CP-05 |
-| 11 | Segundo reclamo del mismo usuario con el primero `OPEN` | 409, mensaje exacto | Sí / CP-03 |
+| 11 | Segundo reclamo del mismo usuario con el primero activo | 409, mensaje exacto | Sí / CP-03 |
 | 12 | Dos creaciones concurrentes del mismo usuario y sesión | Uno crea, otro 409; un solo reclamo en BD | Sí / CP-23 (transacción retenida + `active_key` UNIQUE) |
 | 13 | La contraparte reclama la misma sesión ya reclamada por el otro | 201; retención no se duplica (`blockingClaimId` original) | Sí / CP-24 |
 | 14 | Sesión gratuita (sin `FundsTransfer`) | 201, sin movimiento en el ledger | Sí / CP-02 |
@@ -380,7 +378,7 @@ Ejecutados con `.\mvnw.cmd clean verify` — todos en verde (**suite completa: 2
 | 16 | `GET elegibilidad` dentro de plazo, sin reclamo | `canClaim=true`, `claimableUntil` correcto | Sí / CP-14 |
 | 17 | `GET elegibilidad` con reclamo activo / vencida / sin finalizar | `canClaim=false` con el `blockReason` correspondiente | Sí / CP-15, CP-16, CP-17 |
 | 18 | Listado `/mine`: sesiones dentro y fuera de plazo | `canClaim` true / false y `claimableUntil` presente | Sí / CP-21 |
-| 19 | Liberación automática de fondos sobre sesión con reclamo `OPEN` | No libera ni devuelve los fondos | Sí / unitario `FundsResolutionServiceTest` (caso 19) |
+| 19 | Liberación automática de fondos sobre sesión con reclamo activo (`OPEN` o `IN_REVIEW`) | No libera ni devuelve los fondos | Sí / unitario `FundsResolutionServiceTest` (caso 19) |
 | 20 | Request sin autenticar | 401 | Sí / CP-08 |
 | 21 | Adjuntos válidos (pdf + png) | 201 con `attachments`, subidos a `claimEvidence` | Sí / CP-01 + unitario |
 | 22 | Más de 3 adjuntos / vacío / > 5 MB / formato no permitido | 400 (mensajes en español / `FORMAT_NOT_ALLOWED`) | Sí / CP-12, CP-13 + unitarios |
@@ -405,20 +403,13 @@ Suites claims: `SessionClaimServiceImplTest` (38), `ClaimControllerIntegrationTe
 - [x] Orden de validación 6.4 compartido entre POST, elegibilidad y listado (un solo método `evaluate`).
 - [x] Listado `/mine` devuelve `canClaim` y `claimableUntil` sin N+1.
 - [x] Retención de fondos idempotente y en la misma transacción que el reclamo (con limpieza de subidas y rollback).
-- [x] Liberación automática de US-15 respeta reclamos `OPEN` (`FundsResolutionService` guard).
+- [x] Liberación automática de US-15 respeta reclamos activos (`OPEN`/`IN_REVIEW`) (`FundsResolutionService` guard).
 - [x] Plazo configurable (`knowlink.claims.deadline-hours`) y reloj inyectable (`Clock` en zona Córdoba).
 - [x] Adjuntos: ≤ 3, ≤ 5 MB, pdf/jpg/jpeg/png, bucket `claimEvidence`, signed URL 1 h.
 - [x] Tests unitarios del servicio (límite del plazo, ajena, no finalizada, duplicado, gratuita, adjuntos, N+1).
 - [x] Tests de integración: concurrencia (caso 12), rollback por falla de retención (caso 15), contraparte (13).
-- [x] Mensaje exacto "Ya tenés una disputa activa para esta sesión" en el 409.
-- [x] **Motivos por rol** (`TUTOR_COULD_NOT_ATTEND` nuevo; `allowedReasons` en elegibilidad) con 422
-      `CLAIM_REASON_NOT_ALLOWED_FOR_ROLE` (CP-26, CP-27, CP-28 + unitarios).
-- [x] **Bloqueo recíproco:** sesión confirmada con código no admite reclamo (422 `SESSION_ALREADY_CONFIRMED`)
-      y reclamo `OPEN` bloquea la confirmación (422 `CONFIRMATION_BLOCKED_BY_ACTIVE_CLAIM`);
-      ambos lados lockean la reserva con `findByIdForUpdate`.
-- [x] **Estados no reclamables** → 422 `SESSION_NOT_CLAIMABLE`; plazo contado desde la hora de fin
-      programada (`hasEnded`), no desde el estado `COMPLETED`.
-- [x] Casos de la sección 9 ejecutados y en verde (`.\mvnw.cmd clean verify` — 217 tests, 0 fallos).
+- [x] Mensaje exacto "Ya tenés un reclamo activo para esta sesión" en el 409.
+- [x] Casos de la sección 9 ejecutados y en verde (`.\mvnw.cmd test`).
 - [x] **Bucket `claimEvidence` creado** en Supabase (verificado: acepta `application/pdf` y restringe otros MIME con 415).
 - [x] **E2E real de subida** (`ClaimAttachmentRealUploadIntegrationTest`): upload → signed URL → delete, con credenciales desde `.env` y gate `@EnabledIf` para máquinas sin credenciales.
 - [ ] **Frontend:** spec de frontend de US-51 consume estos contratos (campos/rutas en inglés, incluye adjuntos).

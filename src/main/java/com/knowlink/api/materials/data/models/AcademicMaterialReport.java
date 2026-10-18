@@ -1,6 +1,8 @@
 package com.knowlink.api.materials.data.models;
 
 import com.knowlink.api.materials.data.enums.MaterialReportReason;
+import com.knowlink.api.materials.data.enums.MaterialReportStatus;
+import com.knowlink.api.materials.data.enums.MaterialReportResolution;
 import com.knowlink.api.users.data.models.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -48,6 +50,10 @@ public class AcademicMaterialReport {
     @JoinColumn(name = "reporter_user_id", nullable = false)
     private User reporter;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reviewed_by_user_id")
+    private User reviewedBy;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "reason", nullable = false)
     private MaterialReportReason reason;
@@ -58,10 +64,22 @@ public class AcademicMaterialReport {
     @Column(name = "reported_at", nullable = false, updatable = false)
     private LocalDateTime reportedAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", length = 20)
+    @Builder.Default
+    private MaterialReportStatus status = MaterialReportStatus.PENDING;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "resolution", length = 20)
+    private MaterialReportResolution resolution;
+
     @PrePersist
     protected void onCreate() {
         if (reportedAt == null) {
             reportedAt = LocalDateTime.now();
+        }
+        if (status == null) {
+            status = MaterialReportStatus.PENDING;
         }
     }
 }

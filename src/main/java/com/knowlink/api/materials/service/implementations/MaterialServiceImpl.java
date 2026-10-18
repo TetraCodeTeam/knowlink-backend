@@ -107,9 +107,7 @@ public class MaterialServiceImpl implements IMaterialService {
             List<UUID> accessibleTutorIds = materials.stream()
                     .map(m -> m.getTutorSubject().getTutorProfile().getUser().getUserId())
                     .distinct()
-                    .filter(tutorUserId -> !materialAccessService
-                            .listAccessibleMaterials(userId, tutorUserId, subjectId)
-                            .isEmpty())
+                    .filter(tutorUserId -> materialAccessService.hasAccess(userId, tutorUserId, subjectId))
                     .toList();
 
             if (accessibleTutorIds.isEmpty()) {
@@ -117,6 +115,7 @@ public class MaterialServiceImpl implements IMaterialService {
             }
 
             materials = materials.stream()
+                    .filter(AcademicMaterial::isAvailable)
                     .filter(m -> accessibleTutorIds.contains(
                             m.getTutorSubject().getTutorProfile().getUser().getUserId()))
                     .toList();
@@ -150,7 +149,15 @@ public class MaterialServiceImpl implements IMaterialService {
                         "Material not found with id: " + materialId));
 
         if (role.equals(Role.STUDENT.name())) {
+            if (!material.isAvailable()) {
+                throw new com.knowlink.api.materials.exception.ResourceAccessDeniedException(
+                        "Este material no está disponible mientras se revisa una denuncia.");
+            }
             materialAccessService.validateAccessOrDeny(userId, materialId);
+        } else if (role.equals(Role.TUTOR.name())
+                && !material.getTutorSubject().getTutorProfile().getUser().getUserId().equals(userId)) {
+            throw new com.knowlink.api.materials.exception.ResourceAccessDeniedException(
+                    "No tenés acceso a este material.");
         }
 
         return supabaseStorageService.generateSignedUrl(material.getStoragePath(), 3600);

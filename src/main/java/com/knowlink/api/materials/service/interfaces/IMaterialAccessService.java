@@ -8,7 +8,11 @@ import java.util.UUID;
 public interface IMaterialAccessService {
     boolean hasAccess(UUID studentId, UUID tutorUserId);
 
+    boolean hasAccess(UUID studentId, UUID tutorUserId, UUID subjectId);
+
     List<MaterialResponse> listAccessibleMaterials(UUID studentId, UUID tutorUserId, UUID subjectId);
 
     void validateAccessOrDeny(UUID studentId, UUID materialId);
+
+    void validateReportAccessOrDeny(UUID studentId, UUID materialId);
 }

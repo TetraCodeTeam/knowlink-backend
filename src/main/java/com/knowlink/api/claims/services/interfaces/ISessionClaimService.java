@@ -5,6 +5,7 @@ import com.knowlink.api.claims.controllers.requests.CreateClaimRequest;
 import com.knowlink.api.claims.controllers.responses.ClaimAttachmentUrlResponse;
 import com.knowlink.api.claims.controllers.responses.ClaimEligibilityResponse;
 import com.knowlink.api.claims.controllers.responses.ClaimResponse;
+import com.knowlink.api.claims.data.enums.ClaimStatus;
 import com.knowlink.api.security.enums.Role;
 
 import org.springframework.web.multipart.MultipartFile;
@@ -19,6 +20,8 @@ public interface ISessionClaimService {
     ClaimResponse create(UUID userId, UUID bookingId, CreateClaimRequest request, List<MultipartFile> files);
 
     ClaimEligibilityResponse getEligibility(UUID userId, UUID bookingId);
+
+    void updateStatus(UUID claimId, ClaimStatus status);
 
     List<ClaimAttachmentUrlResponse> getAttachments(UUID userId, Role role, UUID bookingId, UUID claimId);
 
