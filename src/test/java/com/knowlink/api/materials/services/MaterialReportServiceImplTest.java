@@ -13,6 +13,7 @@ import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.data.models.TutorSubject;
 import com.knowlink.api.materials.repositories.IAcademicMaterialReportRepository;
 import com.knowlink.api.materials.repositories.IAcademicMaterialRepository;
+import com.knowlink.api.notifications.services.interfaces.INotificationService;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.repositories.IUserRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +46,8 @@ class MaterialReportServiceImplTest {
     private IUserRepository userRepository;
     @Mock
     private IMaterialAccessService materialAccessService;
+    @Mock
+    private INotificationService notificationService;
 
     private MaterialReportServiceImpl service;
     private UUID materialId;
@@ -60,7 +63,8 @@ class MaterialReportServiceImplTest {
                 reportRepository,
                 userRepository,
                 materialAccessService,
-                new AcademicMaterialReportMapper());
+                new AcademicMaterialReportMapper(),
+                notificationService);
         materialId = UUID.randomUUID();
         studentId = UUID.randomUUID();
         tutor = User.builder().userId(UUID.randomUUID()).build();
@@ -69,11 +73,13 @@ class MaterialReportServiceImplTest {
         TutorSubject tutorSubject = TutorSubject.builder().tutorProfile(tutorProfile).build();
         material = AcademicMaterial.builder()
                 .academicMaterialId(materialId)
+                .name("Test material")
                 .tutorSubject(tutorSubject)
                 .reportsCount(3)
+                .available(true)
                 .active(true)
                 .build();
-        when(materialRepository.findByAcademicMaterialIdAndActiveTrueAndAvailableTrue(materialId))
+        when(materialRepository.findByAcademicMaterialIdAndActiveTrue(materialId))
                 .thenReturn(Optional.of(material));
     }
 
@@ -82,13 +88,15 @@ class MaterialReportServiceImplTest {
         MaterialReportRequest request = new MaterialReportRequest(MaterialReportReason.PLAGIARISM, "  Copiado  ");
         when(userRepository.findById(studentId)).thenReturn(Optional.of(student));
         when(materialRepository.incrementReportsCount(materialId)).thenReturn(1);
+        when(materialRepository.markUnavailable(materialId)).thenReturn(1);
 
         var response = service.reportMaterial(studentId, materialId, request);
 
         ArgumentCaptor<AcademicMaterialReport> reportCaptor = ArgumentCaptor.forClass(AcademicMaterialReport.class);
         verify(reportRepository).saveAndFlush(reportCaptor.capture());
-        verify(materialAccessService).validateAccessOrDeny(studentId, materialId);
+        verify(materialAccessService).validateReportAccessOrDeny(studentId, materialId);
         verify(materialRepository).incrementReportsCount(materialId);
+        verify(materialRepository).markUnavailable(materialId);
         assertThat(reportCaptor.getValue().getReason()).isEqualTo(MaterialReportReason.PLAGIARISM);
         assertThat(reportCaptor.getValue().getDescription()).isEqualTo("Copiado");
         assertThat(response.message()).isEqualTo("Tu reporte fue enviado correctamente.");
@@ -97,7 +105,7 @@ class MaterialReportServiceImplTest {
     @Test
     void studentWithoutCompletedAccessCannotReportMaterial() {
         doThrow(new ResourceAccessDeniedException("No tenés acceso a este material"))
-                .when(materialAccessService).validateAccessOrDeny(studentId, materialId);
+                .when(materialAccessService).validateReportAccessOrDeny(studentId, materialId);
 
         assertThatThrownBy(() -> service.reportMaterial(studentId, materialId,
                 new MaterialReportRequest(MaterialReportReason.OTHER, null)))
@@ -145,7 +153,7 @@ class MaterialReportServiceImplTest {
                 .thenThrow(new DataIntegrityViolationException("unique key"));
 
         assertThatThrownBy(() -> service.reportMaterial(studentId, materialId,
-                new MaterialReportRequest(MaterialReportReason.OTHER, null)))
+                new MaterialReportRequest(MaterialReportReason.PLAGIARISM, null)))
                 .isInstanceOf(DuplicateResourceException.class)
                 .satisfies(exception -> assertThat(((DuplicateResourceException) exception).getErrorCode())
                         .isEqualTo("MATERIAL_ALREADY_REPORTED"));
