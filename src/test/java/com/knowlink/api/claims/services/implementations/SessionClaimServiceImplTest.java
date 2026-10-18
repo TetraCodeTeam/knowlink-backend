@@ -27,8 +27,11 @@ import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.payments.services.FundsLedgerService;
 import com.knowlink.api.materials.exception.FormatNotAllowedException;
 import com.knowlink.api.materials.service.interfaces.ISupabaseStorageService;
+import com.knowlink.api.notifications.services.interfaces.INotificationService;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.shared.utils.AppTimeZone;
+import com.knowlink.api.tutors.data.models.Subject;
+import com.knowlink.api.tutors.data.models.TutorSubject;
 import com.knowlink.api.users.data.models.User;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -87,6 +90,9 @@ class SessionClaimServiceImplTest {
     @Mock
     private ISupabaseStorageService storageService;
 
+    @Mock
+    private INotificationService notificationService;
+
     private SessionClaimServiceImpl service;
 
     private UUID studentId;
@@ -106,6 +112,9 @@ class SessionClaimServiceImplTest {
                 .startTime(LocalTime.of(8, 0))
                 .endTime(SESSION_END)
                 .bookingStatus(BookingStatus.NOT_CONFIRMED)
+                .tutorSubject(TutorSubject.builder()
+                        .subject(Subject.builder().name("Test subject").build())
+                        .build())
                 .student(student)
                 .tutor(tutor)
                 .build();
@@ -122,6 +131,7 @@ class SessionClaimServiceImplTest {
                 fundsLedgerService,
                 storageService,
                 new ClaimDeadlineCalculator(clock, 24),
+                notificationService,
                 3,
                 5);
     }
