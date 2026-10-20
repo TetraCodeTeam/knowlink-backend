@@ -104,27 +104,12 @@ class MaterialServiceImplTest {
 
         when(materialRepository.findActiveBySubjectId(subjectId)).thenReturn(List.of(material));
         when(reportRepository.findReportedMaterialIds(studentId, List.of(materialId))).thenReturn(Set.of());
-        when(materialAccessService.listAccessibleMaterials(studentId, tutorUserId, subjectId))
-                .thenReturn(List.of(new MaterialResponse(
-                        materialId,
-                        material.getName(),
-                        material.getOriginalFileName(),
-                        subjectId,
-                        subject.getName(),
-                        tutorUserId,
-                        tutorUser.getFullName(),
-                        material.getMaterialType().name(),
-                        null,
-                        material.getUploadedAt(),
-                        material.getSizeInBytes(),
-                        0,
-                        false
-                )));
+        when(materialAccessService.hasAccess(studentId, tutorUserId, subjectId)).thenReturn(true);
 
         List<MaterialResponse> result = service.listBySubject(subjectId, studentId, Role.STUDENT.name());
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).id()).isEqualTo(materialId);
-        verify(materialAccessService).listAccessibleMaterials(studentId, tutorUserId, subjectId);
+        verify(materialAccessService).hasAccess(studentId, tutorUserId, subjectId);
     }
 }

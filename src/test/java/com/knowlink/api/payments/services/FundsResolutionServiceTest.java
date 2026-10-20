@@ -166,7 +166,7 @@ class FundsResolutionServiceTest {
     @DisplayName("Caso 19 - reclamo abierto: resolve no toca fondos ni la reserva")
     void resolve_openClaimExists_skipsResolutionEntirely() {
         when(bookingRepository.findById(bookingId)).thenReturn(Optional.of(booking));
-        when(sessionClaimRepository.existsByBooking_BookingIdAndStatus(bookingId, ClaimStatus.OPEN))
+        when(sessionClaimRepository.existsByBooking_BookingIdAndStatusIn(bookingId, ClaimStatus.ACTIVE_STATUSES))
                 .thenReturn(true);
 
         fundsResolutionService.resolve(bookingId, true, true);
