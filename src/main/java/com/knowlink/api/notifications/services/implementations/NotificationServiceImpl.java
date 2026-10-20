@@ -2,16 +2,28 @@ package com.knowlink.api.notifications.services.implementations;
 
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.notifications.controllers.responses.NotificationResponse;
+import com.knowlink.api.notifications.controllers.responses.UnreadCountResponse;
 import com.knowlink.api.notifications.data.enums.NotificationType;
+import com.knowlink.api.notifications.data.mappers.NotificationMapper;
 import com.knowlink.api.notifications.data.models.Notification;
 import com.knowlink.api.notifications.repositories.NotificationRepository;
 import com.knowlink.api.notifications.services.interfaces.INotificationService;
+import com.knowlink.api.notifications.utils.NotificationConstants;
+import com.knowlink.api.security.enums.Role;
+import com.knowlink.api.shared.responses.PagedResponse;
 import com.knowlink.api.shared.utils.AppTimeZone;
+import com.knowlink.api.users.data.enums.AccountStatus;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.repositories.IUserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -29,8 +41,12 @@ public class NotificationServiceImpl implements INotificationService {
             NotificationType.SESSION_CLAIM_COMMENT,
             NotificationType.MATERIAL_REPORT_UPDATE);
 
+    private static final Sort LISTING_SORT = Sort.by(Sort.Order.desc("createdAt"))
+            .and(Sort.by(Sort.Order.desc("notificationId")));
+
     private final NotificationRepository notificationRepository;
     private final IUserRepository userRepository;
+    private final NotificationMapper notificationMapper;
 
     @Override
     @Transactional
@@ -40,11 +56,7 @@ public class NotificationServiceImpl implements INotificationService {
             UUID resourceId,
             String title,
             String message) {
-        User recipient = userRepository.findById(recipientUserId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "USER_NOT_FOUND",
-                        "El usuario no existe.",
-                        "Notification recipient not found: " + recipientUserId));
+        User recipient = findRecipient(recipientUserId);
 
         Notification notification = Notification.builder()
                 .recipient(recipient)
@@ -58,17 +70,42 @@ public class NotificationServiceImpl implements INotificationService {
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public List<NotificationResponse> listForUser(UUID userId) {
-        return notificationRepository.findByRecipient_UserIdOrderByCreatedAtDesc(userId).stream()
-                .map(this::toResponse)
-                .toList();
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void notifyUser(UUID recipientUserId, NotificationType type, String message,
+                           UUID referenceId, String dedupeKey) {
+        createNotification(findRecipient(recipientUserId), type, message, referenceId, dedupeKey);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void notifyAdmins(NotificationType type, String message, UUID referenceId, String dedupeKey) {
+        List<User> admins = userRepository.findAllByRoleAndAccountStatus(Role.ADMIN, AccountStatus.ACTIVE);
+        if (admins.isEmpty()) {
+            log.warn("No active admin users to notify with type {}", type);
+            return;
+        }
+        admins.forEach(admin -> createNotification(admin, type, message, referenceId, dedupeKey));
     }
 
     @Override
     @Transactional(readOnly = true)
-    public long countUnreadForUser(UUID userId) {
-        return countDistinctUnreadItems(notificationRepository.findByRecipient_UserIdAndReadAtIsNull(userId));
+    public PagedResponse<NotificationResponse> getNotifications(UUID userId, boolean unreadOnly, Pageable pageable) {
+        Pageable safePageable = PageRequest.of(
+                Math.max(pageable.getPageNumber(), 0),
+                resolvePageSize(pageable.getPageSize()),
+                LISTING_SORT);
+
+        Page<Notification> notifications = unreadOnly
+                ? notificationRepository.findByRecipient_UserIdAndReadAtIsNull(userId, safePageable)
+                : notificationRepository.findByRecipient_UserId(userId, safePageable);
+
+        return PagedResponse.from(notifications.map(notificationMapper::toResponse));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public UnreadCountResponse getUnreadCount(UUID userId) {
+        return new UnreadCountResponse(notificationRepository.countByRecipient_UserIdAndReadAtIsNull(userId));
     }
 
     @Override
@@ -79,6 +116,7 @@ public class NotificationServiceImpl implements INotificationService {
                     String resourceType = switch (notification.getType()) {
                         case SESSION_CLAIM_UPDATE, SESSION_CLAIM_COMMENT -> "SESSION_CLAIM";
                         case MATERIAL_REPORT_UPDATE -> "MATERIAL";
+                        default -> notification.getType().name();
                     };
                     return resourceType + ":" + notification.getResourceId();
                 })
@@ -105,8 +143,7 @@ public class NotificationServiceImpl implements INotificationService {
     @Override
     @Transactional
     public void markAllAsRead(UUID userId) {
-        List<Notification> unreadNotifications =
-                notificationRepository.findByRecipient_UserIdAndReadAtIsNull(userId);
+        List<Notification> unreadNotifications = notificationRepository.findByRecipient_UserIdAndReadAtIsNull(userId);
         if (unreadNotifications.isEmpty()) {
             return;
         }
@@ -130,22 +167,48 @@ public class NotificationServiceImpl implements INotificationService {
         notificationRepository.saveAll(unreadNotifications);
     }
 
-    private NotificationResponse toResponse(Notification notification) {
-        return new NotificationResponse(
-                notification.getNotificationId(),
-                notification.getType(),
-                notification.getResourceId(),
-                notification.getTitle(),
-                notification.getMessage(),
-                notification.getCreatedAt(),
-                notification.getReadAt(),
-                notification.getReadAt() != null);
+    private void createNotification(User recipient, NotificationType type, String message,
+                                    UUID referenceId, String dedupeKey) {
+        UUID recipientUserId = recipient.getUserId();
+        try {
+            if (dedupeKey != null
+                    && notificationRepository.existsByRecipient_UserIdAndDedupeKey(recipientUserId, dedupeKey)) {
+                log.debug("Skipping duplicated notification {} for user {} with key {}", type, recipientUserId,
+                        dedupeKey);
+                return;
+            }
+
+            Notification notification = Notification.builder()
+                    .recipient(recipient)
+                    .type(type)
+                    .message(message)
+                    .resourceId(referenceId)
+                    .dedupeKey(dedupeKey)
+                    .createdAt(LocalDateTime.now(AppTimeZone.ZONE))
+                    .build();
+            notificationRepository.saveAndFlush(notification);
+            log.debug("Notification {} created for user {}", type, recipientUserId);
+        } catch (DataIntegrityViolationException e) {
+            if (dedupeKey == null) {
+                throw e;
+            }
+            log.debug("Duplicated notification {} for user {} with key {} skipped by unique constraint", type,
+                    recipientUserId, dedupeKey);
+        }
     }
 
-    private long countDistinctUnreadItems(List<Notification> notifications) {
-        return notifications.stream()
-                .map(notification -> notification.getType() + ":" + notification.getResourceId())
-                .collect(Collectors.toSet())
-                .size();
+    private User findRecipient(UUID recipientUserId) {
+        return userRepository.findById(recipientUserId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "USER_NOT_FOUND",
+                        "El usuario no existe.",
+                        "Notification recipient not found: " + recipientUserId));
+    }
+
+    private int resolvePageSize(int pageSize) {
+        if (pageSize <= 0) {
+            return NotificationConstants.DEFAULT_PAGE_SIZE;
+        }
+        return Math.min(pageSize, NotificationConstants.MAX_PAGE_SIZE);
     }
 }
