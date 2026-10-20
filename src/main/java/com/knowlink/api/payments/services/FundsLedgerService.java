@@ -5,9 +5,11 @@ import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.payments.data.models.FundsTransfer;
 import com.knowlink.api.payments.domain.FundsRecipient;
 import com.knowlink.api.payments.domain.FundsStatus;
+import com.knowlink.api.payments.events.FundsTransferProcessedEvent;
 import com.knowlink.api.payments.repositories.IFundsTransferRepository;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -24,8 +26,9 @@ import java.util.UUID;
 public class FundsLedgerService {
 
     private final IFundsTransferRepository fundsTransferRepository;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
-    @Value("")
+    @Value("${knowlink.funds.retention-percentage:3.00}")
     private BigDecimal systemRetentionPercentage;
 
     @Transactional
@@ -47,6 +50,11 @@ public class FundsLedgerService {
                 .build();
 
         fundsTransferRepository.save(transfer);
+        applicationEventPublisher.publishEvent(new FundsTransferProcessedEvent(
+                booking.getBookingId(),
+                FundsRecipient.TUTOR,
+                transferredAmount,
+                transfer.getConcept()));
         log.info("Funds released to tutor for booking {}: {} (retention: {})",
                 booking.getBookingId(), transferredAmount, retentionAmount);
     }
@@ -55,20 +63,27 @@ public class FundsLedgerService {
     public void refundToStudent(Booking booking, BookingStatus finalStatus) {
         BigDecimal originalAmount = booking.getAmount();
 
+        String concept = finalStatus == BookingStatus.NOT_FULFILLED_BY_TUTOR
+                ? "Devolucion por tutor ausente"
+                : "Devolucion por sesion no realizada";
+
         FundsTransfer transfer = FundsTransfer.builder()
                 .booking(booking)
                 .originalAmount(originalAmount)
                 .systemRetentionPercentage(BigDecimal.ZERO)
                 .transferredAmount(originalAmount)
                 .recipient(FundsRecipient.STUDENT)
-                .concept(finalStatus == BookingStatus.NOT_FULFILLED_BY_TUTOR
-                        ? "Devolucion por tutor ausente"
-                        : "Devolucion por sesion no realizada")
+                .concept(concept)
                 .fundsStatus(FundsStatus.REFUNDED_TO_STUDENT)
                 .processedAt(Instant.now())
                 .build();
 
         fundsTransferRepository.save(transfer);
+        applicationEventPublisher.publishEvent(new FundsTransferProcessedEvent(
+                booking.getBookingId(),
+                FundsRecipient.STUDENT,
+                originalAmount,
+                concept));
         log.info("Funds refunded to student for booking {}: {}",
                 booking.getBookingId(), originalAmount);
     }
