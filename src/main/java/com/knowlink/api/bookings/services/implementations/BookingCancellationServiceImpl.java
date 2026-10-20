@@ -97,7 +97,8 @@ public class BookingCancellationServiceImpl implements IBookingCancellationServi
                 timeSlot.getTimeSlotId(),
                 booking.getTutor().getUserId(),
                 resultado.refundDestination(),
-                resultado.amount()));
+                resultado.amount(),
+                currentUserId));
 
         logger.info("Booking {} cancelled by user {} (role: {})", bookingId, currentUserId, cancellationRole);
 

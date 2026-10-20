@@ -10,5 +10,6 @@ public record BookingCancelledEvent(
         UUID timeSlotId,
         UUID tutorProfileId,
         RefundDestination refundDestination,
-        BigDecimal amount
+        BigDecimal amount,
+        UUID cancelledByUserId
 ) {}
