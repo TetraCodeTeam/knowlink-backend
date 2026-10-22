@@ -2,6 +2,7 @@ package com.knowlink.api.notifications.services;
 
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.notifications.controllers.responses.UnreadCountResponse;
+import com.knowlink.api.notifications.data.enums.NotificationReadFilter;
 import com.knowlink.api.notifications.data.enums.NotificationType;
 import com.knowlink.api.notifications.data.mappers.NotificationMapper;
 import com.knowlink.api.notifications.data.models.Notification;
@@ -231,7 +232,7 @@ class NotificationServiceImplTest {
         when(notificationRepository.findByRecipient_UserId(eq(recipientId), any(Pageable.class)))
                 .thenReturn(Page.empty());
 
-        service.getNotifications(recipientId, false, PageRequest.of(0, 500));
+        service.getNotifications(recipientId, NotificationReadFilter.ALL, PageRequest.of(0, 500));
 
         ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
         verify(notificationRepository).findByRecipient_UserId(eq(recipientId), captor.capture());
@@ -243,15 +244,31 @@ class NotificationServiceImplTest {
 
 
     @Test
-    @DisplayName("getNotifications - unreadOnly consulta solo las filas sin leer")
-    void getNotifications_unreadOnlyQueriesUnreadRows() {
+    @DisplayName("getNotifications - filtro UNREAD consulta solo las filas sin leer")
+    void getNotifications_unreadFilterQueriesUnreadRows() {
         when(notificationRepository.findByRecipient_UserIdAndReadAtIsNull(eq(recipientId), any(Pageable.class)))
                 .thenReturn(Page.empty());
 
-        service.getNotifications(recipientId, true, PageRequest.of(0, 20));
+        service.getNotifications(recipientId, NotificationReadFilter.UNREAD, PageRequest.of(0, 20));
 
         verify(notificationRepository).findByRecipient_UserIdAndReadAtIsNull(eq(recipientId), any(Pageable.class));
         verify(notificationRepository, never()).findByRecipient_UserId(any(UUID.class), any(Pageable.class));
+        verify(notificationRepository, never()).findByRecipient_UserIdAndReadAtIsNotNull(any(UUID.class),
+                any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("getNotifications - filtro READ consulta solo las filas leidas")
+    void getNotifications_readFilterQueriesReadRows() {
+        when(notificationRepository.findByRecipient_UserIdAndReadAtIsNotNull(eq(recipientId), any(Pageable.class)))
+                .thenReturn(Page.empty());
+
+        service.getNotifications(recipientId, NotificationReadFilter.READ, PageRequest.of(0, 20));
+
+        verify(notificationRepository).findByRecipient_UserIdAndReadAtIsNotNull(eq(recipientId), any(Pageable.class));
+        verify(notificationRepository, never()).findByRecipient_UserId(any(UUID.class), any(Pageable.class));
+        verify(notificationRepository, never()).findByRecipient_UserIdAndReadAtIsNull(any(UUID.class),
+                any(Pageable.class));
     }
 
     private static User user(UUID id, Role role, AccountStatus status) {

@@ -258,6 +258,39 @@ class NotificationControllerIntegrationTest {
                 .isZero();
     }
 
+    @Test
+    @DisplayName("CP-05 - filtro status: READ y UNREAD devuelven conjuntos disjuntos (CA 8)")
+    void listStatusFilter_returnsDisjointSets() throws Exception {
+        User student = saveUser("Student Filter", Role.STUDENT, AccountStatus.ACTIVE);
+        LocalDateTime base = LocalDateTime.of(2026, 10, 20, 10, 0);
+        seedNotification(student, NotificationType.BOOKING_CONFIRMED, "Sin leer", base, null);
+        seedNotification(student, NotificationType.SESSION_COMPLETED, "Leida", base.plusHours(1),
+                base.plusHours(2));
+        String token = login(student);
+
+        mockMvc.perform(get("/api/v1/notifications?status=UNREAD")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].message").value("Sin leer"));
+
+        mockMvc.perform(get("/api/v1/notifications?status=READ")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].message").value("Leida"))
+                .andExpect(jsonPath("$.content[0].read").value(true));
+
+        mockMvc.perform(get("/api/v1/notifications?status=ALL")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2));
+
+        mockMvc.perform(get("/api/v1/notifications?status=BOGUS")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isBadRequest());
+    }
+
     private Notification seedNotification(User recipient, NotificationType type, String message,
             LocalDateTime createdAt, LocalDateTime readAt) {
         return notificationRepository.save(Notification.builder()

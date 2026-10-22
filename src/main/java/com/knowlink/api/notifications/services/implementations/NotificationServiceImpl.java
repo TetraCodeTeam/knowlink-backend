@@ -3,6 +3,7 @@ package com.knowlink.api.notifications.services.implementations;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.notifications.controllers.responses.NotificationResponse;
 import com.knowlink.api.notifications.controllers.responses.UnreadCountResponse;
+import com.knowlink.api.notifications.data.enums.NotificationReadFilter;
 import com.knowlink.api.notifications.data.enums.NotificationType;
 import com.knowlink.api.notifications.data.mappers.NotificationMapper;
 import com.knowlink.api.notifications.data.models.Notification;
@@ -90,15 +91,18 @@ public class NotificationServiceImpl implements INotificationService {
 
     @Override
     @Transactional(readOnly = true)
-    public PagedResponse<NotificationResponse> getNotifications(UUID userId, boolean unreadOnly, Pageable pageable) {
+    public PagedResponse<NotificationResponse> getNotifications(UUID userId, NotificationReadFilter readFilter,
+            Pageable pageable) {
         Pageable safePageable = PageRequest.of(
                 Math.max(pageable.getPageNumber(), 0),
                 resolvePageSize(pageable.getPageSize()),
                 LISTING_SORT);
 
-        Page<Notification> notifications = unreadOnly
-                ? notificationRepository.findByRecipient_UserIdAndReadAtIsNull(userId, safePageable)
-                : notificationRepository.findByRecipient_UserId(userId, safePageable);
+        Page<Notification> notifications = switch (readFilter) {
+            case UNREAD -> notificationRepository.findByRecipient_UserIdAndReadAtIsNull(userId, safePageable);
+            case READ -> notificationRepository.findByRecipient_UserIdAndReadAtIsNotNull(userId, safePageable);
+            case ALL -> notificationRepository.findByRecipient_UserId(userId, safePageable);
+        };
 
         return PagedResponse.from(notifications.map(notificationMapper::toResponse));
     }

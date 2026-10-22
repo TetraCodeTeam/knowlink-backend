@@ -2,6 +2,7 @@ package com.knowlink.api.notifications.services.interfaces;
 
 import com.knowlink.api.notifications.controllers.responses.NotificationResponse;
 import com.knowlink.api.notifications.controllers.responses.UnreadCountResponse;
+import com.knowlink.api.notifications.data.enums.NotificationReadFilter;
 import com.knowlink.api.notifications.data.enums.NotificationType;
 import com.knowlink.api.shared.responses.PagedResponse;
 import org.springframework.data.domain.Pageable;
@@ -28,7 +29,8 @@ public interface INotificationService {
      */
     void notifyAdmins(NotificationType type, String title, String message, UUID referenceId, String dedupeKey);
 
-    PagedResponse<NotificationResponse> getNotifications(UUID userId, boolean unreadOnly, Pageable pageable);
+    PagedResponse<NotificationResponse> getNotifications(UUID userId, NotificationReadFilter readFilter,
+            Pageable pageable);
 
     UnreadCountResponse getUnreadCount(UUID userId);
 

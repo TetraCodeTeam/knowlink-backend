@@ -90,6 +90,20 @@ class NotificationRepositoryTest {
     }
 
     @Test
+    @DisplayName("readOnly - pagina solo las notificaciones leidas")
+    void readOnly_returnsOnlyReadRows() {
+        LocalDateTime base = LocalDateTime.of(2026, 10, 20, 10, 0);
+        persistNotification(recipient, base, null, "unread");
+        Notification read = persistNotification(recipient, base.plusMinutes(1), base.plusMinutes(2), "read");
+
+        Page<Notification> page = notificationRepository.findByRecipient_UserIdAndReadAtIsNotNull(
+                recipient.getUserId(), PageRequest.of(0, 10));
+
+        assertThat(page.getContent()).hasSize(1);
+        assertThat(page.getContent().get(0).getNotificationId()).isEqualTo(read.getNotificationId());
+    }
+
+    @Test
     @DisplayName("Conteo - cuenta las filas sin leer del destinatario")
     void countUnread_countsOnlyUnreadRowsOfThatRecipient() {
         persistNotification(recipient, LocalDateTime.of(2026, 10, 20, 9, 0), null, "u1");

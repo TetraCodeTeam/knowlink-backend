@@ -3,6 +3,7 @@ package com.knowlink.api.notifications.controllers.implementations;
 import com.knowlink.api.notifications.controllers.interfaces.INotificationController;
 import com.knowlink.api.notifications.controllers.responses.NotificationResponse;
 import com.knowlink.api.notifications.controllers.responses.UnreadCountResponse;
+import com.knowlink.api.notifications.data.enums.NotificationReadFilter;
 import com.knowlink.api.notifications.services.interfaces.INotificationService;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.notifications.utils.NotificationConstants;
@@ -21,10 +22,14 @@ public class NotificationControllerImpl implements INotificationController {
     private final INotificationService notificationService;
 
     @Override
-    public PagedResponse<NotificationResponse> list(UserPrincipal principal, int page, int size, boolean unreadOnly) {
+    public PagedResponse<NotificationResponse> list(UserPrincipal principal, int page, int size,
+            NotificationReadFilter status, boolean unreadOnly) {
+        NotificationReadFilter readFilter = status != NotificationReadFilter.ALL
+                ? status
+                : (unreadOnly ? NotificationReadFilter.UNREAD : NotificationReadFilter.ALL);
         return notificationService.getNotifications(
                 principal.getUser().getUserId(),
-                unreadOnly,
+                readFilter,
                 pageable(page, size));
     }
 

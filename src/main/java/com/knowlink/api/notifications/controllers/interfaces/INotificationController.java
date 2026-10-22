@@ -1,6 +1,7 @@
 package com.knowlink.api.notifications.controllers.interfaces;
 
 import com.knowlink.api.notifications.controllers.responses.NotificationResponse;
+import com.knowlink.api.notifications.data.enums.NotificationReadFilter;
 import com.knowlink.api.notifications.controllers.responses.UnreadCountResponse;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.shared.responses.PagedResponse;
@@ -33,6 +34,7 @@ public interface INotificationController {
             @AuthenticationPrincipal UserPrincipal principal,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "ALL") NotificationReadFilter status,
             @RequestParam(defaultValue = "false") boolean unreadOnly);
 
     @GetMapping("/unread-count")
