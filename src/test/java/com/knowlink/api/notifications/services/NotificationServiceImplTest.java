@@ -62,7 +62,7 @@ class NotificationServiceImplTest {
         when(userRepository.findById(recipientId)).thenReturn(Optional.of(recipient));
         String dedupeKey = "BOOKING_CONFIRMED:" + bookingId;
 
-        service.notifyUser(recipientId, NotificationType.BOOKING_CONFIRMED,
+        service.notifyUser(recipientId, NotificationType.BOOKING_CONFIRMED, "Reserva confirmada",
                 "Tu reserva fue confirmada.", bookingId, dedupeKey);
 
         ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
@@ -73,7 +73,7 @@ class NotificationServiceImplTest {
         assertThat(saved.getMessage()).isEqualTo("Tu reserva fue confirmada.");
         assertThat(saved.getResourceId()).isEqualTo(bookingId);
         assertThat(saved.getDedupeKey()).isEqualTo(dedupeKey);
-        assertThat(saved.getTitle()).isNull();
+        assertThat(saved.getTitle()).isEqualTo("Reserva confirmada");
         assertThat(saved.getReadAt()).isNull();
     }
 
@@ -85,7 +85,7 @@ class NotificationServiceImplTest {
         when(userRepository.findById(recipientId)).thenReturn(Optional.of(recipient));
         when(notificationRepository.existsByRecipient_UserIdAndDedupeKey(recipientId, dedupeKey)).thenReturn(true);
 
-        service.notifyUser(recipientId, NotificationType.BOOKING_CONFIRMED, "msg", bookingId, dedupeKey);
+        service.notifyUser(recipientId, NotificationType.BOOKING_CONFIRMED, "title", "msg", bookingId, dedupeKey);
 
         verify(notificationRepository, never()).saveAndFlush(any());
     }
@@ -100,7 +100,7 @@ class NotificationServiceImplTest {
         when(notificationRepository.saveAndFlush(any(Notification.class)))
                 .thenThrow(new DataIntegrityViolationException("duplicate"));
 
-        service.notifyUser(recipientId, NotificationType.BOOKING_CONFIRMED, "msg", bookingId, dedupeKey);
+        service.notifyUser(recipientId, NotificationType.BOOKING_CONFIRMED, "title", "msg", bookingId, dedupeKey);
 
         verify(notificationRepository).saveAndFlush(any(Notification.class));
     }
@@ -113,7 +113,7 @@ class NotificationServiceImplTest {
         when(notificationRepository.saveAndFlush(any(Notification.class)))
                 .thenThrow(new DataIntegrityViolationException("broken row"));
 
-        assertThatThrownBy(() -> service.notifyUser(recipientId, NotificationType.BOOKING_CONFIRMED,
+        assertThatThrownBy(() -> service.notifyUser(recipientId, NotificationType.BOOKING_CONFIRMED, "title",
                 "msg", bookingId, null))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
@@ -123,7 +123,7 @@ class NotificationServiceImplTest {
     void notifyUser_unknownRecipient_throwsNotFound() {
         when(userRepository.findById(recipientId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.notifyUser(recipientId, NotificationType.BOOKING_CONFIRMED,
+        assertThatThrownBy(() -> service.notifyUser(recipientId, NotificationType.BOOKING_CONFIRMED, "title",
                 "msg", bookingId, null))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .extracting(e -> ((ResourceNotFoundException) e).getErrorCode())
@@ -139,7 +139,7 @@ class NotificationServiceImplTest {
                 .thenReturn(List.of(firstAdmin, secondAdmin));
         String dedupeKey = "ADMIN_VALIDATION_REQUEST_PENDING:" + bookingId;
 
-        service.notifyAdmins(NotificationType.ADMIN_VALIDATION_REQUEST_PENDING,
+        service.notifyAdmins(NotificationType.ADMIN_VALIDATION_REQUEST_PENDING, "Validacion pendiente",
                 "Hay una solicitud nueva.", bookingId, dedupeKey);
 
         ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
@@ -160,7 +160,7 @@ class NotificationServiceImplTest {
         when(userRepository.findAllByRoleAndAccountStatus(Role.ADMIN, AccountStatus.ACTIVE))
                 .thenReturn(List.of());
 
-        service.notifyAdmins(NotificationType.ADMIN_MATERIAL_REPORT_RECEIVED, "msg", bookingId, "key");
+        service.notifyAdmins(NotificationType.ADMIN_MATERIAL_REPORT_RECEIVED, "title", "msg", bookingId, "key");
 
         verify(notificationRepository, never()).saveAndFlush(any());
     }

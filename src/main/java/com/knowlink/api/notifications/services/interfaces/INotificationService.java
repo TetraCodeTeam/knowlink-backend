@@ -20,13 +20,13 @@ public interface INotificationService {
     /**
      * Creates a notification for a single user. Idempotent on (recipient, dedupeKey).
      */
-    void notifyUser(UUID recipientUserId, NotificationType type, String message,
+    void notifyUser(UUID recipientUserId, NotificationType type, String title, String message,
                     UUID referenceId, String dedupeKey);
 
     /**
      * Creates one notification per active admin account. Idempotent on (recipient, dedupeKey).
      */
-    void notifyAdmins(NotificationType type, String message, UUID referenceId, String dedupeKey);
+    void notifyAdmins(NotificationType type, String title, String message, UUID referenceId, String dedupeKey);
 
     PagedResponse<NotificationResponse> getNotifications(UUID userId, boolean unreadOnly, Pageable pageable);
 

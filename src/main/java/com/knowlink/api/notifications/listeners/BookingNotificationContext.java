@@ -31,7 +31,15 @@ public class BookingNotificationContext {
                 booking.getTutor().getUserId(),
                 booking.getStudent().getFullName(),
                 booking.getTutor().getFullName(),
+                resolveSubjectName(booking),
                 booking.getSessionDate(),
                 booking.getStartTime());
+    }
+
+    private static String resolveSubjectName(Booking booking) {
+        if (booking.getTutorSubject() == null || booking.getTutorSubject().getSubject() == null) {
+            return null;
+        }
+        return booking.getTutorSubject().getSubject().getName();
     }
 }

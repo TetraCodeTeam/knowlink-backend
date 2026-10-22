@@ -35,6 +35,7 @@ import com.knowlink.api.users.services.interfaces.IUserService;
 import com.knowlink.api.students.repositories.IStudentProfileRepository;
 import com.knowlink.api.students.data.models.StudentProfile;
 import com.knowlink.api.bookings.events.BookingCreatedEvent;
+import com.knowlink.api.payments.services.FundsLedgerService;
 import com.knowlink.api.bookings.events.SessionConfirmedEvent;
 
 import lombok.RequiredArgsConstructor;
@@ -73,6 +74,7 @@ public class BookingServiceImpl implements IBookingService {
         private final IBookingConfirmationTokenService confirmationTokenService;
         private final IStudentProfileRepository studentProfileRepository;
         private final ISessionClaimService sessionClaimService;
+        private final FundsLedgerService fundsLedgerService;
 
         @Override
         @Transactional
@@ -96,6 +98,7 @@ public class BookingServiceImpl implements IBookingService {
 
                 if (hold.getExpiresAt().isBefore(LocalDateTime.now(AppTimeZone.ZONE))) {
                         holdRepository.delete(hold);
+
                         throw new ValidationException(
                                         "Tu tiempo para completar la reserva expiró. Elegí un horario nuevamente.");
                 }
@@ -128,6 +131,10 @@ public class BookingServiceImpl implements IBookingService {
 
                 bookingRepository.save(booking);
                 holdRepository.delete(hold); // el hold se "consume" al confirmarse la reserva
+
+                if (!isFree) {
+                        fundsLedgerService.createHeldTransfer(booking);
+                }
 
                 bookingEventPublisher.publish(
                                 tutorSubject.getTutorProfile().getTutorProfileId(),

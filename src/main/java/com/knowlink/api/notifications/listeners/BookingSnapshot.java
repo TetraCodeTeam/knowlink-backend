@@ -1,10 +1,10 @@
 package com.knowlink.api.notifications.listeners;
 
 import com.knowlink.api.notifications.data.enums.NotificationType;
+import com.knowlink.api.notifications.utils.NotificationTextFormats;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 public record BookingSnapshot(
@@ -13,18 +13,20 @@ public record BookingSnapshot(
         UUID tutorUserId,
         String studentName,
         String tutorName,
+        String subjectName,
         LocalDate sessionDate,
         LocalTime startTime) {
 
-    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
-    private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
-
     public String formattedDate() {
-        return sessionDate.format(DATE_FORMAT);
+        return NotificationTextFormats.date(sessionDate);
+    }
+
+    public String formattedDateWithWeekday() {
+        return NotificationTextFormats.dateWithWeekday(sessionDate);
     }
 
     public String formattedTime() {
-        return startTime.format(TIME_FORMAT);
+        return NotificationTextFormats.time(startTime);
     }
 
     public String dedupeKeyFor(NotificationType type) {

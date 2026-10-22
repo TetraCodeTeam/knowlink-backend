@@ -8,6 +8,8 @@ import java.util.UUID;
 public record FundsTransferProcessedEvent(
         UUID bookingId,
         FundsRecipient recipient,
+        BigDecimal originalAmount,
         BigDecimal transferredAmount,
+        BigDecimal retentionPercentage,
         String concept
 ) {}

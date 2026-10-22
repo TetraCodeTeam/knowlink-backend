@@ -215,10 +215,12 @@ class NotificationControllerIntegrationTest {
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].type").value(NotificationType.BOOKING_CONFIRMED.name()))
                 .andExpect(jsonPath("$.content[0].referenceId").value(booking.getBookingId().toString()))
+                .andExpect(jsonPath("$.content[0].title").value("Reserva confirmada"))
                 .andExpect(jsonPath("$.content[0].message").value(
-                        "Tu reserva con Tutor Booking para el "
-                                + booking.getSessionDate().format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy"))
-                                + " a las 15:00 fue confirmada."));
+                        "Reservaste " + booking.getTutorSubject().getSubject().getName() + " - "
+                                + com.knowlink.api.notifications.utils.NotificationTextFormats
+                                        .dateWithWeekday(booking.getSessionDate())
+                                + " a las 15:00."));
 
         String tutorToken = login(tutor);
         mockMvc.perform(get("/api/v1/notifications")
@@ -226,7 +228,8 @@ class NotificationControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].type").value(NotificationType.BOOKING_CONFIRMED.name()))
-                .andExpect(jsonPath("$.content[0].message", containsString("reservó una clase")));
+                .andExpect(jsonPath("$.content[0].title").value("Nueva reserva confirmada"))
+                .andExpect(jsonPath("$.content[0].message", containsString("reservó " + booking.getTutorSubject().getSubject().getName())));
 
         bookingNotificationListener.handleBookingCreated(event);
 
@@ -244,7 +247,7 @@ class NotificationControllerIntegrationTest {
         User inactiveAdmin = saveUser("Admin Inactive", Role.ADMIN, AccountStatus.INACTIVE);
         String dedupeKey = "ADMIN_VALIDATION_REQUEST_PENDING:" + UUID.randomUUID();
 
-        notificationService.notifyAdmins(NotificationType.ADMIN_VALIDATION_REQUEST_PENDING,
+        notificationService.notifyAdmins(NotificationType.ADMIN_VALIDATION_REQUEST_PENDING, "Validación pendiente",
                 "Hay una solicitud de validación pendiente.", null, dedupeKey);
 
         assertThat(notificationRepository.countByRecipient_UserIdAndReadAtIsNull(activeAdminOne.getUserId()))

@@ -71,20 +71,21 @@ public class NotificationServiceImpl implements INotificationService {
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void notifyUser(UUID recipientUserId, NotificationType type, String message,
+    public void notifyUser(UUID recipientUserId, NotificationType type, String title, String message,
                            UUID referenceId, String dedupeKey) {
-        createNotification(findRecipient(recipientUserId), type, message, referenceId, dedupeKey);
+        createNotification(findRecipient(recipientUserId), type, title, message, referenceId, dedupeKey);
     }
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW)
-    public void notifyAdmins(NotificationType type, String message, UUID referenceId, String dedupeKey) {
+    public void notifyAdmins(NotificationType type, String title, String message, UUID referenceId,
+                             String dedupeKey) {
         List<User> admins = userRepository.findAllByRoleAndAccountStatus(Role.ADMIN, AccountStatus.ACTIVE);
         if (admins.isEmpty()) {
             log.warn("No active admin users to notify with type {}", type);
             return;
         }
-        admins.forEach(admin -> createNotification(admin, type, message, referenceId, dedupeKey));
+        admins.forEach(admin -> createNotification(admin, type, title, message, referenceId, dedupeKey));
     }
 
     @Override
@@ -167,7 +168,7 @@ public class NotificationServiceImpl implements INotificationService {
         notificationRepository.saveAll(unreadNotifications);
     }
 
-    private void createNotification(User recipient, NotificationType type, String message,
+    private void createNotification(User recipient, NotificationType type, String title, String message,
                                     UUID referenceId, String dedupeKey) {
         UUID recipientUserId = recipient.getUserId();
         try {
@@ -181,6 +182,7 @@ public class NotificationServiceImpl implements INotificationService {
             Notification notification = Notification.builder()
                     .recipient(recipient)
                     .type(type)
+                    .title(title)
                     .message(message)
                     .resourceId(referenceId)
                     .dedupeKey(dedupeKey)

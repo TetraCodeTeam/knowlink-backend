@@ -1,10 +1,12 @@
 package com.knowlink.api.notifications.listeners;
 
+import com.knowlink.api.bookings.data.enums.RefundDestination;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.bookings.events.BookingCancelledEvent;
 import com.knowlink.api.bookings.events.BookingCreatedEvent;
 import com.knowlink.api.bookings.events.SessionCompletionNotificationEvent;
 import com.knowlink.api.bookings.events.SessionConfirmationReminderEvent;
+import com.knowlink.api.bookings.events.SessionConfirmedEvent;
 import com.knowlink.api.bookings.events.SessionNotConfirmedEvent;
 import com.knowlink.api.notifications.data.enums.NotificationType;
 import com.knowlink.api.notifications.services.interfaces.INotificationService;
@@ -16,6 +18,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.Optional;
@@ -50,7 +53,7 @@ class BookingNotificationListenerTest {
     @BeforeEach
     void setUp() {
         snapshot = new BookingSnapshot(bookingId, studentId, tutorId,
-                "Ana Estudiante", "Carlos Lopez",
+                "Ana Estudiante", "Carlos Lopez", "Sistemas Operativos",
                 LocalDate.of(2026, 10, 20), LocalTime.of(15, 0));
     }
 
@@ -62,10 +65,12 @@ class BookingNotificationListenerTest {
         listener.handleBookingCreated(new BookingCreatedEvent(bookingId));
 
         verify(notificationService).notifyUser(eq(studentId), eq(NotificationType.BOOKING_CONFIRMED),
-                eq("Tu reserva con Carlos Lopez para el 20/10/2026 a las 15:00 fue confirmada."),
+                eq("Reserva confirmada"),
+                eq("Reservaste Sistemas Operativos - Martes 20/10 a las 15:00."),
                 eq(bookingId), eq("BOOKING_CONFIRMED:" + bookingId));
         verify(notificationService).notifyUser(eq(tutorId), eq(NotificationType.BOOKING_CONFIRMED),
-                eq("Ana Estudiante reservó una clase para el 20/10/2026 a las 15:00."),
+                eq("Nueva reserva confirmada"),
+                eq("Ana Estudiante reservó Sistemas Operativos - Martes 20/10 a las 15:00."),
                 eq(bookingId), eq("BOOKING_CONFIRMED:" + bookingId));
     }
 
@@ -75,14 +80,16 @@ class BookingNotificationListenerTest {
         when(bookingNotificationContext.loadSnapshot(bookingId)).thenReturn(Optional.of(snapshot));
 
         listener.handleBookingCancelled(new BookingCancelledEvent(bookingId, UUID.randomUUID(), tutorId,
-                com.knowlink.api.bookings.data.enums.RefundDestination.STUDENT,
-                java.math.BigDecimal.TEN, studentId));
+                RefundDestination.STUDENT, BigDecimal.TEN, studentId));
 
         verify(notificationService).notifyUser(eq(studentId), eq(NotificationType.BOOKING_CANCELLED),
-                eq("Cancelaste la clase del 20/10/2026 a las 15:00."),
+                eq("Clase cancelada"),
+                eq("Cancelaste la clase del Martes 20/10."),
                 eq(bookingId), eq("BOOKING_CANCELLED:" + bookingId));
         verify(notificationService).notifyUser(eq(tutorId), eq(NotificationType.BOOKING_CANCELLED),
-                eq("Ana Estudiante canceló la clase del 20/10/2026 a las 15:00."),
+                eq("Clase cancelada por el alumno"),
+                eq("Ana Estudiante canceló la clase del Martes 20/10."
+                        + " El alumno recibió el reembolso por política de cancelación."),
                 eq(bookingId), eq("BOOKING_CANCELLED:" + bookingId));
     }
 
@@ -92,14 +99,16 @@ class BookingNotificationListenerTest {
         when(bookingNotificationContext.loadSnapshot(bookingId)).thenReturn(Optional.of(snapshot));
 
         listener.handleBookingCancelled(new BookingCancelledEvent(bookingId, UUID.randomUUID(), tutorId,
-                com.knowlink.api.bookings.data.enums.RefundDestination.TUTOR,
-                java.math.BigDecimal.TEN, tutorId));
+                RefundDestination.TUTOR, BigDecimal.TEN, tutorId));
 
         verify(notificationService).notifyUser(eq(tutorId), eq(NotificationType.BOOKING_CANCELLED),
-                eq("Cancelaste la clase del 20/10/2026 a las 15:00."),
+                eq("Clase cancelada"),
+                eq("Cancelaste la clase del Martes 20/10."),
                 eq(bookingId), eq("BOOKING_CANCELLED:" + bookingId));
         verify(notificationService).notifyUser(eq(studentId), eq(NotificationType.BOOKING_CANCELLED),
-                eq("Carlos Lopez canceló la clase del 20/10/2026 a las 15:00."),
+                eq("Clase cancelada por el tutor"),
+                eq("Carlos Lopez canceló la clase del Martes 20/10."
+                        + " El tutor recibirá el pago por la política de cancelación."),
                 eq(bookingId), eq("BOOKING_CANCELLED:" + bookingId));
     }
 
@@ -111,39 +120,76 @@ class BookingNotificationListenerTest {
         listener.handleSessionConfirmationReminder(new SessionConfirmationReminderEvent(bookingWithId()));
 
         verify(notificationService).notifyUser(eq(tutorId), eq(NotificationType.SESSION_CONFIRMATION_REMINDER),
-                eq("Recordá confirmar la clase con Ana Estudiante ingresando su código."),
+                eq("Recordatorio de token. Clase en curso"),
+                eq("Tu clase de Sistemas Operativos con Ana Estudiante está en curso."
+                        + " Ingresá el código para confirmar la sesión."),
                 eq(bookingId), eq("SESSION_CONFIRMATION_REMINDER:" + bookingId));
         verify(notificationService).notifyUser(eq(studentId), eq(NotificationType.SESSION_CONFIRMATION_REMINDER),
-                eq("Recordá compartir tu código de confirmación con Carlos Lopez."),
+                eq("Recordatorio de token. Clase en curso"),
+                eq("Tu clase de Sistemas Operativos con Carlos Lopez está en curso."
+                        + " Entregá el código al tutor para confirmar la sesión."),
                 eq(bookingId), eq("SESSION_CONFIRMATION_REMINDER:" + bookingId));
     }
 
     @Test
-    @DisplayName("Sesion no confirmada - ambas partes reciben el mismo aviso")
+    @DisplayName("Sesion no confirmada - ambas partes reciben el mismo aviso con el nombre de la otra parte")
     void sessionNotConfirmed_notifiesBothParties() {
         when(bookingNotificationContext.loadSnapshot(bookingId)).thenReturn(Optional.of(snapshot));
 
         listener.handleSessionNotConfirmed(new SessionNotConfirmedEvent(bookingWithId()));
 
-        String expected = "La clase del 20/10/2026 no fue confirmada.";
         verify(notificationService).notifyUser(eq(studentId), eq(NotificationType.SESSION_NOT_CONFIRMED),
-                eq(expected), eq(bookingId), eq("SESSION_NOT_CONFIRMED:" + bookingId));
+                eq("Token vencido. Sesión no confirmada"),
+                eq("El tiempo para ingresar el código de la sesión con Carlos Lopez venció."
+                        + " La reserva pasó al estado \"No confirmada\"."),
+                eq(bookingId), eq("SESSION_NOT_CONFIRMED:" + bookingId));
         verify(notificationService).notifyUser(eq(tutorId), eq(NotificationType.SESSION_NOT_CONFIRMED),
-                eq(expected), eq(bookingId), eq("SESSION_NOT_CONFIRMED:" + bookingId));
+                eq("Token vencido. Sesión no confirmada"),
+                eq("El tiempo para ingresar el código de la sesión con Ana Estudiante venció."
+                        + " La reserva pasó al estado \"No confirmada\"."),
+                eq(bookingId), eq("SESSION_NOT_CONFIRMED:" + bookingId));
     }
 
     @Test
-    @DisplayName("Sesion finalizada - ambas partes reciben el aviso de cierre")
-    void sessionCompleted_notifiesBothParties() {
+    @DisplayName("Sesion confirmada - ambas partes reciben SESSION_CONFIRMED")
+    void sessionConfirmed_notifiesBothParties() {
+        when(bookingNotificationContext.loadSnapshot(bookingId)).thenReturn(Optional.of(snapshot));
+
+        listener.handleSessionConfirmed(new SessionConfirmedEvent(bookingWithId()));
+
+        verify(notificationService).notifyUser(eq(studentId), eq(NotificationType.SESSION_CONFIRMED),
+                eq("Sesión confirmada"),
+                eq("La sesión de Sistemas Operativos con Carlos Lopez fue confirmada."),
+                eq(bookingId), eq("SESSION_CONFIRMED:" + bookingId));
+        verify(notificationService).notifyUser(eq(tutorId), eq(NotificationType.SESSION_CONFIRMED),
+                eq("Sesión confirmada"),
+                eq("La sesión de Sistemas Operativos con Ana Estudiante fue confirmada."),
+                eq(bookingId), eq("SESSION_CONFIRMED:" + bookingId));
+    }
+
+    @Test
+    @DisplayName("Sesion finalizada - ambas partes reciben el aviso de cierre y el popup de calificacion")
+    void sessionCompleted_notifiesBothPartiesAndEnablesRating() {
         when(bookingNotificationContext.loadSnapshot(bookingId)).thenReturn(Optional.of(snapshot));
 
         listener.handleSessionCompleted(new SessionCompletionNotificationEvent(bookingWithId()));
 
-        String expected = "La clase del 20/10/2026 finalizó. Si hubo algún problema, podés hacer un reclamo.";
         verify(notificationService).notifyUser(eq(studentId), eq(NotificationType.SESSION_COMPLETED),
-                eq(expected), eq(bookingId), eq("SESSION_COMPLETED:" + bookingId));
+                eq("Tu sesión de Sistemas Operativos finalizó"),
+                eq("Si hubo algún inconveniente con la asistencia, tenés 24 horas para reclamar."),
+                eq(bookingId), eq("SESSION_COMPLETED:" + bookingId));
         verify(notificationService).notifyUser(eq(tutorId), eq(NotificationType.SESSION_COMPLETED),
-                eq(expected), eq(bookingId), eq("SESSION_COMPLETED:" + bookingId));
+                eq("Tu sesión de Sistemas Operativos finalizó"),
+                eq("Si hubo algún inconveniente con la asistencia, tenés 24 horas para reclamar."),
+                eq(bookingId), eq("SESSION_COMPLETED:" + bookingId));
+        verify(notificationService).notifyUser(eq(studentId), eq(NotificationType.RATING_ENABLED),
+                eq("Calificá tu sesión de Sistemas Operativos"),
+                eq("Contanos cómo fue tu experiencia con Carlos Lopez. Tenés 24 horas para calificar."),
+                eq(bookingId), eq("RATING_ENABLED:" + bookingId));
+        verify(notificationService).notifyUser(eq(tutorId), eq(NotificationType.RATING_ENABLED),
+                eq("Calificá tu sesión de Sistemas Operativos"),
+                eq("Contanos cómo fue tu experiencia con Ana Estudiante. Tenés 24 horas para calificar."),
+                eq(bookingId), eq("RATING_ENABLED:" + bookingId));
     }
 
     @Test
@@ -152,12 +198,12 @@ class BookingNotificationListenerTest {
         when(bookingNotificationContext.loadSnapshot(bookingId)).thenReturn(Optional.of(snapshot));
         doThrow(new RuntimeException("database down"))
                 .when(notificationService).notifyUser(eq(studentId), eq(NotificationType.BOOKING_CONFIRMED),
-                        anyString(), eq(bookingId), anyString());
+                        anyString(), anyString(), eq(bookingId), anyString());
 
         listener.handleBookingCreated(new BookingCreatedEvent(bookingId));
 
         verify(notificationService).notifyUser(eq(tutorId), eq(NotificationType.BOOKING_CONFIRMED),
-                anyString(), eq(bookingId), anyString());
+                anyString(), anyString(), eq(bookingId), anyString());
     }
 
     @Test
@@ -167,7 +213,7 @@ class BookingNotificationListenerTest {
 
         listener.handleBookingCreated(new BookingCreatedEvent(bookingId));
 
-        verify(notificationService, never()).notifyUser(any(), any(), any(), any(), any());
+        verify(notificationService, never()).notifyUser(any(), any(), any(), any(), any(), any());
     }
 
     private Booking bookingWithId() {

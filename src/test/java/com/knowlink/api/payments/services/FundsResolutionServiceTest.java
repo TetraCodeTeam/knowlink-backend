@@ -73,7 +73,7 @@ class FundsResolutionServiceTest {
         ArgumentCaptor<Booking> captor = ArgumentCaptor.forClass(Booking.class);
         verify(bookingRepository).save(captor.capture());
         assertThat(captor.getValue().getBookingStatus()).isEqualTo(BookingStatus.COMPLETED);
-        verify(fundsLedgerService).releaseToTutor(eq(booking), eq(BookingStatus.COMPLETED));
+        verify(fundsLedgerService).releaseToTutor(eq(booking), eq(BookingStatus.COMPLETED), eq(true));
     }
 
     @Test
@@ -89,7 +89,7 @@ class FundsResolutionServiceTest {
         ArgumentCaptor<Booking> captor = ArgumentCaptor.forClass(Booking.class);
         verify(bookingRepository).save(captor.capture());
         assertThat(captor.getValue().getBookingStatus()).isEqualTo(BookingStatus.COMPLETED);
-        verify(fundsLedgerService).releaseToTutor(eq(booking), eq(BookingStatus.COMPLETED));
+        verify(fundsLedgerService).releaseToTutor(eq(booking), eq(BookingStatus.COMPLETED), eq(false));
     }
 
     @Test
@@ -135,7 +135,7 @@ class FundsResolutionServiceTest {
         fundsResolutionService.resolve(bookingId, true, true);
 
         verify(bookingRepository, never()).save(any());
-        verify(fundsLedgerService, never()).releaseToTutor(any(), any());
+        verify(fundsLedgerService, never()).releaseToTutor(any(), any(), anyBoolean());
     }
 
     @Test
@@ -173,7 +173,7 @@ class FundsResolutionServiceTest {
 
         verify(bookingRepository, never()).save(any());
         verify(fundsTransferRepository, never()).findByBooking_BookingId(any(UUID.class));
-        verify(fundsLedgerService, never()).releaseToTutor(any(), any());
+        verify(fundsLedgerService, never()).releaseToTutor(any(), any(), anyBoolean());
         verify(fundsLedgerService, never()).refundToStudent(any(), any());
     }
 
