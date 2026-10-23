@@ -90,7 +90,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ClaimControllerIntegrationTest {
 
     private static final String PASSWORD = "Password123!";
-    private static final String ACTIVE_CLAIM_MESSAGE = "Ya tenés una disputa activa para esta sesión";
+    private static final String ACTIVE_CLAIM_MESSAGE = "Ya tenés un reclamo activo para esta sesión";
 
     @Autowired
     private MockMvc mockMvc;

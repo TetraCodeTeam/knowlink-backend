@@ -327,8 +327,6 @@ class MaterialServiceImplTest {
 
                 when(materialRepository.findActiveBySubjectId(subjectId)).thenReturn(List.of(material));
 
-                when(materialAccessService.listAccessibleMaterials(studentId, tutorUserId, subjectId)).thenReturn(List.of());
-
                 assertThatThrownBy(() -> materialService.listBySubject(subjectId, studentId, Role.STUDENT.name()))
                                 .isInstanceOf(NoActiveReservationException.class)
                                 .hasMessage("El alumno no tiene reserva activa con este tutor");
@@ -345,6 +343,7 @@ class MaterialServiceImplTest {
                                 .tutorSubject(tutorSubject)
                                 .storagePath(subjectId + "/test.pdf")
                                 .materialType(MaterialType.PDF)
+                                .available(true)
                                 .active(true)
                                 .build();
 

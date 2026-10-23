@@ -73,7 +73,7 @@ class SessionClaimServiceImplTest {
     private static final LocalDateTime EXACT_DEADLINE_NOW = LocalDateTime.of(2026, 10, 1, 10, 0);
     private static final LocalDateTime AFTER_DEADLINE_NOW = LocalDateTime.of(2026, 10, 1, 10, 1);
     private static final LocalDateTime DURING_SESSION_NOW = LocalDateTime.of(2026, 9, 30, 9, 0);
-    private static final String ACTIVE_CLAIM_MESSAGE = "Ya tenés una disputa activa para esta sesión";
+    private static final String ACTIVE_CLAIM_MESSAGE = "Ya tenés un reclamo activo para esta sesión";
 
     @Mock
     private IBookingRepository bookingRepository;
@@ -137,8 +137,8 @@ class SessionClaimServiceImplTest {
     }
 
     private void stubNoActiveClaim() {
-        when(sessionClaimRepository.existsByBooking_BookingIdAndClaimant_UserIdAndStatus(
-                eq(booking.getBookingId()), any(UUID.class), eq(ClaimStatus.OPEN))).thenReturn(false);
+        when(sessionClaimRepository.existsByBooking_BookingIdAndClaimant_UserIdAndStatusIn(
+                eq(booking.getBookingId()), any(UUID.class), eq(ClaimStatus.ACTIVE_STATUSES))).thenReturn(false);
     }
 
     private void stubSaveAndFlush() {
@@ -375,8 +375,8 @@ class SessionClaimServiceImplTest {
     @Test
     @DisplayName("Crear - reclamo activo previo: 409 con mensaje exacto")
     void create_activeClaimExists_throwsDuplicateWithExactMessage() {
-        when(sessionClaimRepository.existsByBooking_BookingIdAndClaimant_UserIdAndStatus(
-                booking.getBookingId(), studentId, ClaimStatus.OPEN)).thenReturn(true);
+        when(sessionClaimRepository.existsByBooking_BookingIdAndClaimant_UserIdAndStatusIn(
+                booking.getBookingId(), studentId, ClaimStatus.ACTIVE_STATUSES)).thenReturn(true);
 
         assertThatThrownBy(() -> service.create(studentId, booking.getBookingId(),
                 new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null))
@@ -537,8 +537,8 @@ class SessionClaimServiceImplTest {
     @Test
     @DisplayName("Elegibilidad - reclamo activo: bloqueo ACTIVE_CLAIM_EXISTS")
     void getEligibility_activeClaim_blocksWithActiveClaimExists() {
-        when(sessionClaimRepository.existsByBooking_BookingIdAndClaimant_UserIdAndStatus(
-                booking.getBookingId(), studentId, ClaimStatus.OPEN)).thenReturn(true);
+        when(sessionClaimRepository.existsByBooking_BookingIdAndClaimant_UserIdAndStatusIn(
+                booking.getBookingId(), studentId, ClaimStatus.ACTIVE_STATUSES)).thenReturn(true);
 
         ClaimEligibilityResponse eligibility = service.getEligibility(studentId, booking.getBookingId());
 
@@ -643,13 +643,13 @@ class SessionClaimServiceImplTest {
                 .tutor(booking.getTutor())
                 .build();
         when(sessionClaimRepository.findClaimedBookingIdsByUser(
-                eq(studentId), eq(ClaimStatus.OPEN), any()))
+                eq(studentId), eq(ClaimStatus.ACTIVE_STATUSES), any()))
                 .thenReturn(Set.of(booking.getBookingId()));
 
         var result = service.evaluateForListing(studentId, List.of(booking, other));
 
-        verify(sessionClaimRepository).findClaimedBookingIdsByUser(eq(studentId), eq(ClaimStatus.OPEN), any());
-        verify(sessionClaimRepository, never()).existsByBooking_BookingIdAndClaimant_UserIdAndStatus(any(), any(), any());
+        verify(sessionClaimRepository).findClaimedBookingIdsByUser(eq(studentId), eq(ClaimStatus.ACTIVE_STATUSES), any());
+        verify(sessionClaimRepository, never()).existsByBooking_BookingIdAndClaimant_UserIdAndStatusIn(any(), any(), any());
         assertThat(result).hasSize(2);
         assertThat(result.get(booking.getBookingId()).canClaim()).isFalse();
         assertThat(result.get(booking.getBookingId()).blockReason()).isEqualTo(ClaimBlockReason.ACTIVE_CLAIM_EXISTS);

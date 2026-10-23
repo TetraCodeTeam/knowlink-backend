@@ -59,7 +59,7 @@ public class FundsResolutionService {
         if (tutorPresent) {
             booking.setBookingStatus(BookingStatus.COMPLETED);
             bookingRepository.save(booking);
-            fundsLedgerService.releaseToTutor(booking, BookingStatus.COMPLETED);
+            fundsLedgerService.releaseToTutor(booking, BookingStatus.COMPLETED, studentPresent);
         } else {
             BookingStatus finalStatus = studentPresent
                     ? BookingStatus.NOT_FULFILLED_BY_TUTOR
