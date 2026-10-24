@@ -38,7 +38,7 @@ public class BookingNotificationContext {
 
     private static String resolveSubjectName(Booking booking) {
         if (booking.getTutorSubject() == null || booking.getTutorSubject().getSubject() == null) {
-            return null;
+            return "una materia";
         }
         return booking.getTutorSubject().getSubject().getName();
     }
