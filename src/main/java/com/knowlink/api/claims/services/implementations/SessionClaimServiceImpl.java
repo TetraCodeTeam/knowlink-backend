@@ -30,7 +30,6 @@ import com.knowlink.api.materials.exception.FormatNotAllowedException;
 import com.knowlink.api.materials.service.interfaces.ISupabaseStorageService;
 import com.knowlink.api.notifications.data.enums.NotificationType;
 import com.knowlink.api.notifications.services.interfaces.INotificationService;
-import com.knowlink.api.notifications.utils.NotificationTextFormats;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.users.data.models.User;
 
@@ -223,19 +222,6 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
                 "El estado de tu reclamo por la sesión de "
                         + claim.getBooking().getTutorSubject().getSubject().getName()
                         + " cambió a " + statusLabel(status) + ".");
-        if (status == ClaimStatus.RESOLVED && claim.getBooking().getAmount() != null
-                && claim.getBooking().getAmount().signum() > 0) {
-            String fundsMessage = "El reclamo por la sesión del "
-                    + NotificationTextFormats.dateWithWeekday(claim.getBooking().getSessionDate())
-                    + " fue resuelto. Los fondos se procesarán en breve.";
-            String fundsTitle = "Fondos liberados. Disputa resuelta";
-            UUID fundsReferenceId = claim.getBooking().getBookingId();
-            String fundsDedupeKey = "FUNDS_RELEASED:" + fundsReferenceId;
-            notificationService.notifyUser(claim.getBooking().getTutor().getUserId(),
-                    NotificationType.FUNDS_RELEASED, fundsTitle, fundsMessage, fundsReferenceId, fundsDedupeKey);
-            notificationService.notifyUser(claim.getBooking().getStudent().getUserId(),
-                    NotificationType.FUNDS_RELEASED, fundsTitle, fundsMessage, fundsReferenceId, fundsDedupeKey);
-        }
     }
 
     @Override

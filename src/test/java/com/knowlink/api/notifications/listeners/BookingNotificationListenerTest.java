@@ -151,8 +151,8 @@ class BookingNotificationListenerTest {
     }
 
     @Test
-    @DisplayName("Sesion confirmada - ambas partes reciben SESSION_CONFIRMED")
-    void sessionConfirmed_notifiesBothParties() {
+    @DisplayName("Sesion confirmada - ambas partes reciben SESSION_CONFIRMED y RATING_ENABLED")
+    void sessionConfirmed_notifiesBothPartiesAndEnablesRating() {
         when(bookingNotificationContext.loadSnapshot(bookingId)).thenReturn(Optional.of(snapshot));
 
         listener.handleSessionConfirmed(new SessionConfirmedEvent(bookingWithId()));
@@ -165,11 +165,19 @@ class BookingNotificationListenerTest {
                 eq("Sesión confirmada"),
                 eq("La sesión de Sistemas Operativos con Ana Estudiante fue confirmada."),
                 eq(bookingId), eq("SESSION_CONFIRMED:" + bookingId));
+        verify(notificationService).notifyUser(eq(studentId), eq(NotificationType.RATING_ENABLED),
+                eq("Calificá tu sesión de Sistemas Operativos"),
+                eq("Contanos cómo fue tu experiencia con Carlos Lopez. Tenés 24 horas para calificar."),
+                eq(bookingId), eq("RATING_ENABLED:" + bookingId));
+        verify(notificationService).notifyUser(eq(tutorId), eq(NotificationType.RATING_ENABLED),
+                eq("Calificá tu sesión de Sistemas Operativos"),
+                eq("Contanos cómo fue tu experiencia con Ana Estudiante. Tenés 24 horas para calificar."),
+                eq(bookingId), eq("RATING_ENABLED:" + bookingId));
     }
 
     @Test
-    @DisplayName("Sesion finalizada - ambas partes reciben el aviso de cierre y el popup de calificacion")
-    void sessionCompleted_notifiesBothPartiesAndEnablesRating() {
+    @DisplayName("Sesion finalizada - ambas partes reciben el aviso de cierre")
+    void sessionCompleted_notifiesBothParties() {
         when(bookingNotificationContext.loadSnapshot(bookingId)).thenReturn(Optional.of(snapshot));
 
         listener.handleSessionCompleted(new SessionCompletionNotificationEvent(bookingWithId()));
@@ -182,14 +190,8 @@ class BookingNotificationListenerTest {
                 eq("Tu sesión de Sistemas Operativos finalizó"),
                 eq("Si hubo algún inconveniente con la asistencia, tenés 24 horas para reclamar."),
                 eq(bookingId), eq("SESSION_COMPLETED:" + bookingId));
-        verify(notificationService).notifyUser(eq(studentId), eq(NotificationType.RATING_ENABLED),
-                eq("Calificá tu sesión de Sistemas Operativos"),
-                eq("Contanos cómo fue tu experiencia con Carlos Lopez. Tenés 24 horas para calificar."),
-                eq(bookingId), eq("RATING_ENABLED:" + bookingId));
-        verify(notificationService).notifyUser(eq(tutorId), eq(NotificationType.RATING_ENABLED),
-                eq("Calificá tu sesión de Sistemas Operativos"),
-                eq("Contanos cómo fue tu experiencia con Ana Estudiante. Tenés 24 horas para calificar."),
-                eq(bookingId), eq("RATING_ENABLED:" + bookingId));
+        verify(notificationService, never()).notifyUser(any(), eq(NotificationType.RATING_ENABLED),
+                any(), any(), any(), any());
     }
 
     @Test

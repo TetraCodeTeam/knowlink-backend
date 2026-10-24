@@ -123,6 +123,16 @@ public class BookingNotificationListener {
                     "La sesión de " + snapshot.subjectName() + " con " + snapshot.studentName()
                             + " fue confirmada.",
                     snapshot);
+
+            String ratingTitle = "Calificá tu sesión de " + snapshot.subjectName();
+            notifyQuietly(snapshot.studentUserId(), NotificationType.RATING_ENABLED, ratingTitle,
+                    "Contanos cómo fue tu experiencia con " + snapshot.tutorName()
+                            + ". Tenés 24 horas para calificar.",
+                    snapshot);
+            notifyQuietly(snapshot.tutorUserId(), NotificationType.RATING_ENABLED, ratingTitle,
+                    "Contanos cómo fue tu experiencia con " + snapshot.studentName()
+                            + ". Tenés 24 horas para calificar.",
+                    snapshot);
         });
     }
 
@@ -134,16 +144,6 @@ public class BookingNotificationListener {
             String message = "Si hubo algún inconveniente con la asistencia, tenés 24 horas para reclamar.";
             notifyQuietly(snapshot.studentUserId(), NotificationType.SESSION_COMPLETED, title, message, snapshot);
             notifyQuietly(snapshot.tutorUserId(), NotificationType.SESSION_COMPLETED, title, message, snapshot);
-
-            String ratingTitle = "Calificá tu sesión de " + snapshot.subjectName();
-            notifyQuietly(snapshot.studentUserId(), NotificationType.RATING_ENABLED, ratingTitle,
-                    "Contanos cómo fue tu experiencia con " + snapshot.tutorName()
-                            + ". Tenés 24 horas para calificar.",
-                    snapshot);
-            notifyQuietly(snapshot.tutorUserId(), NotificationType.RATING_ENABLED, ratingTitle,
-                    "Contanos cómo fue tu experiencia con " + snapshot.studentName()
-                            + ". Tenés 24 horas para calificar.",
-                    snapshot);
         });
     }
 
