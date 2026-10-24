@@ -24,8 +24,10 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -48,6 +50,7 @@ public class NotificationServiceImpl implements INotificationService {
     private final NotificationRepository notificationRepository;
     private final IUserRepository userRepository;
     private final NotificationMapper notificationMapper;
+    private final PlatformTransactionManager transactionManager;
 
     @Override
     @Transactional
@@ -71,14 +74,13 @@ public class NotificationServiceImpl implements INotificationService {
     }
 
     @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void notifyUser(UUID recipientUserId, NotificationType type, String title, String message,
                            UUID referenceId, String dedupeKey) {
-        createNotification(findRecipient(recipientUserId), type, title, message, referenceId, dedupeKey);
+        notifyTransactionTemplate().executeWithoutResult(status ->
+                createNotification(findRecipient(recipientUserId), type, title, message, referenceId, dedupeKey));
     }
 
     @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void notifyAdmins(NotificationType type, String title, String message, UUID referenceId,
                              String dedupeKey) {
         List<User> admins = userRepository.findAllByRoleAndAccountStatus(Role.ADMIN, AccountStatus.ACTIVE);
@@ -86,7 +88,20 @@ public class NotificationServiceImpl implements INotificationService {
             log.warn("No active admin users to notify with type {}", type);
             return;
         }
-        admins.forEach(admin -> createNotification(admin, type, title, message, referenceId, dedupeKey));
+        admins.forEach(admin -> {
+            try {
+                notifyTransactionTemplate().executeWithoutResult(status ->
+                        createNotification(admin, type, title, message, referenceId, dedupeKey));
+            } catch (RuntimeException e) {
+                log.error("Failed to create notification {} for admin {}", type, admin.getUserId(), e);
+            }
+        });
+    }
+
+    private TransactionTemplate notifyTransactionTemplate() {
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        return template;
     }
 
     @Override

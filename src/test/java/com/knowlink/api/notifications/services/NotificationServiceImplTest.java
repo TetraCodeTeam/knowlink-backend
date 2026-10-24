@@ -24,6 +24,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import java.util.List;
 import java.util.Optional;
@@ -49,6 +50,9 @@ class NotificationServiceImplTest {
 
     @Mock
     private NotificationMapper notificationMapper;
+
+    @Mock
+    private PlatformTransactionManager transactionManager;
 
     @InjectMocks
     private NotificationServiceImpl service;
@@ -164,6 +168,26 @@ class NotificationServiceImplTest {
         service.notifyAdmins(NotificationType.ADMIN_MATERIAL_REPORT_RECEIVED, "title", "msg", bookingId, "key");
 
         verify(notificationRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("notifyAdmins - cada destinatario tiene su transaccion: si uno falla, los demas se crean")
+    void notifyAdmins_failureOnOneRecipient_doesNotBlockTheRest() {
+        User failingAdmin = user(UUID.randomUUID(), Role.ADMIN, AccountStatus.ACTIVE);
+        User healthyAdmin = user(UUID.randomUUID(), Role.ADMIN, AccountStatus.ACTIVE);
+        when(userRepository.findAllByRoleAndAccountStatus(Role.ADMIN, AccountStatus.ACTIVE))
+                .thenReturn(List.of(failingAdmin, healthyAdmin));
+        org.mockito.Mockito.doThrow(new RuntimeException("db down"))
+                .doAnswer(invocation -> invocation.getArgument(0))
+                .when(notificationRepository).saveAndFlush(any(Notification.class));
+
+        service.notifyAdmins(NotificationType.ADMIN_MATERIAL_REPORT_RECEIVED, "Reporte", "Mensaje", bookingId,
+                "ADMIN_MATERIAL_REPORT_RECEIVED:" + bookingId);
+
+        verify(notificationRepository, org.mockito.Mockito.times(2)).saveAndFlush(any(Notification.class));
+        verify(transactionManager, org.mockito.Mockito.times(2)).getTransaction(any());
+        verify(transactionManager).commit(any());
+        verify(transactionManager).rollback(any());
     }
 
     @Test
