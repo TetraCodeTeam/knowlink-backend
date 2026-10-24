@@ -27,6 +27,7 @@ import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.payments.services.FundsLedgerService;
 import com.knowlink.api.materials.exception.FormatNotAllowedException;
 import com.knowlink.api.materials.service.interfaces.ISupabaseStorageService;
+import com.knowlink.api.notifications.data.enums.NotificationType;
 import com.knowlink.api.notifications.services.interfaces.INotificationService;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.shared.utils.AppTimeZone;
@@ -720,5 +721,25 @@ class SessionClaimServiceImplTest {
         assertThatThrownBy(() -> service.getAttachments(studentId, Role.STUDENT, booking.getBookingId(), claimId))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .hasFieldOrPropertyWithValue("errorCode", "CLAIM_NOT_FOUND");
+    }
+
+    @Test
+    @DisplayName("updateStatus - a RESOLVED: notifica a ambas partes y no emite FUNDS_RELEASED")
+    void updateStatus_resolved_notifiesPartiesWithoutFundsReleased() {
+        SessionClaim claim = SessionClaim.builder()
+                .claimId(UUID.randomUUID())
+                .status(ClaimStatus.OPEN)
+                .booking(booking)
+                .build();
+        when(sessionClaimRepository.findById(claim.getClaimId())).thenReturn(Optional.of(claim));
+        when(sessionClaimRepository.save(any(SessionClaim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.updateStatus(claim.getClaimId(), ClaimStatus.RESOLVED);
+
+        verify(notificationService).createSupportNotification(eq(tutorId),
+                eq(NotificationType.SESSION_CLAIM_UPDATE), eq(claim.getClaimId()), anyString(), anyString());
+        verify(notificationService).createSupportNotification(eq(studentId),
+                eq(NotificationType.SESSION_CLAIM_UPDATE), eq(claim.getClaimId()), anyString(), anyString());
+        verify(notificationService, never()).notifyUser(any(), any(), any(), any(), any(), any());
     }
 }
