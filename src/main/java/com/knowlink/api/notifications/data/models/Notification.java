@@ -1,6 +1,7 @@
 package com.knowlink.api.notifications.data.models;
 
 import com.knowlink.api.notifications.data.enums.NotificationType;
+import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.users.data.models.User;
 import jakarta.persistence.Column;
@@ -28,8 +29,8 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "user_notification", indexes = {
-        @Index(name = "idx_user_notification_recipient_created", columnList = "recipient_user_id, created_at"),
-        @Index(name = "idx_user_notification_recipient_read", columnList = "recipient_user_id, read_at")
+        @Index(name = "idx_user_notification_recipient_created", columnList = "recipient_user_id, recipient_role, created_at"),
+        @Index(name = "idx_user_notification_recipient_read", columnList = "recipient_user_id, recipient_role, read_at")
 }, uniqueConstraints = {
         @UniqueConstraint(name = "uk_user_notification_recipient_dedupe",
                 columnNames = {"recipient_user_id", "dedupe_key"})
@@ -49,6 +50,10 @@ public class Notification {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "recipient_user_id", nullable = false)
     private User recipient;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "recipient_role", nullable = false, length = 10)
+    private Role recipientRole;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "notification_type", nullable = false, length = 40)

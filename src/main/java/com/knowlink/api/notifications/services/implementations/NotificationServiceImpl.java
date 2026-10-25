@@ -56,6 +56,7 @@ public class NotificationServiceImpl implements INotificationService {
     @Transactional
     public void createSupportNotification(
             UUID recipientUserId,
+            Role recipientRole,
             NotificationType type,
             UUID resourceId,
             String title,
@@ -64,20 +65,23 @@ public class NotificationServiceImpl implements INotificationService {
 
         Notification notification = Notification.builder()
                 .recipient(recipient)
+                .recipientRole(recipientRole)
                 .type(type)
                 .resourceId(resourceId)
                 .title(title)
                 .message(message)
                 .build();
         notificationRepository.save(notification);
-        log.info("Support notification created for user {} with type {}", recipientUserId, type);
+        log.info("Support notification created for user {} with role {} and type {}",
+                recipientUserId, recipientRole, type);
     }
 
     @Override
-    public void notifyUser(UUID recipientUserId, NotificationType type, String title, String message,
-                           UUID referenceId, String dedupeKey) {
+    public void notifyUser(UUID recipientUserId, Role recipientRole, NotificationType type, String title,
+                           String message, UUID referenceId, String dedupeKey) {
         notifyTransactionTemplate().executeWithoutResult(status ->
-                createNotification(findRecipient(recipientUserId), type, title, message, referenceId, dedupeKey));
+                createNotification(findRecipient(recipientUserId), recipientRole, type, title, message, referenceId,
+                        dedupeKey));
     }
 
     @Override
@@ -91,7 +95,7 @@ public class NotificationServiceImpl implements INotificationService {
         admins.forEach(admin -> {
             try {
                 notifyTransactionTemplate().executeWithoutResult(status ->
-                        createNotification(admin, type, title, message, referenceId, dedupeKey));
+                        createNotification(admin, Role.ADMIN, type, title, message, referenceId, dedupeKey));
             } catch (RuntimeException e) {
                 log.error("Failed to create notification {} for admin {}", type, admin.getUserId(), e);
             }
@@ -106,17 +110,20 @@ public class NotificationServiceImpl implements INotificationService {
 
     @Override
     @Transactional(readOnly = true)
-    public PagedResponse<NotificationResponse> getNotifications(UUID userId, NotificationReadFilter readFilter,
-            Pageable pageable) {
+    public PagedResponse<NotificationResponse> getNotifications(UUID userId, Role activeRole,
+            NotificationReadFilter readFilter, Pageable pageable) {
         Pageable safePageable = PageRequest.of(
                 Math.max(pageable.getPageNumber(), 0),
                 resolvePageSize(pageable.getPageSize()),
                 LISTING_SORT);
 
         Page<Notification> notifications = switch (readFilter) {
-            case UNREAD -> notificationRepository.findByRecipient_UserIdAndReadAtIsNull(userId, safePageable);
-            case READ -> notificationRepository.findByRecipient_UserIdAndReadAtIsNotNull(userId, safePageable);
-            case ALL -> notificationRepository.findByRecipient_UserId(userId, safePageable);
+            case UNREAD -> notificationRepository
+                    .findByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(userId, activeRole, safePageable);
+            case READ -> notificationRepository
+                    .findByRecipient_UserIdAndRecipientRoleAndReadAtIsNotNull(userId, activeRole, safePageable);
+            case ALL -> notificationRepository
+                    .findByRecipient_UserIdAndRecipientRole(userId, activeRole, safePageable);
         };
 
         return PagedResponse.from(notifications.map(notificationMapper::toResponse));
@@ -124,14 +131,21 @@ public class NotificationServiceImpl implements INotificationService {
 
     @Override
     @Transactional(readOnly = true)
-    public UnreadCountResponse getUnreadCount(UUID userId) {
-        return new UnreadCountResponse(notificationRepository.countByRecipient_UserIdAndReadAtIsNull(userId));
+    public UnreadCountResponse getUnreadCount(UUID userId, Role activeRole) {
+        long count = notificationRepository
+                .countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(userId, activeRole);
+        Role otherRole = otherRoleOf(activeRole);
+        long otherRoleCount = otherRole == null ? 0L : notificationRepository
+                .countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(userId, otherRole);
+        return new UnreadCountResponse(count, otherRoleCount);
     }
 
     @Override
     @Transactional(readOnly = true)
-    public long countUnreadSupportForUser(UUID userId) {
-        return notificationRepository.findByRecipient_UserIdAndTypeInAndReadAtIsNull(userId, SUPPORT_TYPES).stream()
+    public long countUnreadSupportForUser(UUID userId, Role activeRole) {
+        return notificationRepository
+                .findByRecipient_UserIdAndRecipientRoleAndTypeInAndReadAtIsNull(userId, activeRole, SUPPORT_TYPES)
+                .stream()
                 .map(notification -> {
                     String resourceType = switch (notification.getType()) {
                         case SESSION_CLAIM_UPDATE, SESSION_CLAIM_COMMENT -> "SESSION_CLAIM";
@@ -162,8 +176,9 @@ public class NotificationServiceImpl implements INotificationService {
 
     @Override
     @Transactional
-    public void markAllAsRead(UUID userId) {
-        List<Notification> unreadNotifications = notificationRepository.findByRecipient_UserIdAndReadAtIsNull(userId);
+    public void markAllAsRead(UUID userId, Role activeRole) {
+        List<Notification> unreadNotifications = notificationRepository
+                .findByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(userId, activeRole);
         if (unreadNotifications.isEmpty()) {
             return;
         }
@@ -175,9 +190,9 @@ public class NotificationServiceImpl implements INotificationService {
 
     @Override
     @Transactional
-    public void markSupportAsRead(UUID userId) {
+    public void markSupportAsRead(UUID userId, Role activeRole) {
         List<Notification> unreadNotifications = notificationRepository
-                .findByRecipient_UserIdAndTypeInAndReadAtIsNull(userId, SUPPORT_TYPES);
+                .findByRecipient_UserIdAndRecipientRoleAndTypeInAndReadAtIsNull(userId, activeRole, SUPPORT_TYPES);
         if (unreadNotifications.isEmpty()) {
             return;
         }
@@ -187,8 +202,8 @@ public class NotificationServiceImpl implements INotificationService {
         notificationRepository.saveAll(unreadNotifications);
     }
 
-    private void createNotification(User recipient, NotificationType type, String title, String message,
-                                    UUID referenceId, String dedupeKey) {
+    private void createNotification(User recipient, Role recipientRole, NotificationType type, String title,
+                                    String message, UUID referenceId, String dedupeKey) {
         UUID recipientUserId = recipient.getUserId();
         try {
             if (dedupeKey != null
@@ -200,6 +215,7 @@ public class NotificationServiceImpl implements INotificationService {
 
             Notification notification = Notification.builder()
                     .recipient(recipient)
+                    .recipientRole(recipientRole)
                     .type(type)
                     .title(title)
                     .message(message)
@@ -208,7 +224,7 @@ public class NotificationServiceImpl implements INotificationService {
                     .createdAt(LocalDateTime.now(AppTimeZone.ZONE))
                     .build();
             notificationRepository.saveAndFlush(notification);
-            log.debug("Notification {} created for user {}", type, recipientUserId);
+            log.debug("Notification {} created for user {} with role {}", type, recipientUserId, recipientRole);
         } catch (DataIntegrityViolationException e) {
             if (dedupeKey == null) {
                 throw e;
@@ -216,6 +232,14 @@ public class NotificationServiceImpl implements INotificationService {
             log.debug("Duplicated notification {} for user {} with key {} skipped by unique constraint", type,
                     recipientUserId, dedupeKey);
         }
+    }
+
+    private Role otherRoleOf(Role activeRole) {
+        return switch (activeRole) {
+            case STUDENT -> Role.TUTOR;
+            case TUTOR -> Role.STUDENT;
+            default -> null;
+        };
     }
 
     private User findRecipient(UUID recipientUserId) {

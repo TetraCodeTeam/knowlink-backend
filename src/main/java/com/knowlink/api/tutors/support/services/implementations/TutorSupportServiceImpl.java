@@ -29,6 +29,7 @@ import com.knowlink.api.materials.service.interfaces.ISupabaseStorageService;
 import com.knowlink.api.notifications.services.interfaces.INotificationService;
 import com.knowlink.api.notifications.data.enums.NotificationType;
 import com.knowlink.api.payments.data.models.FundsTransfer;
+import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.payments.domain.FundsStatus;
 import com.knowlink.api.payments.repositories.IFundsTransferRepository;
 import com.knowlink.api.shared.utils.AppTimeZone;
@@ -133,7 +134,7 @@ public class TutorSupportServiceImpl implements ITutorSupportService {
                 materialReportRepository
                         .findByMaterial_TutorSubject_TutorProfile_User_UserIdOrderByReportedAtDesc(tutorUserId));
 
-        notificationService.markSupportAsRead(tutorUserId);
+        notificationService.markSupportAsRead(tutorUserId, Role.TUTOR);
         TutorSupportSummaryResponse summary = new TutorSupportSummaryResponse(
                 claims.size(),
                 reportedMaterials.size(),
@@ -255,6 +256,7 @@ public class TutorSupportServiceImpl implements ITutorSupportService {
                 .build());
         notificationService.createSupportNotification(
                 claim.getBooking().getStudent().getUserId(),
+                Role.STUDENT,
                 NotificationType.SESSION_CLAIM_COMMENT,
                 claim.getClaimId(),
                 "Nuevo comentario en un reclamo",

@@ -137,7 +137,8 @@ class NotificationControllerIntegrationTest {
         mockMvc.perform(get("/api/v1/notifications/unread-count")
                         .header(HttpHeaders.AUTHORIZATION, bearer(token)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.count").value(3));
+                .andExpect(jsonPath("$.count").value(3))
+                .andExpect(jsonPath("$.otherRoleCount").value(0));
 
         mockMvc.perform(get("/api/v1/notifications?size=100")
                         .header(HttpHeaders.AUTHORIZATION, bearer(token)))
@@ -164,7 +165,8 @@ class NotificationControllerIntegrationTest {
         mockMvc.perform(get("/api/v1/notifications/unread-count")
                         .header(HttpHeaders.AUTHORIZATION, bearer(token)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.count").value(2));
+                .andExpect(jsonPath("$.count").value(2))
+                .andExpect(jsonPath("$.otherRoleCount").value(0));
 
         mockMvc.perform(get("/api/v1/notifications?unreadOnly=true")
                         .header(HttpHeaders.AUTHORIZATION, bearer(token)))
@@ -236,7 +238,8 @@ class NotificationControllerIntegrationTest {
         mockMvc.perform(get("/api/v1/notifications/unread-count")
                         .header(HttpHeaders.AUTHORIZATION, bearer(studentToken)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.count").value(1));
+                .andExpect(jsonPath("$.count").value(1))
+                .andExpect(jsonPath("$.otherRoleCount").value(0));
     }
 
     @Test
@@ -250,12 +253,12 @@ class NotificationControllerIntegrationTest {
         notificationService.notifyAdmins(NotificationType.ADMIN_VALIDATION_REQUEST_PENDING, "Validación pendiente",
                 "Hay una solicitud de validación pendiente.", null, dedupeKey);
 
-        assertThat(notificationRepository.countByRecipient_UserIdAndReadAtIsNull(activeAdminOne.getUserId()))
-                .isEqualTo(1L);
-        assertThat(notificationRepository.countByRecipient_UserIdAndReadAtIsNull(activeAdminTwo.getUserId()))
-                .isEqualTo(1L);
-        assertThat(notificationRepository.countByRecipient_UserIdAndReadAtIsNull(inactiveAdmin.getUserId()))
-                .isZero();
+        assertThat(notificationRepository.countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
+                activeAdminOne.getUserId(), Role.ADMIN)).isEqualTo(1L);
+        assertThat(notificationRepository.countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
+                activeAdminTwo.getUserId(), Role.ADMIN)).isEqualTo(1L);
+        assertThat(notificationRepository.countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
+                inactiveAdmin.getUserId(), Role.ADMIN)).isZero();
     }
 
     @Test
@@ -291,10 +294,77 @@ class NotificationControllerIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    @DisplayName("CP-06 - el mismo usuario ve solo las notificaciones del rol activo y el conteo del otro rol")
+    void unreadCountAndListing_separateNotificationsByActiveRole() throws Exception {
+        User dualRoleUser = saveUser("Dual Role", Role.STUDENT, AccountStatus.ACTIVE);
+        tutorProfileRepository.save(TutorProfile.builder().user(dualRoleUser).career(career).verified(true).build());
+        LocalDateTime base = LocalDateTime.of(2026, 10, 20, 10, 0);
+        seedNotification(dualRoleUser, Role.STUDENT, NotificationType.BOOKING_CONFIRMED, "Como alumno", base, null);
+        seedNotification(dualRoleUser, Role.TUTOR, NotificationType.BOOKING_CONFIRMED, "Como tutor 1",
+                base.plusHours(1), null);
+        seedNotification(dualRoleUser, Role.TUTOR, NotificationType.SESSION_COMPLETED, "Como tutor 2",
+                base.plusHours(2), null);
+
+        String studentToken = login(dualRoleUser);
+        mockMvc.perform(get("/api/v1/notifications")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(studentToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].message").value("Como alumno"));
+
+        mockMvc.perform(get("/api/v1/notifications/unread-count")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(studentToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.count").value(1))
+                .andExpect(jsonPath("$.otherRoleCount").value(2));
+
+        dualRoleUser.setRole(Role.TUTOR);
+        userRepository.saveAndFlush(dualRoleUser);
+        String tutorToken = login(dualRoleUser);
+        mockMvc.perform(get("/api/v1/notifications")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(tutorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.content[0].message").value("Como tutor 2"))
+                .andExpect(jsonPath("$.content[1].message").value("Como tutor 1"));
+
+        mockMvc.perform(get("/api/v1/notifications/unread-count")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(tutorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.count").value(2))
+                .andExpect(jsonPath("$.otherRoleCount").value(1));
+
+        mockMvc.perform(patch("/api/v1/notifications/read-all")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(tutorToken)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/notifications/unread-count")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(tutorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.count").value(0))
+                .andExpect(jsonPath("$.otherRoleCount").value(1));
+
+        dualRoleUser.setRole(Role.STUDENT);
+        userRepository.saveAndFlush(dualRoleUser);
+        String studentTokenAgain = login(dualRoleUser);
+        mockMvc.perform(get("/api/v1/notifications/unread-count")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(studentTokenAgain)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.count").value(1))
+                .andExpect(jsonPath("$.otherRoleCount").value(0));
+    }
+
     private Notification seedNotification(User recipient, NotificationType type, String message,
+            LocalDateTime createdAt, LocalDateTime readAt) {
+        return seedNotification(recipient, recipient.getRole(), type, message, createdAt, readAt);
+    }
+
+    private Notification seedNotification(User recipient, Role recipientRole, NotificationType type, String message,
             LocalDateTime createdAt, LocalDateTime readAt) {
         return notificationRepository.save(Notification.builder()
                 .recipient(recipient)
+                .recipientRole(recipientRole)
                 .type(type)
                 .message(message)
                 .resourceId(UUID.randomUUID())

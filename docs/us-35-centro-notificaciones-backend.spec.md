@@ -12,9 +12,22 @@
 | Historias relacionadas | US-28 / US-29 / US-30 (navbar por rol), US-10 (reserva), US-11 (cancelación), US-15 (liberación de fondos), US-18 (calificación), US-22 (validación de materia), US-24 / US-27 (material y denuncias), US-41 (confirmación de sesión) |
 | Repo | `TetraCodeTeam/knowlink-backend` |
 | Spec par | `us-35-centro-notificaciones-frontend.spec.md` |
-| Verificado contra | `knowlink-backend@b8217e5` (main) |
+| Verificado contra | `knowlink-backend@feature/notifications-center` (2026-10-24) |
 
 **Convención de idioma:** identificadores de código (clases, enums, métodos, campos, paquetes, logs) en **inglés**. Textos orientados al usuario (el `message` de cada notificación, mensajes de excepción) en **español**. Swagger (`@Operation`, `@Tag`) en español por decisión de equipo.
+
+---
+
+## Actualización 2026-10-24 — notificaciones separadas por rol
+
+Una cuenta dual (STUDENT/TUTOR) comparte `userId`, por lo que el feed se separa además por el **rol activo**:
+
+- `user_notification` agrega `recipient_role` (`Role`, NOT NULL) y el rol pasa a formar parte de los índices.
+- El rol destinatario se decide en el origen: reservas y fondos usan la rama del evento (`booking.student` → `STUDENT`, `booking.tutor` → `TUTOR`); soporte usa el rol del reclamante; `notifyAdmins` escribe `ADMIN`.
+- `GET /notifications`, `GET /unread-count`, `GET /support/unread-count`, `PATCH /read-all` y el marcado masivo de soporte filtran por `principal.getUser().getRole()`.
+- `unread-count` devuelve `{ "count", "otherRoleCount" }`: `count` son las no leídas del rol activo y `otherRoleCount` las del otro rol STUDENT/TUTOR (0 para ADMIN).
+- `markAsRead` no cambia: sigue validando pertenencia por `recipient_user_id`.
+- No hay Flyway: antes de levantar la app con la nueva entidad se ejecuta `src/main/resources/migration-user-notification-recipient-role.sql` (`TRUNCATE TABLE user_notification;`). Las filas previas eran datos de prueba.
 
 ---
 
@@ -39,11 +52,17 @@ Feature: Centro de notificaciones (API)
   Background:
     Given un usuario autenticado "U" con rol STUDENT, TUTOR o ADMIN
 
-  Scenario: Conteo de no leídas (CA 1)
-    Given "U" tiene 3 notificaciones sin leer y 2 leídas
+  Scenario: Conteo de no leídas por rol activo (CA 1)
+    Given "U" tiene 3 notificaciones sin leer de su rol activo y 2 leídas
     When consulta GET /api/v1/notifications/unread-count
-    Then recibe { "count": 3 }
+    Then recibe { "count": 3, "otherRoleCount": 0 }
     And si no tiene ninguna sin leer recibe { "count": 0 }
+
+  Scenario: Cuenta dual ve solo el rol activo
+    Given "U" tiene rol activo STUDENT y notificaciones STUDENT y TUTOR sin leer
+    When consulta GET /api/v1/notifications y GET /api/v1/notifications/unread-count
+    Then el listado y "count" solo incluyen las notificaciones STUDENT
+    And "otherRoleCount" informa las no leídas TUTOR
 
   Scenario: Listado ordenado de más reciente a más antigua (CA 2)
     Given "U" tiene notificaciones creadas en distintos momentos
@@ -69,6 +88,12 @@ Feature: Centro de notificaciones (API)
     Then recibe 404 con detail "NOTIFICATION_NOT_FOUND"
     And "N" no se modifica
     And GET /api/v1/notifications nunca incluye notificaciones de otros usuarios
+
+  Scenario: Aislamiento entre roles del mismo usuario
+    Given "N" es una notificación TUTOR de "U"
+    When "U" consulta GET /api/v1/notifications con rol activo STUDENT
+    Then "N" no aparece en el listado ni suma en "count"
+    And sí suma en "otherRoleCount"
 
   Scenario: Reserva confirmada (CA 6 — US-10)
     When se crea una reserva
@@ -116,13 +141,13 @@ Feature: Centro de notificaciones (API)
 ## Advertencias de dependencias (verificadas en el código)
 
 1. **IDs son `UUID`**, no `Long` (convención del proyecto; los specs viejos con `Long` no aplican).
-2. **No hay Flyway.** La tabla `notification` nace por `ddl-auto`. Confirmar qué valor tiene `DDL_AUTO` en Render; si es `validate` o `none`, hay que crear la tabla a mano antes de desplegar.
+2. **No hay Flyway.** La tabla `user_notification` nace por `ddl-auto`; antes de desplegar con `recipient_role` se ejecuta `src/main/resources/migration-user-notification-recipient-role.sql` (`TRUNCATE TABLE user_notification;`). Confirmar `DDL_AUTO` en Render: si es `validate` o `none`, crear/ajustar la tabla a mano.
 3. **Eventos que faltan.** No existe evento de "reserva creada" ni de "transferencia de fondos procesada". Se crean en esta historia (ver catálogo).
 4. **`BookingCancelledEvent` no informa quién canceló.** Se extiende con `cancelledByUserId`. Único publicador: `BookingCancellationServiceImpl` (~línea 95). Nota: su campo `tutorProfileId` en realidad recibe `booking.getTutor().getUserId()`; no tocarlo acá.
 5. **`SessionConfirmationTokenGeneratedEvent` lleva el token en claro (`rawToken`).** El listener de notificaciones **no debe** suscribirse a este evento ni persistir el token jamás.
 6. **Módulos que todavía no existen en el backend:** validación de materias (US-22), material/denuncias (US-24/27), calificaciones (US-18), administración (solo existe `AdminFundsControllerImpl`). No se crean eventos especulativos: se deja el `NotificationType` definido y cada historia llama a `INotificationService` cuando se implemente.
 7. **Revisar `FundsLedgerService`:** tiene `@Value("")` en `systemRetentionPercentage` (valor vacío, sin propiedad). Si esa inyección no está resuelta, `releaseToTutor` / `refundToStudent` fallan y `FundsTransferProcessedEvent` nunca se publicaría. No es parte de esta historia, pero bloquea probar `FUNDS_TRANSFERRED` de punta a punta.
-8. **Seguridad:** `SecurityConfig` ya exige autenticación en todo lo que no esté en `PUBLIC_WHITELIST`. Los endpoints nuevos **no** se agregan a la whitelist. No usar `@PreAuthorize` por rol: cualquier rol autenticado accede, y el filtrado es siempre por usuario.
+8. **Seguridad:** `SecurityConfig` ya exige autenticación en todo lo que no está en `PUBLIC_WHITELIST`. Los endpoints nuevos **no** se agregan a la whitelist. No usar `@PreAuthorize` por rol: cualquier rol autenticado accede y el filtrado es por `userId` + rol activo (`principal.getUser().getRole()`).
 
 ---
 
@@ -134,8 +159,8 @@ Feature: Centro de notificaciones (API)
 | Texto del mensaje | Se **guarda ya armado en español** al crear | Guardar plantilla + parámetros | Es un snapshot histórico: si cambia un nombre o un texto, la notificación vieja no debe cambiar. |
 | Enlace (CA 4) | Backend entrega `type` + `referenceId`; **el front resuelve la ruta** | Guardar `actionPath` en la fila | Las rutas viven en el front y cambian (hoy muchas son `UnderConstructionPage`). Una ruta guardada quedaría obsoleta. |
 | Estado leída | `readAt` nullable | Booleano `read` | Da la fecha de lectura gratis; `read` se deriva en el response. |
-| Destinatario | `User` (una fila por usuario) | Difusión con tabla de lecturas | Simple; el volumen esperado es mínimo (proyecto académico). |
-| Marcar todas como leídas | **No incluido** | — | No es criterio de aceptación. Ver "Fuera de alcance". |
+| Destinatario + rol | `(recipient_id, recipient_role)` (una fila por usuario y rol) | Difusión con tabla de lecturas | Una cuenta dual (STUDENT/TUTOR) necesita feeds separados sin mezclar badges ni listados. |
+| Marcar todas como leídas | **Incluido** (`PATCH /read-all`, acotado al rol activo) | - | Extensión 2026-10-24 para limpiar el badge del rol activo sin afectar al otro. |
 
 ---
 
@@ -164,23 +189,26 @@ public enum NotificationType {
 ```
 
 ### Entidad `Notification`
-Tabla `notification`.
+Tabla `user_notification`.
 
 | Campo (código) | Columna | Tipo | Notas |
 |---|---|---|---|
 | `notificationId` | `notification_id` | UUID | PK, `GenerationType.UUID` |
-| `recipient` | `recipient_id` | `User` (`@ManyToOne(fetch = LAZY)`) | not null |
-| `type` | `type` | `NotificationType` (`EnumType.STRING`) | not null |
+| `recipient` | `recipient_user_id` | `User` (`@ManyToOne(fetch = LAZY)`) | not null |
+| `recipientRole` | `recipient_role` | `Role` (`EnumType.STRING`, length 10) | not null; rol al que pertenece la notificación |
+| `type` | `notification_type` | `NotificationType` (`EnumType.STRING`, length 40) | not null |
+| `resourceId` | `resource_id` | UUID | nullable; id de la entidad relacionada (booking, etc.) |
+| `title` | `title` | `String` (length 120) | nullable; español |
 | `message` | `message` | `String` (length 500) | not null, español |
-| `referenceId` | `reference_id` | UUID | nullable; id de la entidad relacionada (booking, etc.) |
 | `dedupeKey` | `dedupe_key` | `String` (length 150) | nullable |
 | `createdAt` | `created_at` | `LocalDateTime` | not null, `LocalDateTime.now(AppTimeZone.ZONE)` |
 | `readAt` | `read_at` | `LocalDateTime` | nullable; `null` = no leída |
 
 Índices y restricciones:
-- `idx_notification_recipient_created` → `(recipient_id, created_at)` — listado.
-- `idx_notification_recipient_read` → `(recipient_id, read_at)` — conteo de no leídas.
-- `uk_notification_recipient_dedupe` → único `(recipient_id, dedupe_key)` (MySQL permite varios `NULL`).
+- `idx_user_notification_recipient_created` → `(recipient_user_id, recipient_role, created_at)` - listado por rol.
+- `idx_user_notification_recipient_read` → `(recipient_user_id, recipient_role, read_at)` - conteo por rol.
+- `uk_user_notification_recipient_dedupe` → único `(recipient_user_id, dedupe_key)` (MySQL permite varios `NULL`).
+- Migración: `src/main/resources/migration-user-notification-recipient-role.sql` trunca la tabla antes del despliegue; sin Flyway.
 
 ---
 
@@ -272,19 +300,30 @@ public record FundsTransferProcessedEvent(
 ```java
 public interface INotificationService {
 
-    /** Crea una notificación para un usuario. Idempotente por (recipient, dedupeKey). */
-    void notifyUser(UUID recipientUserId, NotificationType type, String message,
-                    UUID referenceId, String dedupeKey);
+    /** Notificación de soporte ligada a un recurso. */
+    void createSupportNotification(UUID recipientUserId, Role recipientRole, NotificationType type,
+                                   UUID resourceId, String title, String message);
+
+    /** Crea una notificación para un usuario en un rol. Idempotente por (recipient, dedupeKey). */
+    void notifyUser(UUID recipientUserId, Role recipientRole, NotificationType type, String title,
+                    String message, UUID referenceId, String dedupeKey);
 
     /** Crea una notificación para cada ADMIN activo (CA 7). */
-    void notifyAdmins(NotificationType type, String message,
+    void notifyAdmins(NotificationType type, String title, String message,
                       UUID referenceId, String dedupeKey);
 
-    PagedResponse<NotificationResponse> getNotifications(UUID userId, boolean unreadOnly, Pageable pageable);
+    PagedResponse<NotificationResponse> getNotifications(UUID userId, Role activeRole,
+            NotificationReadFilter readFilter, Pageable pageable);
 
-    UnreadCountResponse getUnreadCount(UUID userId);
+    UnreadCountResponse getUnreadCount(UUID userId, Role activeRole);
+
+    long countUnreadSupportForUser(UUID userId, Role activeRole);
 
     void markAsRead(UUID userId, UUID notificationId);
+
+    void markAllAsRead(UUID userId, Role activeRole);
+
+    void markSupportAsRead(UUID userId, Role activeRole);
 }
 ```
 
@@ -294,15 +333,30 @@ Reglas de `NotificationServiceImpl`:
 - `notifyAdmins` en cero admins: no es error; log `warn` y retorna. Para admins, `dedupeKey` se usa tal cual por cada destinatario.
 - `getNotifications`: orden fijo `createdAt DESC, notificationId DESC` (desempate estable); **ignora** cualquier `sort` que mande el cliente. `size` máximo **50** (si pide más, se recorta; default 20).
 - `markAsRead`: busca por `(notificationId, recipient.userId)` con `orElseThrow(() -> new ResourceNotFoundException("NOTIFICATION_NOT_FOUND", "La notificación no existe.", "Notification " + id + " not found for user " + userId))`. Si `readAt == null` lo setea con `LocalDateTime.now(AppTimeZone.ZONE)`; si ya estaba leída no hace nada. `@Transactional`.
-- Todo acceso filtra por el `userId` del `UserPrincipal`; **nunca** por un id recibido del cliente.
+- Todo acceso filtra por el `userId` del `UserPrincipal` y el rol activo (`principal.getUser().getRole()`); **nunca** por un id o rol recibido del cliente.
 
 ### Repository
 
 ```java
-Page<Notification> findByRecipient_UserId(UUID userId, Pageable pageable);
-Page<Notification> findByRecipient_UserIdAndReadAtIsNull(UUID userId, Pageable pageable);
-long countByRecipient_UserIdAndReadAtIsNull(UUID userId);
+Page<Notification> findByRecipient_UserIdAndRecipientRole(
+        UUID userId, Role recipientRole, Pageable pageable);
+
+Page<Notification> findByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
+        UUID userId, Role recipientRole, Pageable pageable);
+
+Page<Notification> findByRecipient_UserIdAndRecipientRoleAndReadAtIsNotNull(
+        UUID userId, Role recipientRole, Pageable pageable);
+
+List<Notification> findByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
+        UUID userId, Role recipientRole);
+
+List<Notification> findByRecipient_UserIdAndRecipientRoleAndTypeInAndReadAtIsNull(
+        UUID userId, Role recipientRole, List<NotificationType> types);
+
+long countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(UUID userId, Role recipientRole);
+
 Optional<Notification> findByNotificationIdAndRecipient_UserId(UUID notificationId, UUID userId);
+
 boolean existsByRecipient_UserIdAndDedupeKey(UUID userId, String dedupeKey);
 ```
 El `Pageable` lo arma el service con `Sort.by(DESC, "createdAt").and(Sort.by(DESC, "notificationId"))`.
@@ -315,21 +369,25 @@ Prefijo `/api/v1/notifications`. Cualquier rol autenticado. Usar `@Authenticatio
 
 | Método | Ruta | Descripción | Respuesta |
 |---|---|---|---|
-| GET | `/api/v1/notifications?page=0&size=20&unreadOnly=false` | Página de notificaciones del usuario, más recientes primero. `page` base 0 (config del proyecto). | 200 `PagedResponse<NotificationResponse>` |
-| GET | `/api/v1/notifications/unread-count` | Cantidad de no leídas (alimenta el badge). | 200 `UnreadCountResponse` |
+| GET | `/api/v1/notifications?page=0&size=20&status=ALL&unreadOnly=false` | Página de notificaciones del rol activo, más recientes primero. `page` base 0. | 200 `PagedResponse<NotificationResponse>` |
+| GET | `/api/v1/notifications/unread-count` | No leídas del rol activo (`count`) y del otro rol (`otherRoleCount`). | 200 `UnreadCountResponse` |
+| GET | `/api/v1/notifications/support/unread-count` | No leídas de soporte del rol activo. | 200 `long` |
 | PATCH | `/api/v1/notifications/{notificationId}/read` | Marca como leída. Idempotente. | 204 sin cuerpo; 404 `NOTIFICATION_NOT_FOUND` |
+| PATCH | `/api/v1/notifications/read-all` | Marca todas las del rol activo como leídas. | 204 sin cuerpo |
 
 ```java
 public record NotificationResponse(
         UUID notificationId,
         NotificationType type,
+        String title,
         String message,
         UUID referenceId,
         boolean read,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        LocalDateTime readAt
 ) {}
 
-public record UnreadCountResponse(long count) {}
+public record UnreadCountResponse(long count, long otherRoleCount) {}
 ```
 
 Errores en formato del proyecto: `{ "status": 404, "message": "La notificación no existe.", "detail": "NOTIFICATION_NOT_FOUND" }`. `ResourceNotFoundException` ya está manejada en `GlobalExceptionHandler`; no agregar handlers nuevos. Un id de otro usuario responde **404** (no 403) para no revelar existencia.
@@ -342,7 +400,7 @@ Errores en formato del proyecto: `{ "status": 404, "message": "La notificación 
 - No suscribirse a `SessionConfirmationTokenGeneratedEvent`.
 - No crear eventos ni listeners para US-18, US-22, US-24 o US-27 (sus módulos no existen en el backend).
 - No agregar los endpoints a `PUBLIC_WHITELIST`.
-- No usar `@PreAuthorize` por rol en estos endpoints (cualquier rol autenticado; filtrar por usuario).
+- No usar `@PreAuthorize` por rol en estos endpoints (cualquier rol autenticado; filtrar por usuario y rol activo).
 - No aceptar `userId` ni `recipientId` por path, query o body.
 - No acceder al repository desde el controller ni poner lógica en el controller.
 - No relanzar excepciones desde los listeners ni dejar que un fallo de notificación afecte la transacción del flujo de negocio.
@@ -351,13 +409,13 @@ Errores en formato del proyecto: `{ "status": 404, "message": "La notificación 
 - No enviar mails desde esta historia (los mails siguen su propio flujo con `IEmailService`).
 - No usar `@Autowired` en campos ni `Optional.get()`.
 - No agregar Flyway/Liquibase para esta tabla.
-- No implementar "marcar todas como leídas", paginado infinito de servidor ni borrado/archivado de notificaciones.
+- No implementar borrado/archivado de notificaciones. `PATCH /read-all` y el marcado masivo de soporte sí están incluidos.
 
 ---
 
 ## Fuera de alcance / decisiones pendientes
 
-1. **Marcar todas como leídas** (`PATCH /read-all`): no está en los criterios. Si se quiere, es un `UPDATE` único acotado al usuario; se suma sin tocar lo demás.
+1. **Marcado masivo:** implementado para notificaciones generales (`PATCH /read-all`) y soporte; siempre acotado al rol activo.
 2. **Retención / limpieza** de notificaciones viejas: hay un precedente (`PastAvailabilityCleanupJob`) si más adelante se decide.
 3. **Código de confirmación disponible:** hoy nadie consume `SessionConfirmationTokenGeneratedEvent`. Si se quiere avisar "ya podés ver tu código", se agrega un tipo nuevo **sin** incluir el código en el mensaje.
 
@@ -365,6 +423,11 @@ Errores en formato del proyecto: `{ "status": 404, "message": "La notificación 
 
 ## Definition of Done
 
+- [x] `recipient_role` NOT NULL, índices y queries filtran por rol activo en listado, conteo y marcado masivo
+- [x] Las notificaciones se crean con el rol de la rama de origen (reserva/fondos/soporte) y ADMIN para administradores
+- [x] `unread-count` devuelve `count` del rol activo y `otherRoleCount` del otro rol STUDENT/TUTOR (0 para ADMIN)
+- [x] Tests de separación por rol y cuenta dual (CP-06) en service, repository e integración
+- [x] Script de truncado en `src/main/resources` y seed con `recipient_role`
 - [ ] `Notification`, `NotificationType`, repository, mapper, service (interface + impl), controller (interface + impl) y responses creados con la estructura del módulo
 - [ ] Índices y restricción única definidos en la entidad; confirmado el valor de `DDL_AUTO` en Render
 - [ ] `BookingCreatedEvent` y `FundsTransferProcessedEvent` creados y publicados desde sus puntos de origen
@@ -372,7 +435,7 @@ Errores en formato del proyecto: `{ "status": 404, "message": "La notificación 
 - [ ] `BookingNotificationListener` y `FundsNotificationListener` cubren los 6 tipos del catálogo, ambos destinatarios, mensajes en español
 - [ ] Listeners con `AFTER_COMMIT` + `@Async("taskExecutor")`, sin relanzar excepciones, sin acceso LAZY fuera de transacción
 - [ ] `notifyAdmins` resuelve ADMIN activos y es idempotente por destinatario
-- [ ] Los 3 endpoints documentados con `@Operation` / `@ApiResponse`, sin entrada en `PUBLIC_WHITELIST`
+- [ ] Los endpoints documentados con `@Operation` / `@ApiResponse`, sin entrada en `PUBLIC_WHITELIST`
 - [ ] Orden `createdAt DESC` con desempate estable; `size` limitado a 50
 - [ ] Aislamiento entre usuarios verificado (listado, conteo y `read` ajeno → 404)
 - [ ] Tests unitarios de `NotificationServiceImpl`: crear, dedupe, `notifyAdmins` (con y sin admins), `markAsRead` (propia, ya leída, ajena), conteo, `size` máximo

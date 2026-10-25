@@ -736,10 +736,10 @@ class SessionClaimServiceImplTest {
 
         service.updateStatus(claim.getClaimId(), ClaimStatus.RESOLVED);
 
-        verify(notificationService).createSupportNotification(eq(tutorId),
+        verify(notificationService).createSupportNotification(eq(tutorId), eq(Role.TUTOR),
                 eq(NotificationType.SESSION_CLAIM_UPDATE), eq(claim.getClaimId()), anyString(), anyString());
-        verify(notificationService).createSupportNotification(eq(studentId),
+        verify(notificationService).createSupportNotification(eq(studentId), eq(Role.STUDENT),
                 eq(NotificationType.SESSION_CLAIM_UPDATE), eq(claim.getClaimId()), anyString(), anyString());
-        verify(notificationService, never()).notifyUser(any(), any(), any(), any(), any(), any());
+        verify(notificationService, never()).notifyUser(any(), any(), any(), any(), any(), any(), any());
     }
 }

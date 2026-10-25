@@ -5,6 +5,7 @@ import com.knowlink.api.notifications.controllers.responses.NotificationResponse
 import com.knowlink.api.notifications.controllers.responses.UnreadCountResponse;
 import com.knowlink.api.notifications.data.enums.NotificationReadFilter;
 import com.knowlink.api.notifications.services.interfaces.INotificationService;
+import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.notifications.utils.NotificationConstants;
 import com.knowlink.api.shared.responses.PagedResponse;
@@ -29,18 +30,20 @@ public class NotificationControllerImpl implements INotificationController {
                 : (unreadOnly ? NotificationReadFilter.UNREAD : NotificationReadFilter.ALL);
         return notificationService.getNotifications(
                 principal.getUser().getUserId(),
+                activeRole(principal),
                 readFilter,
                 pageable(page, size));
     }
 
     @Override
     public UnreadCountResponse unreadCount(UserPrincipal principal) {
-        return notificationService.getUnreadCount(principal.getUser().getUserId());
+        return notificationService.getUnreadCount(principal.getUser().getUserId(), activeRole(principal));
     }
 
     @Override
     public Map<String, Long> supportUnreadCount(UserPrincipal principal) {
-        return Map.of("unreadCount", notificationService.countUnreadSupportForUser(principal.getUser().getUserId()));
+        return Map.of("unreadCount", notificationService.countUnreadSupportForUser(
+                principal.getUser().getUserId(), activeRole(principal)));
     }
 
     @Override
@@ -50,7 +53,11 @@ public class NotificationControllerImpl implements INotificationController {
 
     @Override
     public void markAllAsRead(UserPrincipal principal) {
-        notificationService.markAllAsRead(principal.getUser().getUserId());
+        notificationService.markAllAsRead(principal.getUser().getUserId(), activeRole(principal));
+    }
+
+    private static Role activeRole(UserPrincipal principal) {
+        return principal.getUser().getRole();
     }
 
     private static PageRequest pageable(int page, int size) {

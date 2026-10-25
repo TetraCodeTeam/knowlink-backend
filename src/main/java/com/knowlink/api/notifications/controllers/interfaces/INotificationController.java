@@ -27,7 +27,7 @@ import static org.springframework.http.HttpStatus.OK;
 public interface INotificationController {
 
     @GetMapping
-    @Operation(summary = "Listar las notificaciones del usuario, de más reciente a más antigua")
+    @Operation(summary = "Listar las notificaciones del rol activo, de más reciente a más antigua")
     @ApiResponse(responseCode = "200", description = "Página de notificaciones recuperada")
     @ResponseStatus(OK)
     PagedResponse<NotificationResponse> list(
@@ -38,14 +38,14 @@ public interface INotificationController {
             @RequestParam(defaultValue = "false") boolean unreadOnly);
 
     @GetMapping("/unread-count")
-    @Operation(summary = "Consultar la cantidad de notificaciones no leídas")
-    @ApiResponse(responseCode = "200", description = "Cantidad de notificaciones no leídas")
+    @Operation(summary = "Consultar las notificaciones no leídas del rol activo y del otro rol")
+    @ApiResponse(responseCode = "200", description = "Cantidad de notificaciones no leídas por rol")
     @ResponseStatus(OK)
     UnreadCountResponse unreadCount(@AuthenticationPrincipal UserPrincipal principal);
 
     @GetMapping("/support/unread-count")
-    @Operation(summary = "Consultar la cantidad de novedades no leídas de soporte")
-    @ApiResponse(responseCode = "200", description = "Cantidad de reclamos y denuncias de soporte con novedades")
+    @Operation(summary = "Consultar la cantidad de novedades no leídas de soporte del rol activo")
+    @ApiResponse(responseCode = "200", description = "Cantidad de reclamos y denuncias de soporte con novedades del rol activo")
     @ResponseStatus(OK)
     Map<String, Long> supportUnreadCount(@AuthenticationPrincipal UserPrincipal principal);
 
@@ -59,8 +59,8 @@ public interface INotificationController {
             @PathVariable UUID notificationId);
 
     @PatchMapping("/read-all")
-    @Operation(summary = "Marcar todas las notificaciones como leídas")
-    @ApiResponse(responseCode = "200", description = "Notificaciones marcadas como leídas")
+    @Operation(summary = "Marcar todas las notificaciones del rol activo como leídas")
+    @ApiResponse(responseCode = "200", description = "Notificaciones del rol activo marcadas como leídas")
     @ResponseStatus(OK)
     void markAllAsRead(@AuthenticationPrincipal UserPrincipal principal);
 

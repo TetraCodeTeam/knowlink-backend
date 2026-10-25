@@ -33,7 +33,6 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -61,19 +60,20 @@ class NotificationServiceImplTest {
     private final UUID bookingId = UUID.randomUUID();
 
     @Test
-    @DisplayName("notifyUser - crea la notificación con destinatario, tipo, mensaje, referencia y dedupeKey")
+    @DisplayName("notifyUser - crea la notificación con destinatario, rol, tipo, mensaje, referencia y dedupeKey")
     void notifyUser_persistsNotificationWithAllFields() {
-        User recipient = user(recipientId, Role.STUDENT, AccountStatus.ACTIVE);
+        User recipient = user(recipientId, Role.TUTOR, AccountStatus.ACTIVE);
         when(userRepository.findById(recipientId)).thenReturn(Optional.of(recipient));
         String dedupeKey = "BOOKING_CONFIRMED:" + bookingId;
 
-        service.notifyUser(recipientId, NotificationType.BOOKING_CONFIRMED, "Reserva confirmada",
+        service.notifyUser(recipientId, Role.TUTOR, NotificationType.BOOKING_CONFIRMED, "Reserva confirmada",
                 "Tu reserva fue confirmada.", bookingId, dedupeKey);
 
         ArgumentCaptor<Notification> captor = ArgumentCaptor.forClass(Notification.class);
         verify(notificationRepository).saveAndFlush(captor.capture());
         Notification saved = captor.getValue();
         assertThat(saved.getRecipient()).isSameAs(recipient);
+        assertThat(saved.getRecipientRole()).isEqualTo(Role.TUTOR);
         assertThat(saved.getType()).isEqualTo(NotificationType.BOOKING_CONFIRMED);
         assertThat(saved.getMessage()).isEqualTo("Tu reserva fue confirmada.");
         assertThat(saved.getResourceId()).isEqualTo(bookingId);
@@ -90,7 +90,8 @@ class NotificationServiceImplTest {
         when(userRepository.findById(recipientId)).thenReturn(Optional.of(recipient));
         when(notificationRepository.existsByRecipient_UserIdAndDedupeKey(recipientId, dedupeKey)).thenReturn(true);
 
-        service.notifyUser(recipientId, NotificationType.BOOKING_CONFIRMED, "title", "msg", bookingId, dedupeKey);
+        service.notifyUser(recipientId, Role.STUDENT, NotificationType.BOOKING_CONFIRMED, "title", "msg", bookingId,
+                dedupeKey);
 
         verify(notificationRepository, never()).saveAndFlush(any());
     }
@@ -105,7 +106,8 @@ class NotificationServiceImplTest {
         when(notificationRepository.saveAndFlush(any(Notification.class)))
                 .thenThrow(new DataIntegrityViolationException("duplicate"));
 
-        service.notifyUser(recipientId, NotificationType.BOOKING_CONFIRMED, "title", "msg", bookingId, dedupeKey);
+        service.notifyUser(recipientId, Role.STUDENT, NotificationType.BOOKING_CONFIRMED, "title", "msg", bookingId,
+                dedupeKey);
 
         verify(notificationRepository).saveAndFlush(any(Notification.class));
     }
@@ -118,8 +120,8 @@ class NotificationServiceImplTest {
         when(notificationRepository.saveAndFlush(any(Notification.class)))
                 .thenThrow(new DataIntegrityViolationException("broken row"));
 
-        assertThatThrownBy(() -> service.notifyUser(recipientId, NotificationType.BOOKING_CONFIRMED, "title",
-                "msg", bookingId, null))
+        assertThatThrownBy(() -> service.notifyUser(recipientId, Role.STUDENT, NotificationType.BOOKING_CONFIRMED,
+                "title", "msg", bookingId, null))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
@@ -128,15 +130,15 @@ class NotificationServiceImplTest {
     void notifyUser_unknownRecipient_throwsNotFound() {
         when(userRepository.findById(recipientId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.notifyUser(recipientId, NotificationType.BOOKING_CONFIRMED, "title",
-                "msg", bookingId, null))
+        assertThatThrownBy(() -> service.notifyUser(recipientId, Role.STUDENT, NotificationType.BOOKING_CONFIRMED,
+                "title", "msg", bookingId, null))
                 .isInstanceOf(ResourceNotFoundException.class)
                 .extracting(e -> ((ResourceNotFoundException) e).getErrorCode())
                 .isEqualTo("USER_NOT_FOUND");
     }
 
     @Test
-    @DisplayName("notifyAdmins - crea una notificación por cada admin activo")
+    @DisplayName("notifyAdmins - crea una notificación ADMIN por cada admin activo")
     void notifyAdmins_notifiesEveryActiveAdmin() {
         User firstAdmin = user(UUID.randomUUID(), Role.ADMIN, AccountStatus.ACTIVE);
         User secondAdmin = user(UUID.randomUUID(), Role.ADMIN, AccountStatus.ACTIVE);
@@ -154,6 +156,7 @@ class NotificationServiceImplTest {
                 .containsExactlyInAnyOrder(firstAdmin.getUserId(), secondAdmin.getUserId());
         assertThat(captor.getAllValues())
                 .allSatisfy(notification -> {
+                    assertThat(notification.getRecipientRole()).isEqualTo(Role.ADMIN);
                     assertThat(notification.getDedupeKey()).isEqualTo(dedupeKey);
                     assertThat(notification.getType()).isEqualTo(NotificationType.ADMIN_VALIDATION_REQUEST_PENDING);
                 });
@@ -196,6 +199,7 @@ class NotificationServiceImplTest {
         Notification notification = Notification.builder()
                 .notificationId(UUID.randomUUID())
                 .recipient(user(recipientId, Role.STUDENT, AccountStatus.ACTIVE))
+                .recipientRole(Role.STUDENT)
                 .type(NotificationType.BOOKING_CONFIRMED)
                 .message("msg")
                 .build();
@@ -214,6 +218,7 @@ class NotificationServiceImplTest {
         Notification notification = Notification.builder()
                 .notificationId(UUID.randomUUID())
                 .recipient(user(recipientId, Role.STUDENT, AccountStatus.ACTIVE))
+                .recipientRole(Role.STUDENT)
                 .type(NotificationType.BOOKING_CONFIRMED)
                 .message("msg")
                 .readAt(java.time.LocalDateTime.of(2026, 10, 1, 10, 0))
@@ -241,58 +246,97 @@ class NotificationServiceImplTest {
     }
 
     @Test
-    @DisplayName("getUnreadCount - devuelve la cantidad de filas sin leer")
-    void getUnreadCount_returnsRowAmount() {
-        when(notificationRepository.countByRecipient_UserIdAndReadAtIsNull(recipientId)).thenReturn(3L);
+    @DisplayName("getUnreadCount - devuelve el conteo del rol activo y del otro rol")
+    void getUnreadCount_returnsActiveRoleAndOtherRoleCounts() {
+        when(notificationRepository.countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(recipientId, Role.STUDENT))
+                .thenReturn(3L);
+        when(notificationRepository.countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(recipientId, Role.TUTOR))
+                .thenReturn(2L);
 
-        UnreadCountResponse response = service.getUnreadCount(recipientId);
+        UnreadCountResponse response = service.getUnreadCount(recipientId, Role.STUDENT);
 
         assertThat(response.count()).isEqualTo(3L);
+        assertThat(response.otherRoleCount()).isEqualTo(2L);
+    }
+
+    @Test
+    @DisplayName("getUnreadCount - un admin no tiene otro rol asociado")
+    void getUnreadCount_adminHasNoOtherRoleCount() {
+        when(notificationRepository.countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(recipientId, Role.ADMIN))
+                .thenReturn(5L);
+
+        UnreadCountResponse response = service.getUnreadCount(recipientId, Role.ADMIN);
+
+        assertThat(response.count()).isEqualTo(5L);
+        assertThat(response.otherRoleCount()).isZero();
+        verify(notificationRepository, never())
+                .countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(recipientId, Role.STUDENT);
     }
 
     @Test
     @DisplayName("getNotifications - recorta el tamanio a 50 y ordena por createdAt y notificationId desc")
     void getNotifications_limitsSizeAndForcesStableSort() {
-        when(notificationRepository.findByRecipient_UserId(eq(recipientId), any(Pageable.class)))
-                .thenReturn(Page.empty());
+        when(notificationRepository.findByRecipient_UserIdAndRecipientRole(eq(recipientId), eq(Role.STUDENT),
+                any(Pageable.class))).thenReturn(Page.empty());
 
-        service.getNotifications(recipientId, NotificationReadFilter.ALL, PageRequest.of(0, 500));
+        service.getNotifications(recipientId, Role.STUDENT, NotificationReadFilter.ALL, PageRequest.of(0, 500));
 
         ArgumentCaptor<Pageable> captor = ArgumentCaptor.forClass(Pageable.class);
-        verify(notificationRepository).findByRecipient_UserId(eq(recipientId), captor.capture());
+        verify(notificationRepository).findByRecipient_UserIdAndRecipientRole(eq(recipientId), eq(Role.STUDENT),
+                captor.capture());
         Pageable requested = captor.getValue();
         assertThat(requested.getPageSize()).isEqualTo(50);
         assertThat(requested.getSort()).containsExactly(
                 Sort.Order.desc("createdAt"), Sort.Order.desc("notificationId"));
     }
 
-
     @Test
-    @DisplayName("getNotifications - filtro UNREAD consulta solo las filas sin leer")
+    @DisplayName("getNotifications - filtro UNREAD consulta solo las filas sin leer del rol activo")
     void getNotifications_unreadFilterQueriesUnreadRows() {
-        when(notificationRepository.findByRecipient_UserIdAndReadAtIsNull(eq(recipientId), any(Pageable.class)))
-                .thenReturn(Page.empty());
+        when(notificationRepository.findByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
+                eq(recipientId), eq(Role.STUDENT), any(Pageable.class))).thenReturn(Page.empty());
 
-        service.getNotifications(recipientId, NotificationReadFilter.UNREAD, PageRequest.of(0, 20));
+        service.getNotifications(recipientId, Role.STUDENT, NotificationReadFilter.UNREAD, PageRequest.of(0, 20));
 
-        verify(notificationRepository).findByRecipient_UserIdAndReadAtIsNull(eq(recipientId), any(Pageable.class));
-        verify(notificationRepository, never()).findByRecipient_UserId(any(UUID.class), any(Pageable.class));
-        verify(notificationRepository, never()).findByRecipient_UserIdAndReadAtIsNotNull(any(UUID.class),
+        verify(notificationRepository).findByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
+                eq(recipientId), eq(Role.STUDENT), any(Pageable.class));
+        verify(notificationRepository, never()).findByRecipient_UserIdAndRecipientRole(any(UUID.class), any(),
                 any(Pageable.class));
     }
 
     @Test
-    @DisplayName("getNotifications - filtro READ consulta solo las filas leidas")
+    @DisplayName("getNotifications - filtro READ consulta solo las filas leidas del rol activo")
     void getNotifications_readFilterQueriesReadRows() {
-        when(notificationRepository.findByRecipient_UserIdAndReadAtIsNotNull(eq(recipientId), any(Pageable.class)))
-                .thenReturn(Page.empty());
+        when(notificationRepository.findByRecipient_UserIdAndRecipientRoleAndReadAtIsNotNull(
+                eq(recipientId), eq(Role.TUTOR), any(Pageable.class))).thenReturn(Page.empty());
 
-        service.getNotifications(recipientId, NotificationReadFilter.READ, PageRequest.of(0, 20));
+        service.getNotifications(recipientId, Role.TUTOR, NotificationReadFilter.READ, PageRequest.of(0, 20));
 
-        verify(notificationRepository).findByRecipient_UserIdAndReadAtIsNotNull(eq(recipientId), any(Pageable.class));
-        verify(notificationRepository, never()).findByRecipient_UserId(any(UUID.class), any(Pageable.class));
-        verify(notificationRepository, never()).findByRecipient_UserIdAndReadAtIsNull(any(UUID.class),
+        verify(notificationRepository).findByRecipient_UserIdAndRecipientRoleAndReadAtIsNotNull(
+                eq(recipientId), eq(Role.TUTOR), any(Pageable.class));
+        verify(notificationRepository, never()).findByRecipient_UserIdAndRecipientRole(any(UUID.class), any(),
                 any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("markAllAsRead - solo marca las notificaciones del rol activo")
+    void markAllAsRead_onlyMarksActiveRoleNotifications() {
+        Notification unread = Notification.builder()
+                .notificationId(UUID.randomUUID())
+                .recipient(user(recipientId, Role.STUDENT, AccountStatus.ACTIVE))
+                .recipientRole(Role.STUDENT)
+                .type(NotificationType.BOOKING_CONFIRMED)
+                .message("msg")
+                .build();
+        when(notificationRepository.findByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
+                recipientId, Role.STUDENT)).thenReturn(List.of(unread));
+
+        service.markAllAsRead(recipientId, Role.STUDENT);
+
+        assertThat(unread.getReadAt()).isNotNull();
+        verify(notificationRepository).saveAll(List.of(unread));
+        verify(notificationRepository, never()).findByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
+                recipientId, Role.TUTOR);
     }
 
     private static User user(UUID id, Role role, AccountStatus status) {

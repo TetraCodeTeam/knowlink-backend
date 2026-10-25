@@ -46,25 +46,27 @@ class NotificationRepositoryTest {
 
     @BeforeEach
     void setUp() {
-        recipient = persistUser("recipient");
-        otherRecipient = persistUser("other-recipient");
+        recipient = persistUser("recipient", Role.STUDENT);
+        otherRecipient = persistUser("other-recipient", Role.TUTOR);
     }
 
     @Test
     @DisplayName("Listado - ordena por createdAt desc y resuelve los empates de forma estable")
     void listing_ordersByCreatedAtDescendingWithStableTieBreak() {
         LocalDateTime base = LocalDateTime.of(2026, 10, 20, 10, 0);
-        Notification oldest = persistNotification(recipient, base, null, "oldest");
-        Notification tiedA = persistNotification(recipient, base.plusHours(1), null, "tied-a");
-        Notification tiedB = persistNotification(recipient, base.plusHours(1), null, "tied-b");
-        Notification newest = persistNotification(recipient, base.plusHours(2), null, "newest");
+        Notification oldest = persistNotification(recipient, Role.STUDENT, base, null, "oldest");
+        Notification tiedA = persistNotification(recipient, Role.STUDENT, base.plusHours(1), null, "tied-a");
+        Notification tiedB = persistNotification(recipient, Role.STUDENT, base.plusHours(1), null, "tied-b");
+        Notification newest = persistNotification(recipient, Role.STUDENT, base.plusHours(2), null, "newest");
 
         Pageable pageable = PageRequest.of(0, 10, Sort.by(Sort.Order.desc("createdAt"))
                 .and(Sort.by(Sort.Order.desc("notificationId"))));
 
-        List<UUID> firstRun = notificationRepository.findByRecipient_UserId(recipient.getUserId(), pageable)
+        List<UUID> firstRun = notificationRepository.findByRecipient_UserIdAndRecipientRole(
+                recipient.getUserId(), Role.STUDENT, pageable)
                 .getContent().stream().map(Notification::getNotificationId).toList();
-        List<UUID> secondRun = notificationRepository.findByRecipient_UserId(recipient.getUserId(), pageable)
+        List<UUID> secondRun = notificationRepository.findByRecipient_UserIdAndRecipientRole(
+                recipient.getUserId(), Role.STUDENT, pageable)
                 .getContent().stream().map(Notification::getNotificationId).toList();
 
         assertThat(firstRun).hasSize(4);
@@ -76,54 +78,81 @@ class NotificationRepositoryTest {
     }
 
     @Test
-    @DisplayName("unreadOnly - pagina solo las notificaciones sin leer")
+    @DisplayName("Rol - separa las notificaciones del mismo usuario segun el rol destinatario")
+    void roleFilter_separatesNotificationsOfTheSameUser() {
+        Notification studentNotification = persistNotification(recipient, Role.STUDENT,
+                LocalDateTime.of(2026, 10, 20, 9, 0), null, "student");
+        Notification tutorNotification = persistNotification(recipient, Role.TUTOR,
+                LocalDateTime.of(2026, 10, 20, 9, 1), null, "tutor");
+        persistNotification(otherRecipient, Role.TUTOR, LocalDateTime.of(2026, 10, 20, 9, 2), null, "other");
+
+        Page<Notification> studentPage = notificationRepository.findByRecipient_UserIdAndRecipientRole(
+                recipient.getUserId(), Role.STUDENT, PageRequest.of(0, 10));
+        Page<Notification> tutorPage = notificationRepository.findByRecipient_UserIdAndRecipientRole(
+                recipient.getUserId(), Role.TUTOR, PageRequest.of(0, 10));
+
+        assertThat(studentPage.getContent())
+                .extracting(Notification::getNotificationId)
+                .containsExactly(studentNotification.getNotificationId());
+        assertThat(tutorPage.getContent())
+                .extracting(Notification::getNotificationId)
+                .containsExactly(tutorNotification.getNotificationId());
+    }
+
+    @Test
+    @DisplayName("unreadOnly - pagina solo las notificaciones sin leer del rol activo")
     void unreadOnly_returnsOnlyUnreadRows() {
         LocalDateTime base = LocalDateTime.of(2026, 10, 20, 10, 0);
-        Notification unread = persistNotification(recipient, base, null, "unread");
-        persistNotification(recipient, base.plusMinutes(1), base.plusMinutes(2), "read");
+        Notification unread = persistNotification(recipient, Role.STUDENT, base, null, "unread");
+        persistNotification(recipient, Role.STUDENT, base.plusMinutes(1), base.plusMinutes(2), "read");
+        persistNotification(recipient, Role.TUTOR, base.plusMinutes(3), null, "other-role-unread");
 
-        Page<Notification> page = notificationRepository.findByRecipient_UserIdAndReadAtIsNull(
-                recipient.getUserId(), PageRequest.of(0, 10));
+        Page<Notification> page = notificationRepository.findByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
+                recipient.getUserId(), Role.STUDENT, PageRequest.of(0, 10));
 
         assertThat(page.getContent()).hasSize(1);
         assertThat(page.getContent().get(0).getNotificationId()).isEqualTo(unread.getNotificationId());
     }
 
     @Test
-    @DisplayName("readOnly - pagina solo las notificaciones leidas")
+    @DisplayName("readOnly - pagina solo las notificaciones leidas del rol activo")
     void readOnly_returnsOnlyReadRows() {
         LocalDateTime base = LocalDateTime.of(2026, 10, 20, 10, 0);
-        persistNotification(recipient, base, null, "unread");
-        Notification read = persistNotification(recipient, base.plusMinutes(1), base.plusMinutes(2), "read");
+        persistNotification(recipient, Role.STUDENT, base, null, "unread");
+        Notification read = persistNotification(recipient, Role.STUDENT, base.plusMinutes(1), base.plusMinutes(2),
+                "read");
 
-        Page<Notification> page = notificationRepository.findByRecipient_UserIdAndReadAtIsNotNull(
-                recipient.getUserId(), PageRequest.of(0, 10));
+        Page<Notification> page = notificationRepository.findByRecipient_UserIdAndRecipientRoleAndReadAtIsNotNull(
+                recipient.getUserId(), Role.STUDENT, PageRequest.of(0, 10));
 
         assertThat(page.getContent()).hasSize(1);
         assertThat(page.getContent().get(0).getNotificationId()).isEqualTo(read.getNotificationId());
     }
 
     @Test
-    @DisplayName("Conteo - cuenta las filas sin leer del destinatario")
-    void countUnread_countsOnlyUnreadRowsOfThatRecipient() {
-        persistNotification(recipient, LocalDateTime.of(2026, 10, 20, 9, 0), null, "u1");
-        persistNotification(recipient, LocalDateTime.of(2026, 10, 20, 9, 1), null, "u2");
-        persistNotification(recipient, LocalDateTime.of(2026, 10, 20, 9, 2),
+    @DisplayName("Conteo - cuenta las filas sin leer del destinatario y rol indicados")
+    void countUnread_countsOnlyUnreadRowsOfThatRecipientAndRole() {
+        persistNotification(recipient, Role.STUDENT, LocalDateTime.of(2026, 10, 20, 9, 0), null, "u1");
+        persistNotification(recipient, Role.STUDENT, LocalDateTime.of(2026, 10, 20, 9, 1), null, "u2");
+        persistNotification(recipient, Role.STUDENT, LocalDateTime.of(2026, 10, 20, 9, 2),
                 LocalDateTime.of(2026, 10, 20, 10, 0), "r1");
-        persistNotification(otherRecipient, LocalDateTime.of(2026, 10, 20, 9, 3), null, "other");
+        persistNotification(recipient, Role.TUTOR, LocalDateTime.of(2026, 10, 20, 9, 3), null, "tutor-unread");
+        persistNotification(otherRecipient, Role.TUTOR, LocalDateTime.of(2026, 10, 20, 9, 4), null, "other");
 
-        assertThat(notificationRepository.countByRecipient_UserIdAndReadAtIsNull(recipient.getUserId()))
-                .isEqualTo(2L);
+        assertThat(notificationRepository.countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
+                recipient.getUserId(), Role.STUDENT)).isEqualTo(2L);
+        assertThat(notificationRepository.countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
+                recipient.getUserId(), Role.TUTOR)).isEqualTo(1L);
     }
 
     @Test
     @DisplayName("Dedupe - la restriccion unica (recipient, dedupeKey) bloquea la fila repetida")
     void uniqueDedupeKey_blocksDuplicateRowForSameRecipient() {
         String dedupeKey = "BOOKING_CONFIRMED:" + UUID.randomUUID();
-        persistNotification(recipient, LocalDateTime.of(2026, 10, 20, 9, 0), null, "first", dedupeKey);
+        persistNotification(recipient, Role.STUDENT, LocalDateTime.of(2026, 10, 20, 9, 0), null, "first", dedupeKey);
         entityManager.flush();
 
-        Notification duplicate = notificationFor(recipient, LocalDateTime.of(2026, 10, 20, 9, 1), null,
+        Notification duplicate = notificationFor(recipient, Role.TUTOR, LocalDateTime.of(2026, 10, 20, 9, 1), null,
                 "duplicate", dedupeKey);
 
         assertThatThrownBy(() -> notificationRepository.saveAndFlush(duplicate))
@@ -134,22 +163,24 @@ class NotificationRepositoryTest {
     @DisplayName("Dedupe - la misma clave otro destinatario y las claves nulas repetidas se permiten")
     void uniqueDedupeKey_allowsSameKeyForAnotherRecipientAndNullKeys() {
         String dedupeKey = "FUNDS_TRANSFERRED:" + UUID.randomUUID();
-        persistNotification(recipient, LocalDateTime.of(2026, 10, 20, 9, 0), null, "for-recipient", dedupeKey);
-        persistNotification(otherRecipient, LocalDateTime.of(2026, 10, 20, 9, 1), null, "for-other", dedupeKey);
-        persistNotification(recipient, LocalDateTime.of(2026, 10, 20, 9, 2), null, "null-key-1", null);
-        persistNotification(recipient, LocalDateTime.of(2026, 10, 20, 9, 3), null, "null-key-2", null);
+        persistNotification(recipient, Role.STUDENT, LocalDateTime.of(2026, 10, 20, 9, 0), null, "for-recipient",
+                dedupeKey);
+        persistNotification(otherRecipient, Role.TUTOR, LocalDateTime.of(2026, 10, 20, 9, 1), null, "for-other",
+                dedupeKey);
+        persistNotification(recipient, Role.STUDENT, LocalDateTime.of(2026, 10, 20, 9, 2), null, "null-key-1", null);
+        persistNotification(recipient, Role.STUDENT, LocalDateTime.of(2026, 10, 20, 9, 3), null, "null-key-2", null);
         entityManager.flush();
 
         assertThat(notificationRepository.existsByRecipient_UserIdAndDedupeKey(recipient.getUserId(), dedupeKey))
                 .isTrue();
-        assertThat(notificationRepository.countByRecipient_UserIdAndReadAtIsNull(recipient.getUserId()))
-                .isEqualTo(3L);
+        assertThat(notificationRepository.countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
+                recipient.getUserId(), Role.STUDENT)).isEqualTo(3L);
     }
 
     @Test
     @DisplayName("existsBy - distingue claves existentes de inexistentes")
     void existsByDedupeKey_returnsFalseWhenMissing() {
-        persistNotification(recipient, LocalDateTime.of(2026, 10, 20, 9, 0), null, "known", "known-key");
+        persistNotification(recipient, Role.STUDENT, LocalDateTime.of(2026, 10, 20, 9, 0), null, "known", "known-key");
         entityManager.flush();
 
         assertThat(notificationRepository.existsByRecipient_UserIdAndDedupeKey(recipient.getUserId(), "known-key"))
@@ -161,8 +192,8 @@ class NotificationRepositoryTest {
     @Test
     @DisplayName("Por id - solo encuentra la notificacion cuando le pertenece al usuario")
     void findByIdAndRecipient_filtersByOwner() {
-        Notification notification = persistNotification(recipient, LocalDateTime.of(2026, 10, 20, 9, 0), null,
-                "owned");
+        Notification notification = persistNotification(recipient, Role.STUDENT, LocalDateTime.of(2026, 10, 20, 9, 0),
+                null, "owned");
 
         assertThat(notificationRepository.findByNotificationIdAndRecipient_UserId(
                 notification.getNotificationId(), recipient.getUserId())).isPresent();
@@ -170,32 +201,34 @@ class NotificationRepositoryTest {
                 notification.getNotificationId(), otherRecipient.getUserId())).isEmpty();
     }
 
-    private User persistUser(String prefix) {
+    private User persistUser(String prefix, Role role) {
         return userRepository.saveAndFlush(User.builder()
                 .fullName("Repository User")
                 .email(prefix + "." + UUID.randomUUID() + "@test.com")
                 .password("hashed")
-                .role(Role.STUDENT)
+                .role(role)
                 .accountStatus(AccountStatus.ACTIVE)
                 .build());
     }
 
-    private Notification persistNotification(User user, LocalDateTime createdAt, LocalDateTime readAt, String message) {
-        return persistNotification(user, createdAt, readAt, message, null);
+    private Notification persistNotification(User user, Role recipientRole, LocalDateTime createdAt,
+            LocalDateTime readAt, String message) {
+        return persistNotification(user, recipientRole, createdAt, readAt, message, null);
     }
 
-    private Notification persistNotification(User user, LocalDateTime createdAt, LocalDateTime readAt,
-            String message, String dedupeKey) {
+    private Notification persistNotification(User user, Role recipientRole, LocalDateTime createdAt,
+            LocalDateTime readAt, String message, String dedupeKey) {
         Notification saved = notificationRepository.saveAndFlush(
-                notificationFor(user, createdAt, readAt, message, dedupeKey));
+                notificationFor(user, recipientRole, createdAt, readAt, message, dedupeKey));
         entityManager.clear();
         return saved;
     }
 
-    private Notification notificationFor(User user, LocalDateTime createdAt, LocalDateTime readAt, String message,
-            String dedupeKey) {
+    private Notification notificationFor(User user, Role recipientRole, LocalDateTime createdAt,
+            LocalDateTime readAt, String message, String dedupeKey) {
         return Notification.builder()
                 .recipient(user)
+                .recipientRole(recipientRole)
                 .type(NotificationType.BOOKING_CONFIRMED)
                 .message(message)
                 .resourceId(UUID.randomUUID())

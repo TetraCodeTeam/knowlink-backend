@@ -9,6 +9,7 @@ import com.knowlink.api.bookings.events.SessionConfirmedEvent;
 import com.knowlink.api.bookings.events.SessionNotConfirmedEvent;
 import com.knowlink.api.notifications.data.enums.NotificationType;
 import com.knowlink.api.notifications.services.interfaces.INotificationService;
+import com.knowlink.api.security.enums.Role;
 import org.springframework.scheduling.annotation.Async;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -31,12 +32,12 @@ public class BookingNotificationListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleBookingCreated(BookingCreatedEvent event) {
         withSnapshot(event.bookingId(), snapshot -> {
-            notifyQuietly(snapshot.studentUserId(), NotificationType.BOOKING_CONFIRMED,
+            notifyQuietly(snapshot.studentUserId(), Role.STUDENT, NotificationType.BOOKING_CONFIRMED,
                     "Reserva confirmada",
                     "Reservaste " + snapshot.subjectName() + " - " + snapshot.formattedDateWithWeekday()
                             + " a las " + snapshot.formattedTime() + ".",
                     snapshot);
-            notifyQuietly(snapshot.tutorUserId(), NotificationType.BOOKING_CONFIRMED,
+            notifyQuietly(snapshot.tutorUserId(), Role.TUTOR, NotificationType.BOOKING_CONFIRMED,
                     "Nueva reserva confirmada",
                     snapshot.studentName() + " reservó " + snapshot.subjectName() + " - "
                             + snapshot.formattedDateWithWeekday() + " a las " + snapshot.formattedTime() + ".",
@@ -51,16 +52,18 @@ public class BookingNotificationListener {
             if (event.cancelledByUserId() == null) {
                 String message = "La clase del " + snapshot.formattedDateWithWeekday() + " a las "
                         + snapshot.formattedTime() + " fue cancelada.";
-                notifyQuietly(snapshot.studentUserId(), NotificationType.BOOKING_CANCELLED,
+                notifyQuietly(snapshot.studentUserId(), Role.STUDENT, NotificationType.BOOKING_CANCELLED,
                         "Clase cancelada", message, snapshot);
-                notifyQuietly(snapshot.tutorUserId(), NotificationType.BOOKING_CANCELLED,
+                notifyQuietly(snapshot.tutorUserId(), Role.TUTOR, NotificationType.BOOKING_CANCELLED,
                         "Clase cancelada", message, snapshot);
                 return;
             }
 
             boolean cancelledByStudent = snapshot.studentUserId().equals(event.cancelledByUserId());
             UUID cancellerUserId = cancelledByStudent ? snapshot.studentUserId() : snapshot.tutorUserId();
+            Role cancellerRole = cancelledByStudent ? Role.STUDENT : Role.TUTOR;
             UUID otherPartyUserId = cancelledByStudent ? snapshot.tutorUserId() : snapshot.studentUserId();
+            Role otherPartyRole = cancelledByStudent ? Role.TUTOR : Role.STUDENT;
             String cancellerName = cancelledByStudent ? snapshot.studentName() : snapshot.tutorName();
             String otherPartyTitle = cancelledByStudent
                     ? "Clase cancelada por el alumno"
@@ -68,11 +71,11 @@ public class BookingNotificationListener {
             String otherPartyMessage = cancellerName + " canceló la clase del "
                     + snapshot.formattedDateWithWeekday() + "." + refundNotice(event.refundDestination());
 
-            notifyQuietly(cancellerUserId, NotificationType.BOOKING_CANCELLED,
+            notifyQuietly(cancellerUserId, cancellerRole, NotificationType.BOOKING_CANCELLED,
                     "Clase cancelada",
                     "Cancelaste la clase del " + snapshot.formattedDateWithWeekday() + ".",
                     snapshot);
-            notifyQuietly(otherPartyUserId, NotificationType.BOOKING_CANCELLED,
+            notifyQuietly(otherPartyUserId, otherPartyRole, NotificationType.BOOKING_CANCELLED,
                     otherPartyTitle, otherPartyMessage, snapshot);
         });
     }
@@ -81,12 +84,12 @@ public class BookingNotificationListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleSessionConfirmationReminder(SessionConfirmationReminderEvent event) {
         withSnapshot(event.booking().getBookingId(), snapshot -> {
-            notifyQuietly(snapshot.tutorUserId(), NotificationType.SESSION_CONFIRMATION_REMINDER,
+            notifyQuietly(snapshot.tutorUserId(), Role.TUTOR, NotificationType.SESSION_CONFIRMATION_REMINDER,
                     "Recordatorio de token. Clase en curso",
                     "Tu clase de " + snapshot.subjectName() + " con " + snapshot.studentName()
                             + " está en curso. Ingresá el código para confirmar la sesión.",
                     snapshot);
-            notifyQuietly(snapshot.studentUserId(), NotificationType.SESSION_CONFIRMATION_REMINDER,
+            notifyQuietly(snapshot.studentUserId(), Role.STUDENT, NotificationType.SESSION_CONFIRMATION_REMINDER,
                     "Recordatorio de token. Clase en curso",
                     "Tu clase de " + snapshot.subjectName() + " con " + snapshot.tutorName()
                             + " está en curso. Entregá el código al tutor para confirmar la sesión.",
@@ -99,11 +102,11 @@ public class BookingNotificationListener {
     public void handleSessionNotConfirmed(SessionNotConfirmedEvent event) {
         withSnapshot(event.booking().getBookingId(), snapshot -> {
             String title = "Token vencido. Sesión no confirmada";
-            notifyQuietly(snapshot.studentUserId(), NotificationType.SESSION_NOT_CONFIRMED, title,
+            notifyQuietly(snapshot.studentUserId(), Role.STUDENT, NotificationType.SESSION_NOT_CONFIRMED, title,
                     "El tiempo para ingresar el código de la sesión con " + snapshot.tutorName()
                             + " venció. La reserva pasó al estado \"No confirmada\".",
                     snapshot);
-            notifyQuietly(snapshot.tutorUserId(), NotificationType.SESSION_NOT_CONFIRMED, title,
+            notifyQuietly(snapshot.tutorUserId(), Role.TUTOR, NotificationType.SESSION_NOT_CONFIRMED, title,
                     "El tiempo para ingresar el código de la sesión con " + snapshot.studentName()
                             + " venció. La reserva pasó al estado \"No confirmada\".",
                     snapshot);
@@ -115,21 +118,21 @@ public class BookingNotificationListener {
     public void handleSessionConfirmed(SessionConfirmedEvent event) {
         withSnapshot(event.booking().getBookingId(), snapshot -> {
             String title = "Sesión confirmada";
-            notifyQuietly(snapshot.studentUserId(), NotificationType.SESSION_CONFIRMED, title,
+            notifyQuietly(snapshot.studentUserId(), Role.STUDENT, NotificationType.SESSION_CONFIRMED, title,
                     "La sesión de " + snapshot.subjectName() + " con " + snapshot.tutorName()
                             + " fue confirmada.",
                     snapshot);
-            notifyQuietly(snapshot.tutorUserId(), NotificationType.SESSION_CONFIRMED, title,
+            notifyQuietly(snapshot.tutorUserId(), Role.TUTOR, NotificationType.SESSION_CONFIRMED, title,
                     "La sesión de " + snapshot.subjectName() + " con " + snapshot.studentName()
                             + " fue confirmada.",
                     snapshot);
 
             String ratingTitle = "Calificá tu sesión de " + snapshot.subjectName();
-            notifyQuietly(snapshot.studentUserId(), NotificationType.RATING_ENABLED, ratingTitle,
+            notifyQuietly(snapshot.studentUserId(), Role.STUDENT, NotificationType.RATING_ENABLED, ratingTitle,
                     "Contanos cómo fue tu experiencia con " + snapshot.tutorName()
                             + ". Tenés 24 horas para calificar.",
                     snapshot);
-            notifyQuietly(snapshot.tutorUserId(), NotificationType.RATING_ENABLED, ratingTitle,
+            notifyQuietly(snapshot.tutorUserId(), Role.TUTOR, NotificationType.RATING_ENABLED, ratingTitle,
                     "Contanos cómo fue tu experiencia con " + snapshot.studentName()
                             + ". Tenés 24 horas para calificar.",
                     snapshot);
@@ -142,8 +145,10 @@ public class BookingNotificationListener {
         withSnapshot(event.booking().getBookingId(), snapshot -> {
             String title = "Tu sesión de " + snapshot.subjectName() + " finalizó";
             String message = "Si hubo algún inconveniente con la asistencia, tenés 24 horas para reclamar.";
-            notifyQuietly(snapshot.studentUserId(), NotificationType.SESSION_COMPLETED, title, message, snapshot);
-            notifyQuietly(snapshot.tutorUserId(), NotificationType.SESSION_COMPLETED, title, message, snapshot);
+            notifyQuietly(snapshot.studentUserId(), Role.STUDENT, NotificationType.SESSION_COMPLETED, title,
+                    message, snapshot);
+            notifyQuietly(snapshot.tutorUserId(), Role.TUTOR, NotificationType.SESSION_COMPLETED, title,
+                    message, snapshot);
         });
     }
 
@@ -167,10 +172,10 @@ public class BookingNotificationListener {
         }
     }
 
-    private void notifyQuietly(UUID recipientUserId, NotificationType type, String title, String message,
-                               BookingSnapshot snapshot) {
+    private void notifyQuietly(UUID recipientUserId, Role recipientRole, NotificationType type, String title,
+                               String message, BookingSnapshot snapshot) {
         try {
-            notificationService.notifyUser(recipientUserId, type, title, message, snapshot.bookingId(),
+            notificationService.notifyUser(recipientUserId, recipientRole, type, title, message, snapshot.bookingId(),
                     snapshot.dedupeKeyFor(type));
         } catch (Exception e) {
             log.error("Failed to create notification {} for user {}: {}", type, recipientUserId, e.getMessage(), e);

@@ -2,6 +2,7 @@ package com.knowlink.api.notifications.listeners;
 
 import com.knowlink.api.notifications.data.enums.NotificationType;
 import com.knowlink.api.notifications.services.interfaces.INotificationService;
+import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.payments.domain.FundsRecipient;
 import com.knowlink.api.payments.events.FundsSuspendedByClaimEvent;
 import com.knowlink.api.payments.events.FundsTransferProcessedEvent;
@@ -50,12 +51,12 @@ class FundsNotificationListenerTest {
         listener.handleFundsTransferProcessed(new FundsTransferProcessedEvent(bookingId, FundsRecipient.TUTOR,
                 new BigDecimal("2100.00"), BigDecimal.ZERO, null, "Fondos retenidos para reserva"));
 
-        verify(notificationService).notifyUser(eq(studentId), eq(NotificationType.FUNDS_TRANSFERRED),
+        verify(notificationService).notifyUser(eq(studentId), eq(Role.STUDENT), eq(NotificationType.FUNDS_TRANSFERRED),
                 eq("Pago realizado. Reserva realizada"),
                 eq("Pagaste $2.100 por la sesión de Sistemas Operativos con Carlos Lopez."
                         + " Los fondos quedarán retenidos hasta la finalización de la sesión."),
                 eq(bookingId), eq("FUNDS_TRANSFERRED:Fondos retenidos para reserva:" + bookingId));
-        verify(notificationService, never()).notifyUser(eq(tutorId), any(), any(), any(), any(), any());
+        verify(notificationService, never()).notifyUser(eq(tutorId), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -67,12 +68,12 @@ class FundsNotificationListenerTest {
                 new BigDecimal("2100.00"), new BigDecimal("2037.00"), new BigDecimal("3.00"),
                 "Liberacion por sesion completada"));
 
-        verify(notificationService).notifyUser(eq(tutorId), eq(NotificationType.FUNDS_TRANSFERRED),
+        verify(notificationService).notifyUser(eq(tutorId), eq(Role.TUTOR), eq(NotificationType.FUNDS_TRANSFERRED),
                 eq("Pago acreditado. Sesión completada"),
                 eq("Recibiste $2.037 por la sesión de Sistemas Operativos con Ana Estudiante."
                         + " (3% de retención aplicada)"),
                 eq(bookingId), eq("FUNDS_TRANSFERRED:Liberacion por sesion completada:" + bookingId));
-        verify(notificationService, never()).notifyUser(eq(studentId), any(), any(), any(), any(), any());
+        verify(notificationService, never()).notifyUser(eq(studentId), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -84,7 +85,7 @@ class FundsNotificationListenerTest {
                 new BigDecimal("2100.00"), new BigDecimal("2037.00"), new BigDecimal("3.00"),
                 "Liberacion por alumno ausente"));
 
-        verify(notificationService).notifyUser(eq(tutorId), eq(NotificationType.FUNDS_TRANSFERRED),
+        verify(notificationService).notifyUser(eq(tutorId), eq(Role.TUTOR), eq(NotificationType.FUNDS_TRANSFERRED),
                 eq("Pago acreditado. Alumno ausente"),
                 eq("Recibiste $2.037 por la sesión del Martes 20/10."
                         + " El alumno no confirmó asistencia pero cumpliste tu parte."),
@@ -100,7 +101,7 @@ class FundsNotificationListenerTest {
                 new BigDecimal("2100.00"), new BigDecimal("2100.00"), null,
                 "Devolucion por tutor ausente"));
 
-        verify(notificationService).notifyUser(eq(studentId), eq(NotificationType.FUNDS_TRANSFERRED),
+        verify(notificationService).notifyUser(eq(studentId), eq(Role.STUDENT), eq(NotificationType.FUNDS_TRANSFERRED),
                 eq("Pago acreditado. Tutor ausente"),
                 eq("Reembolsado $2.100 por la sesión del Martes 20/10."
                         + " El tutor no confirmó asistencia pero cumpliste tu parte."),
@@ -116,7 +117,7 @@ class FundsNotificationListenerTest {
                 new BigDecimal("2100.00"), new BigDecimal("2100.00"), null,
                 "Devolucion por sesion no realizada"));
 
-        verify(notificationService).notifyUser(eq(studentId), eq(NotificationType.FUNDS_TRANSFERRED),
+        verify(notificationService).notifyUser(eq(studentId), eq(Role.STUDENT), eq(NotificationType.FUNDS_TRANSFERRED),
                 eq("Pago acreditado. Sesión no realizada"),
                 eq("Reembolsado $2.100 por la sesión del Martes 20/10."),
                 eq(bookingId), eq("FUNDS_TRANSFERRED:Devolucion por sesion no realizada:" + bookingId));
@@ -130,11 +131,11 @@ class FundsNotificationListenerTest {
         listener.handleFundsTransferProcessed(new FundsTransferProcessedEvent(bookingId, FundsRecipient.TUTOR,
                 new BigDecimal("2100.00"), new BigDecimal("2100.00"), null, "concepto raro"));
 
-        verify(notificationService).notifyUser(eq(studentId), eq(NotificationType.FUNDS_TRANSFERRED),
+        verify(notificationService).notifyUser(eq(studentId), eq(Role.STUDENT), eq(NotificationType.FUNDS_TRANSFERRED),
                 eq("Pago procesado"),
                 eq("Se procesó una transferencia de $2.100: concepto raro."),
                 eq(bookingId), eq("FUNDS_TRANSFERRED:concepto raro:" + bookingId));
-        verify(notificationService).notifyUser(eq(tutorId), eq(NotificationType.FUNDS_TRANSFERRED),
+        verify(notificationService).notifyUser(eq(tutorId), eq(Role.TUTOR), eq(NotificationType.FUNDS_TRANSFERRED),
                 eq("Pago procesado"),
                 eq("Se procesó una transferencia de $2.100: concepto raro."),
                 eq(bookingId), eq("FUNDS_TRANSFERRED:concepto raro:" + bookingId));
@@ -147,12 +148,12 @@ class FundsNotificationListenerTest {
 
         listener.handleFundsSuspendedByClaim(new FundsSuspendedByClaimEvent(bookingId, UUID.randomUUID()));
 
-        verify(notificationService).notifyUser(eq(studentId), eq(NotificationType.FUNDS_SUSPENDED),
+        verify(notificationService).notifyUser(eq(studentId), eq(Role.STUDENT), eq(NotificationType.FUNDS_SUSPENDED),
                 eq("Fondos retenidos. Disputa activa"),
                 eq("Los fondos de la sesión con Carlos Lopez están retenidos hasta que se resuelva"
                         + " el reclamo activo."),
                 eq(bookingId), eq("FUNDS_SUSPENDED:" + bookingId));
-        verify(notificationService).notifyUser(eq(tutorId), eq(NotificationType.FUNDS_SUSPENDED),
+        verify(notificationService).notifyUser(eq(tutorId), eq(Role.TUTOR), eq(NotificationType.FUNDS_SUSPENDED),
                 eq("Fondos retenidos. Disputa activa"),
                 eq("Los fondos de la sesión con Ana Estudiante están retenidos hasta que se resuelva"
                         + " el reclamo activo."),
@@ -164,13 +165,13 @@ class FundsNotificationListenerTest {
     void failureOnOneRecipient_doesNotPropagate() {
         stubSnapshot();
         doThrow(new RuntimeException("database down"))
-                .when(notificationService).notifyUser(eq(studentId), any(NotificationType.class),
+                .when(notificationService).notifyUser(eq(studentId), any(), any(NotificationType.class),
                         anyString(), anyString(), eq(bookingId), anyString());
 
         listener.handleFundsTransferProcessed(new FundsTransferProcessedEvent(bookingId, FundsRecipient.TUTOR,
                 new BigDecimal("2100.00"), new BigDecimal("2100.00"), null, "concepto raro"));
 
-        verify(notificationService).notifyUser(eq(tutorId), eq(NotificationType.FUNDS_TRANSFERRED),
+        verify(notificationService).notifyUser(eq(tutorId), eq(Role.TUTOR), eq(NotificationType.FUNDS_TRANSFERRED),
                 anyString(), anyString(), eq(bookingId), anyString());
     }
 
@@ -182,7 +183,7 @@ class FundsNotificationListenerTest {
         listener.handleFundsTransferProcessed(new FundsTransferProcessedEvent(bookingId, FundsRecipient.TUTOR,
                 BigDecimal.TEN, BigDecimal.TEN, null, "concepto"));
 
-        verify(notificationService, never()).notifyUser(any(), any(), any(), any(), any(), any());
+        verify(notificationService, never()).notifyUser(any(), any(), any(), any(), any(), any(), any());
     }
 
     private void stubSnapshot() {
