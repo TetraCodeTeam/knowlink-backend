@@ -152,6 +152,9 @@ class BookingNotificationListenerTest {
                 eq("El tiempo para ingresar el código de la sesión con Ana Estudiante venció."
                         + " La reserva pasó al estado \"No confirmada\"."),
                 eq(bookingId), eq("SESSION_NOT_CONFIRMED:" + bookingId));
+
+        verify(notificationService, never()).notifyUser(any(), any(), eq(NotificationType.RATING_ENABLED),
+                any(), any(), any(), any(), any());
     }
 
     @Test

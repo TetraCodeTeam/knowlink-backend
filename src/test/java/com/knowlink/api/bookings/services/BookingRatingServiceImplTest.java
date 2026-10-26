@@ -290,6 +290,28 @@ class BookingRatingServiceImplTest {
         verify(ratingRepository, never()).saveAll(anyList());
     }
 
+    @Test
+    void notConfirmedBookingCannotBeRated() {
+        UUID bookingId = UUID.randomUUID();
+        User student = user();
+        User tutor = user();
+        Booking booking = Booking.builder()
+                .student(student)
+                .tutor(tutor)
+                .bookingStatus(BookingStatus.NOT_CONFIRMED)
+                .sessionDate(NOW.toLocalDate())
+                .endTime(LocalTime.NOON)
+                .build();
+        prepareBooking(bookingId, booking, List.of());
+
+        assertThrows(ValidationException.class, () -> bookingRatingService.submitRating(
+                student.getUserId(), bookingId, new CreateRatingRequest(5, null)));
+
+        verify(ratingRepository, never()).save(any(Rating.class));
+        verify(ratingRepository, never()).saveAll(anyList());
+        verify(applicationEventPublisher, never()).publishEvent(any(Object.class));
+    }
+
     private void prepareBooking(UUID bookingId, Booking booking, List<Rating> existingRatings) {
         when(bookingRepository.findByIdForUpdate(bookingId)).thenReturn(Optional.of(booking));
         if (booking.getBookingStatus() == BookingStatus.COMPLETED) {
