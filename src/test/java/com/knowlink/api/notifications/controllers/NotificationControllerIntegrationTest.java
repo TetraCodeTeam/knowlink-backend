@@ -253,12 +253,12 @@ class NotificationControllerIntegrationTest {
         notificationService.notifyAdmins(NotificationType.ADMIN_VALIDATION_REQUEST_PENDING, "Validación pendiente",
                 "Hay una solicitud de validación pendiente.", null, dedupeKey);
 
-        assertThat(notificationRepository.countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
-                activeAdminOne.getUserId(), Role.ADMIN)).isEqualTo(1L);
-        assertThat(notificationRepository.countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
-                activeAdminTwo.getUserId(), Role.ADMIN)).isEqualTo(1L);
-        assertThat(notificationRepository.countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
-                inactiveAdmin.getUserId(), Role.ADMIN)).isZero();
+        assertThat(notificationRepository.countUnreadVisibleByRecipient(
+                activeAdminOne.getUserId(), Role.ADMIN, LocalDateTime.now())).isEqualTo(1L);
+        assertThat(notificationRepository.countUnreadVisibleByRecipient(
+                activeAdminTwo.getUserId(), Role.ADMIN, LocalDateTime.now())).isEqualTo(1L);
+        assertThat(notificationRepository.countUnreadVisibleByRecipient(
+                inactiveAdmin.getUserId(), Role.ADMIN, LocalDateTime.now())).isZero();
     }
 
     @Test
@@ -353,6 +353,59 @@ class NotificationControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.count").value(1))
                 .andExpect(jsonPath("$.otherRoleCount").value(0));
+    }
+
+    @Test
+    @DisplayName("CP-07 - RATING_ENABLED informa actionStatus y las vencidas no cuentan como no leídas (CA 3, 4 y 7)")
+    void ratingEnabled_exposesActionStatusAndExcludesExpiredFromUnread() throws Exception {
+        User student = saveUser("Student Rating", Role.STUDENT, AccountStatus.ACTIVE);
+        LocalDateTime base = LocalDateTime.now();
+        Notification expired = seedRatingNotification(student, base.minusMinutes(8), base.minusMinutes(1), null);
+        Notification completed = seedRatingNotification(student, base.minusMinutes(9), base.plusHours(24),
+                base.minusMinutes(1));
+        Notification pending = seedRatingNotification(student, base.minusMinutes(10), base.plusHours(24), null);
+        String token = login(student);
+
+        mockMvc.perform(get("/api/v1/notifications")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(3))
+                .andExpect(jsonPath("$.content[0].notificationId").value(expired.getNotificationId().toString()))
+                .andExpect(jsonPath("$.content[0].actionStatus").value("EXPIRED"))
+                .andExpect(jsonPath("$.content[0].expiresAt").exists())
+                .andExpect(jsonPath("$.content[1].notificationId").value(completed.getNotificationId().toString()))
+                .andExpect(jsonPath("$.content[1].actionStatus").value("COMPLETED"))
+                .andExpect(jsonPath("$.content[2].notificationId").value(pending.getNotificationId().toString()))
+                .andExpect(jsonPath("$.content[2].actionStatus").value("PENDING"))
+                .andExpect(jsonPath("$.content[2].expiresAt").exists());
+
+        mockMvc.perform(get("/api/v1/notifications?status=UNREAD")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].notificationId").value(pending.getNotificationId().toString()));
+
+        mockMvc.perform(get("/api/v1/notifications/unread-count")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.count").value(1));
+    }
+
+    private Notification seedRatingNotification(User recipient, LocalDateTime createdAt, LocalDateTime expiresAt,
+            LocalDateTime resolvedAt) {
+        return notificationRepository.save(Notification.builder()
+                .recipient(recipient)
+                .recipientRole(recipient.getRole())
+                .type(NotificationType.RATING_ENABLED)
+                .title("Calificá tu sesión")
+                .message("Contanos cómo fue tu experiencia.")
+                .resourceId(UUID.randomUUID())
+                .dedupeKey(UUID.randomUUID().toString())
+                .expiresAt(expiresAt)
+                .resolvedAt(resolvedAt)
+                .createdAt(createdAt)
+                .readAt(resolvedAt)
+                .build());
     }
 
     private Notification seedNotification(User recipient, NotificationType type, String message,

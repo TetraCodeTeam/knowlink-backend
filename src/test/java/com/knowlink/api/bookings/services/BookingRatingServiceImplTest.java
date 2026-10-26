@@ -6,9 +6,11 @@ import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.ratings.data.mappers.RatingMapper;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
+import com.knowlink.api.ratings.events.RatingSubmittedEvent;
 import com.knowlink.api.ratings.services.implementations.RatingServiceImpl;
 import com.knowlink.api.bookings.validations.IBookingValidationService;
 import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
+import com.knowlink.api.exceptions.custom_exceptions.RatingWindowExpiredException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.ratings.data.models.Rating;
 import com.knowlink.api.ratings.repositories.IRatingRepository;
@@ -20,6 +22,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -57,6 +60,8 @@ class BookingRatingServiceImplTest {
     private IBookingValidationService bookingValidationService;
     @Mock
     private IRatingReputationService ratingReputationService;
+    @Mock
+    private ApplicationEventPublisher applicationEventPublisher;
     private RatingServiceImpl bookingRatingService;
 
     @BeforeEach
@@ -67,7 +72,8 @@ class BookingRatingServiceImplTest {
                 ratingReputationService,
                 bookingValidationService,
                 new RatingMapper(),
-                CLOCK);
+                CLOCK,
+                applicationEventPublisher);
     }
 
     @Test
@@ -115,7 +121,22 @@ class BookingRatingServiceImplTest {
     }
 
     @Test
-    void ratingAfterTwentyFourHoursIsImmediatelyVisible() {
+    void submittedRatingPublishesEventForTheRater() {
+        UUID bookingId = UUID.randomUUID();
+        User student = user();
+        User tutor = user();
+        Booking booking = completedBooking(student, tutor, NOW.minusHours(1));
+        prepareBooking(bookingId, booking, List.of());
+
+        bookingRatingService.submitRating(
+                student.getUserId(), bookingId, new CreateRatingRequest(4, null));
+
+        verify(applicationEventPublisher)
+                .publishEvent(eq(new RatingSubmittedEvent(bookingId, student.getUserId())));
+    }
+
+    @Test
+    void ratingAfterTwentyFourHoursIsRejected() {
         UUID bookingId = UUID.randomUUID();
         User student = user();
         User tutor = user();
@@ -123,12 +144,14 @@ class BookingRatingServiceImplTest {
         booking.setSessionDate(NOW.minusDays(2).toLocalDate());
         prepareBooking(bookingId, booking, List.of());
 
-        RatingResponse response = bookingRatingService.submitRating(
-                student.getUserId(), bookingId, new CreateRatingRequest(3, null));
+        RatingWindowExpiredException exception = assertThrows(RatingWindowExpiredException.class,
+                () -> bookingRatingService.submitRating(
+                        student.getUserId(), bookingId, new CreateRatingRequest(3, null)));
 
-        assertTrue(response.visible());
-        verify(ratingRepository).saveAll(anyList());
-        verify(ratingReputationService).refreshTutorAverages(anyList());
+        assertEquals("RATING_WINDOW_EXPIRED", exception.getErrorCode());
+        verify(ratingRepository, never()).save(any(Rating.class));
+        verify(ratingRepository, never()).saveAll(anyList());
+        verify(applicationEventPublisher, never()).publishEvent(any(Object.class));
     }
 
     @Test
@@ -141,8 +164,8 @@ class BookingRatingServiceImplTest {
         prepareBooking(bookingId, booking, List.of(existingRating));
 
         DuplicateResourceException exception = assertThrows(DuplicateResourceException.class,
-            () -> bookingRatingService.submitRating(
-                student.getUserId(), bookingId, new CreateRatingRequest(1, "Cambio")));
+                () -> bookingRatingService.submitRating(
+                        student.getUserId(), bookingId, new CreateRatingRequest(1, "Cambio")));
         assertEquals("RATING_ALREADY_SUBMITTED", exception.getErrorCode());
 
         verify(ratingRepository, never()).save(any(Rating.class));
@@ -150,7 +173,25 @@ class BookingRatingServiceImplTest {
     }
 
     @Test
-    void ratingAtExactTwentyFourHourBoundaryIsVisible() {
+    void duplicateTakesPrecedenceOverExpiredWindow() {
+        UUID bookingId = UUID.randomUUID();
+        User student = user();
+        User tutor = user();
+        Booking booking = completedBooking(student, tutor, NOW.minusHours(30));
+        booking.setSessionDate(NOW.minusDays(3).toLocalDate());
+        Rating existingRating = Rating.builder().raterUser(student).build();
+        prepareBooking(bookingId, booking, List.of(existingRating));
+
+        DuplicateResourceException exception = assertThrows(DuplicateResourceException.class,
+                () -> bookingRatingService.submitRating(
+                        student.getUserId(), bookingId, new CreateRatingRequest(2, null)));
+
+        assertEquals("RATING_ALREADY_SUBMITTED", exception.getErrorCode());
+        verify(ratingRepository, never()).save(any(Rating.class));
+    }
+
+    @Test
+    void ratingAtExactTwentyFourHourBoundaryIsAccepted() {
         UUID bookingId = UUID.randomUUID();
         User student = user();
         User tutor = user();
@@ -163,6 +204,7 @@ class BookingRatingServiceImplTest {
                 student.getUserId(), bookingId, new CreateRatingRequest(4, null));
 
         assertTrue(response.visible());
+        verify(applicationEventPublisher).publishEvent(any(Object.class));
     }
 
     @Test
@@ -187,13 +229,46 @@ class BookingRatingServiceImplTest {
         User student = user();
         User tutor = user();
         Booking booking = completedBooking(student, tutor, null);
+        booking.setSessionDate(NOW.toLocalDate());
+        booking.setEndTime(NOW.minusHours(1).toLocalTime());
+        prepareBooking(bookingId, booking, List.of());
+
+        RatingResponse response = bookingRatingService.submitRating(
+                student.getUserId(), bookingId, new CreateRatingRequest(4, null));
+
+        assertFalse(response.visible());
+    }
+
+    @Test
+    void expiredWindowWithoutConfirmedAtIsRejected() {
+        UUID bookingId = UUID.randomUUID();
+        User student = user();
+        User tutor = user();
+        Booking booking = completedBooking(student, tutor, null);
+        booking.setSessionDate(NOW.minusDays(2).toLocalDate());
+        prepareBooking(bookingId, booking, List.of());
+
+        assertThrows(RatingWindowExpiredException.class,
+                () -> bookingRatingService.submitRating(
+                        student.getUserId(), bookingId, new CreateRatingRequest(4, null)));
+
+        verify(ratingRepository, never()).save(any(Rating.class));
+    }
+
+    @Test
+    void confirmationAfterSessionEndMovesTheDeadline() {
+        UUID bookingId = UUID.randomUUID();
+        User student = user();
+        User tutor = user();
+        Booking booking = completedBooking(student, tutor, NOW.minusHours(23));
         booking.setSessionDate(NOW.minusDays(2).toLocalDate());
         prepareBooking(bookingId, booking, List.of());
 
         RatingResponse response = bookingRatingService.submitRating(
                 student.getUserId(), bookingId, new CreateRatingRequest(4, null));
 
-        assertTrue(response.visible());
+        assertFalse(response.visible());
+        verify(applicationEventPublisher).publishEvent(any(Object.class));
     }
 
     @Test
@@ -220,19 +295,19 @@ class BookingRatingServiceImplTest {
         if (booking.getBookingStatus() == BookingStatus.COMPLETED) {
             when(ratingRepository.findByBookingBookingId(bookingId)).thenReturn(existingRatings);
             LocalDateTime visibleBefore = NOW.minusHours(24);
-                LocalDateTime sessionEnd = LocalDateTime.of(booking.getSessionDate(), booking.getEndTime());
-                LocalDateTime deadlineStart = booking.getConfirmedAt() != null
+            LocalDateTime sessionEnd = LocalDateTime.of(booking.getSessionDate(), booking.getEndTime());
+            LocalDateTime deadlineStart = booking.getConfirmedAt() != null
                     && booking.getConfirmedAt().isAfter(sessionEnd)
-                        ? booking.getConfirmedAt()
-                        : sessionEnd;
-                boolean deadlineElapsed = !deadlineStart.plusHours(24).isAfter(NOW);
-                lenient().when(ratingRepository.isBlindReviewDeadlineElapsed(
-                eq(bookingId),
-                eq(BookingStatus.COMPLETED),
-                eq(visibleBefore),
-                eq(visibleBefore.toLocalDate()),
-                eq(visibleBefore.toLocalTime())))
-                .thenReturn(deadlineElapsed);
+                            ? booking.getConfirmedAt()
+                            : sessionEnd;
+            boolean deadlineElapsed = !deadlineStart.plusHours(24).isAfter(NOW);
+            lenient().when(ratingRepository.isBlindReviewDeadlineElapsed(
+                    eq(bookingId),
+                    eq(BookingStatus.COMPLETED),
+                    eq(visibleBefore),
+                    eq(visibleBefore.toLocalDate()),
+                    eq(visibleBefore.toLocalTime())))
+                    .thenReturn(deadlineElapsed);
         }
     }
 

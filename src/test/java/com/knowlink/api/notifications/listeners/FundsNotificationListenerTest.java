@@ -171,7 +171,7 @@ class FundsNotificationListenerTest {
     private void stubSnapshot() {
         BookingSnapshot snapshot = new BookingSnapshot(bookingId, studentId, tutorId,
                 "Ana Estudiante", "Carlos Lopez", "Sistemas Operativos",
-                LocalDate.of(2026, 10, 20), LocalTime.of(15, 0));
+                LocalDate.of(2026, 10, 20), LocalTime.of(15, 0), LocalTime.of(16, 0), null);
         when(bookingNotificationContext.loadSnapshot(bookingId)).thenReturn(Optional.of(snapshot));
     }
 }

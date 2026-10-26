@@ -21,6 +21,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -48,6 +49,7 @@ class BookingNotificationListenerTest {
     private final UUID bookingId = UUID.randomUUID();
     private final UUID studentId = UUID.randomUUID();
     private final UUID tutorId = UUID.randomUUID();
+    private static final LocalDateTime RATING_EXPIRES_AT = LocalDateTime.of(2026, 10, 21, 16, 0);
 
     private BookingSnapshot snapshot;
 
@@ -55,7 +57,8 @@ class BookingNotificationListenerTest {
     void setUp() {
         snapshot = new BookingSnapshot(bookingId, studentId, tutorId,
                 "Ana Estudiante", "Carlos Lopez", "Sistemas Operativos",
-                LocalDate.of(2026, 10, 20), LocalTime.of(15, 0));
+                LocalDate.of(2026, 10, 20), LocalTime.of(15, 0), LocalTime.of(16, 0),
+                LocalDateTime.of(2026, 10, 20, 15, 30));
     }
 
     @Test
@@ -169,13 +172,31 @@ class BookingNotificationListenerTest {
         verify(notificationService).notifyUser(eq(studentId), eq(Role.STUDENT), eq(NotificationType.RATING_ENABLED),
                 eq("Calificá tu sesión de Sistemas Operativos"),
                 eq("Contanos cómo fue tu experiencia con Carlos Lopez. Tenés 24 horas para calificar."),
-                eq(bookingId), eq("RATING_ENABLED:" + bookingId));
+                eq(bookingId), eq("RATING_ENABLED:" + bookingId), eq(RATING_EXPIRES_AT));
         verify(notificationService).notifyUser(eq(tutorId), eq(Role.TUTOR), eq(NotificationType.RATING_ENABLED),
                 eq("Calificá tu sesión de Sistemas Operativos"),
                 eq("Contanos cómo fue tu experiencia con Ana Estudiante. Tenés 24 horas para calificar."),
-                eq(bookingId), eq("RATING_ENABLED:" + bookingId));
+                eq(bookingId), eq("RATING_ENABLED:" + bookingId), eq(RATING_EXPIRES_AT));
     }
 
+
+    @Test
+    @DisplayName("Sesion confirmada sin materia - el titulo no imprime null")
+    void sessionConfirmed_withoutSubject_usesGenericTitle() {
+        BookingSnapshot withoutSubject = new BookingSnapshot(bookingId, studentId, tutorId,
+                "Ana Estudiante", "Carlos Lopez", null,
+                LocalDate.of(2026, 10, 20), LocalTime.of(15, 0), LocalTime.of(16, 0), null);
+        when(bookingNotificationContext.loadSnapshot(bookingId)).thenReturn(Optional.of(withoutSubject));
+
+        listener.handleSessionConfirmed(new SessionConfirmedEvent(bookingWithId()));
+
+        verify(notificationService).notifyUser(eq(studentId), eq(Role.STUDENT), eq(NotificationType.RATING_ENABLED),
+                eq("Calificá tu sesión"), anyString(), eq(bookingId), eq("RATING_ENABLED:" + bookingId),
+                any(LocalDateTime.class));
+        verify(notificationService).notifyUser(eq(tutorId), eq(Role.TUTOR), eq(NotificationType.RATING_ENABLED),
+                eq("Calificá tu sesión"), anyString(), eq(bookingId), eq("RATING_ENABLED:" + bookingId),
+                any(LocalDateTime.class));
+    }
     @Test
     @DisplayName("Sesion finalizada - ambas partes reciben el aviso de cierre")
     void sessionCompleted_notifiesBothParties() {
@@ -192,7 +213,7 @@ class BookingNotificationListenerTest {
                 eq("Si hubo algún inconveniente con la asistencia, tenés 24 horas para reclamar."),
                 eq(bookingId), eq("SESSION_COMPLETED:" + bookingId));
         verify(notificationService, never()).notifyUser(any(), any(), eq(NotificationType.RATING_ENABLED),
-                any(), any(), any(), any());
+                any(), any(), any(), any(), any());
     }
 
     @Test

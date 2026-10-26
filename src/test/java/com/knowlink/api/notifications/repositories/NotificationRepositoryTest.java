@@ -41,6 +41,8 @@ class NotificationRepositoryTest {
     @PersistenceContext
     private EntityManager entityManager;
 
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 20, 12, 0);
+
     private User recipient;
     private User otherRecipient;
 
@@ -107,8 +109,8 @@ class NotificationRepositoryTest {
         persistNotification(recipient, Role.STUDENT, base.plusMinutes(1), base.plusMinutes(2), "read");
         persistNotification(recipient, Role.TUTOR, base.plusMinutes(3), null, "other-role-unread");
 
-        Page<Notification> page = notificationRepository.findByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
-                recipient.getUserId(), Role.STUDENT, PageRequest.of(0, 10));
+        Page<Notification> page = notificationRepository.findUnreadVisibleByRecipient(
+                recipient.getUserId(), Role.STUDENT, NOW, PageRequest.of(0, 10));
 
         assertThat(page.getContent()).hasSize(1);
         assertThat(page.getContent().get(0).getNotificationId()).isEqualTo(unread.getNotificationId());
@@ -139,10 +141,10 @@ class NotificationRepositoryTest {
         persistNotification(recipient, Role.TUTOR, LocalDateTime.of(2026, 10, 20, 9, 3), null, "tutor-unread");
         persistNotification(otherRecipient, Role.TUTOR, LocalDateTime.of(2026, 10, 20, 9, 4), null, "other");
 
-        assertThat(notificationRepository.countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
-                recipient.getUserId(), Role.STUDENT)).isEqualTo(2L);
-        assertThat(notificationRepository.countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
-                recipient.getUserId(), Role.TUTOR)).isEqualTo(1L);
+        assertThat(notificationRepository.countUnreadVisibleByRecipient(
+                recipient.getUserId(), Role.STUDENT, NOW)).isEqualTo(2L);
+        assertThat(notificationRepository.countUnreadVisibleByRecipient(
+                recipient.getUserId(), Role.TUTOR, NOW)).isEqualTo(1L);
     }
 
     @Test
@@ -173,8 +175,8 @@ class NotificationRepositoryTest {
 
         assertThat(notificationRepository.existsByRecipient_UserIdAndDedupeKey(recipient.getUserId(), dedupeKey))
                 .isTrue();
-        assertThat(notificationRepository.countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
-                recipient.getUserId(), Role.STUDENT)).isEqualTo(3L);
+        assertThat(notificationRepository.countUnreadVisibleByRecipient(
+                recipient.getUserId(), Role.STUDENT, NOW)).isEqualTo(3L);
     }
 
     @Test
@@ -201,6 +203,63 @@ class NotificationRepositoryTest {
                 notification.getNotificationId(), otherRecipient.getUserId())).isEmpty();
     }
 
+
+    @Test
+    @DisplayName("Vencidas - el listado y el conteo UNREAD excluyen las RATING_ENABLED vencidas")
+    void unreadListingAndCount_excludeExpiredRatingNotifications() {
+        Notification active = persistNotification(recipient, Role.STUDENT,
+                LocalDateTime.of(2026, 10, 20, 9, 0), null, "active");
+        Notification ratingWithoutExpiry = persistRatingNotification(recipient, Role.STUDENT,
+                LocalDateTime.of(2026, 10, 20, 9, 1), null, UUID.randomUUID(), null);
+        Notification atBoundary = persistRatingNotification(recipient, Role.STUDENT,
+                LocalDateTime.of(2026, 10, 20, 9, 2), null, UUID.randomUUID(), NOW);
+        persistRatingNotification(recipient, Role.STUDENT,
+                LocalDateTime.of(2026, 10, 20, 9, 3), null, UUID.randomUUID(), NOW.minusMinutes(1));
+
+        Page<Notification> page = notificationRepository.findUnreadVisibleByRecipient(
+                recipient.getUserId(), Role.STUDENT, NOW, PageRequest.of(0, 10));
+
+        assertThat(page.getContent())
+                .extracting(Notification::getNotificationId)
+                .containsExactlyInAnyOrder(active.getNotificationId(),
+                        ratingWithoutExpiry.getNotificationId(), atBoundary.getNotificationId());
+        assertThat(notificationRepository.countUnreadVisibleByRecipient(
+                recipient.getUserId(), Role.STUDENT, NOW)).isEqualTo(3L);
+    }
+
+    @Test
+    @DisplayName("Resolución - encuentra la notificación por destinatario, tipo y recurso")
+    void findByRecipientTypeAndResource_filtersByOwnerTypeAndResource() {
+        UUID resourceId = UUID.randomUUID();
+        Notification rating = persistRatingNotification(recipient, Role.STUDENT,
+                LocalDateTime.of(2026, 10, 20, 9, 0), null, resourceId, NOW.plusHours(1));
+        persistRatingNotification(otherRecipient, Role.STUDENT,
+                LocalDateTime.of(2026, 10, 20, 9, 1), null, resourceId, NOW.plusHours(1));
+        persistRatingNotification(recipient, Role.STUDENT,
+                LocalDateTime.of(2026, 10, 20, 9, 2), null, UUID.randomUUID(), NOW.plusHours(1));
+
+        assertThat(notificationRepository.findByRecipient_UserIdAndTypeAndResourceId(
+                recipient.getUserId(), NotificationType.RATING_ENABLED, resourceId))
+                .map(Notification::getNotificationId)
+                .contains(rating.getNotificationId());
+        assertThat(notificationRepository.findByRecipient_UserIdAndTypeAndResourceId(
+                recipient.getUserId(), NotificationType.RATING_ENABLED, UUID.randomUUID())).isEmpty();
+    }
+    private Notification persistRatingNotification(User user, Role recipientRole, LocalDateTime createdAt,
+            LocalDateTime readAt, UUID resourceId, LocalDateTime expiresAt) {
+        Notification saved = notificationRepository.saveAndFlush(Notification.builder()
+                .recipient(user)
+                .recipientRole(recipientRole)
+                .type(NotificationType.RATING_ENABLED)
+                .message("rating")
+                .resourceId(resourceId)
+                .expiresAt(expiresAt)
+                .createdAt(createdAt)
+                .readAt(readAt)
+                .build());
+        entityManager.clear();
+        return saved;
+    }
     private User persistUser(String prefix, Role role) {
         return userRepository.saveAndFlush(User.builder()
                 .fullName("Repository User")
