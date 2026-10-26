@@ -3,6 +3,7 @@ package com.knowlink.api.payments.services;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.payments.data.models.FundsTransfer;
+import com.knowlink.api.payments.domain.FundsConcept;
 import com.knowlink.api.payments.domain.FundsRecipient;
 import com.knowlink.api.payments.domain.FundsStatus;
 import com.knowlink.api.payments.events.FundsSuspendedByClaimEvent;
@@ -111,7 +112,7 @@ class FundsLedgerServiceTest {
         assertThat(event.originalAmount()).isEqualByComparingTo("2100.00");
         assertThat(event.transferredAmount()).isEqualByComparingTo("2037.00");
         assertThat(event.retentionPercentage()).isEqualByComparingTo("3.00");
-        assertThat(event.concept()).isEqualTo("Liberacion por sesion completada");
+        assertThat(event.concept()).isEqualTo(FundsConcept.RELEASED_SESSION_COMPLETED);
     }
 
     @Test
@@ -126,7 +127,7 @@ class FundsLedgerServiceTest {
 
         ArgumentCaptor<FundsTransferProcessedEvent> captor = ArgumentCaptor.forClass(FundsTransferProcessedEvent.class);
         verify(applicationEventPublisher).publishEvent(captor.capture());
-        assertThat(captor.getValue().concept()).isEqualTo("Liberacion por alumno ausente");
+        assertThat(captor.getValue().concept()).isEqualTo(FundsConcept.RELEASED_STUDENT_ABSENT);
     }
 
     @Test
@@ -168,7 +169,7 @@ class FundsLedgerServiceTest {
         assertThat(event.originalAmount()).isEqualByComparingTo("2100.00");
         assertThat(event.transferredAmount()).isEqualByComparingTo("2100.00");
         assertThat(event.retentionPercentage()).isNull();
-        assertThat(event.concept()).isEqualTo("Devolucion por sesion no realizada");
+        assertThat(event.concept()).isEqualTo(FundsConcept.REFUNDED_SESSION_NOT_HELD);
     }
 
     @Test
@@ -182,7 +183,7 @@ class FundsLedgerServiceTest {
 
         ArgumentCaptor<FundsTransferProcessedEvent> captor = ArgumentCaptor.forClass(FundsTransferProcessedEvent.class);
         verify(applicationEventPublisher).publishEvent(captor.capture());
-        assertThat(captor.getValue().concept()).isEqualTo("Devolucion por tutor ausente");
+        assertThat(captor.getValue().concept()).isEqualTo(FundsConcept.REFUNDED_TUTOR_ABSENT);
     }
 
     @Test
@@ -200,7 +201,7 @@ class FundsLedgerServiceTest {
         assertThat(event.bookingId()).isEqualTo(bookingId);
         assertThat(event.originalAmount()).isEqualByComparingTo("2100.00");
         assertThat(event.transferredAmount()).isEqualByComparingTo("0");
-        assertThat(event.concept()).isEqualTo("Fondos retenidos para reserva");
+        assertThat(event.concept()).isEqualTo(FundsConcept.HELD);
     }
 
     private void injectRetention(BigDecimal retention) throws Exception {

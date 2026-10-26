@@ -1,5 +1,6 @@
 package com.knowlink.api.payments.events;
 
+import com.knowlink.api.payments.domain.FundsConcept;
 import com.knowlink.api.payments.domain.FundsRecipient;
 
 import java.math.BigDecimal;
@@ -11,5 +12,5 @@ public record FundsTransferProcessedEvent(
         BigDecimal originalAmount,
         BigDecimal transferredAmount,
         BigDecimal retentionPercentage,
-        String concept
+        FundsConcept concept
 ) {}

@@ -1,7 +1,8 @@
 -- =============================================
+-- Demo data only: replace the .test emails below with real users from your local database if needed.
 -- KnowLink - Seed: un ejemplo de cada tipo de notificacion (US-35)
--- Tutor : julianls783@gmail.com (Julián López Salvucci)
--- Alumno: test02.t02@gmail.com (Alumno test Apellido test)
+-- Tutor : tutor.demo@knowlink.test (Tutor Demo)
+-- Alumno: alumno.demo@knowlink.test (Alumno test Apellido test)
 -- Inserta 17 filas en user_notification por usuario (una por
 -- cada valor de NotificationType), con textos identicos a los
 -- que genera el backend desde la perspectiva de cada rol.
@@ -9,15 +10,15 @@
 -- unica por destinatario).
 -- =============================================
 
-SET @tutor_id = (SELECT user_id FROM users WHERE email = 'julianls783@gmail.com');
-SET @alumno_id = (SELECT user_id FROM users WHERE email = 'test02.t02@gmail.com');
+SET @tutor_id = (SELECT user_id FROM users WHERE email = 'tutor.demo@knowlink.test');
+SET @alumno_id = (SELECT user_id FROM users WHERE email = 'alumno.demo@knowlink.test');
 SET @tutor_role = 'TUTOR';
 SET @alumno_role = 'STUDENT';
 SET @booking_tutor = UNHEX(REPLACE('3f2504e0-4f89-11d3-9a0c-0305e82c3301', '-', ''));
 SET @booking_alumno = UNHEX(REPLACE('7c9e6679-7425-40de-944b-e07fc1f90ae7', '-', ''));
 
 -- =============================================
--- Seccion 1: Tutor (julianls783@gmail.com)
+-- Seccion 1: Tutor (tutor.demo@knowlink.test)
 -- =============================================
 
 INSERT IGNORE INTO user_notification
@@ -68,7 +69,7 @@ VALUES
   -- 8. Fondos acreditados al tutor por sesion completada (3% de retencion)
   (UNHEX(REPLACE(UUID(), '-', '')), @tutor_id, @tutor_role, 'FUNDS_TRANSFERRED', @booking_tutor,
    'Pago acreditado. Sesión completada',
-   'Recibiste $9.991 por la sesión de Física con Juan Perez. (3 de retención aplicada)',
+   'Recibiste $9.991,00 por la sesión de Física con Juan Perez. (3 de retención aplicada)',
    CONCAT('FUNDS_TRANSFERRED:Liberacion por sesion completada:', @booking_tutor),
    NOW() - INTERVAL 60 HOUR, NOW() - INTERVAL 58 HOUR),
 
@@ -127,7 +128,7 @@ VALUES
    CONCAT('MATERIAL_REPORT_UPDATE:', @booking_tutor), NOW() - INTERVAL 15 HOUR, NULL);
 
 -- =============================================
--- Seccion 2: Alumno (test02.t02@gmail.com)
+-- Seccion 2: Alumno (alumno.demo@knowlink.test)
 -- =============================================
 
 INSERT IGNORE INTO user_notification
@@ -142,25 +143,25 @@ VALUES
   -- 2. Reserva cancelada por el tutor (con reembolso)
   (UNHEX(REPLACE(UUID(), '-', '')), @alumno_id, @alumno_role, 'BOOKING_CANCELLED', @booking_alumno,
    'Clase cancelada por el tutor',
-   'Julián López Salvucci canceló la clase del Miércoles 22 de octubre. El alumno recibió el reembolso por política de cancelación.',
+   'Tutor Demo canceló la clase del Miércoles 22 de octubre. El alumno recibió el reembolso por política de cancelación.',
    CONCAT('BOOKING_CANCELLED:', @booking_alumno), NOW() - INTERVAL 150 HOUR, NOW() - INTERVAL 140 HOUR),
 
   -- 3. Recordatorio de token en clase en curso (variante alumno)
   (UNHEX(REPLACE(UUID(), '-', '')), @alumno_id, @alumno_role, 'SESSION_CONFIRMATION_REMINDER', @booking_alumno,
    'Recordatorio de token. Clase en curso',
-   'Tu clase de Física con Julián López Salvucci está en curso. Entregá el código al tutor para confirmar la sesión.',
+   'Tu clase de Física con Tutor Demo está en curso. Entregá el código al tutor para confirmar la sesión.',
    CONCAT('SESSION_CONFIRMATION_REMINDER:', @booking_alumno), NOW() - INTERVAL 130 HOUR, NOW() - INTERVAL 128 HOUR),
 
   -- 4. Sesion confirmada con codigo
   (UNHEX(REPLACE(UUID(), '-', '')), @alumno_id, @alumno_role, 'SESSION_CONFIRMED', @booking_alumno,
    'Sesión confirmada',
-   'La sesión de Física con Julián López Salvucci fue confirmada.',
+   'La sesión de Física con Tutor Demo fue confirmada.',
    CONCAT('SESSION_CONFIRMED:', @booking_alumno), NOW() - INTERVAL 125 HOUR, NOW() - INTERVAL 124 HOUR),
 
   -- 5. Token vencido, sesion no confirmada (variante alumno)
   (UNHEX(REPLACE(UUID(), '-', '')), @alumno_id, @alumno_role, 'SESSION_NOT_CONFIRMED', @booking_alumno,
    'Token vencido. Sesión no confirmada',
-   'El tiempo para ingresar el código de la sesión con Julián López Salvucci venció. La reserva pasó al estado "No confirmada".',
+   'El tiempo para ingresar el código de la sesión con Tutor Demo venció. La reserva pasó al estado "No confirmada".',
    CONCAT('SESSION_NOT_CONFIRMED:', @booking_alumno), NOW() - INTERVAL 110 HOUR, NOW() - INTERVAL 108 HOUR),
 
   -- 6. Sesion completada
@@ -172,20 +173,20 @@ VALUES
   -- 7. Habilitada calificacion (variante alumno)
   (UNHEX(REPLACE(UUID(), '-', '')), @alumno_id, @alumno_role, 'RATING_ENABLED', @booking_alumno,
    'Calificá tu sesión de Física',
-   'Contanos cómo fue tu experiencia con Julián López Salvucci. Tenés 24 horas para calificar.',
+   'Contanos cómo fue tu experiencia con Tutor Demo. Tenés 24 horas para calificar.',
    CONCAT('RATING_ENABLED:', @booking_alumno), NOW() - INTERVAL 69 HOUR, NOW() - INTERVAL 67 HOUR),
 
   -- 8. Pago del alumno con fondos retenidos (variante alumno)
   (UNHEX(REPLACE(UUID(), '-', '')), @alumno_id, @alumno_role, 'FUNDS_TRANSFERRED', @booking_alumno,
    'Pago realizado. Reserva realizada',
-   'Pagaste $10.300 por la sesión de Física con Julián López Salvucci. Los fondos quedarán retenidos hasta la finalización de la sesión.',
+   'Pagaste $10.300,00 por la sesión de Física con Tutor Demo. Los fondos quedarán retenidos hasta la finalización de la sesión.',
    CONCAT('FUNDS_TRANSFERRED:Fondos retenidos para reserva:', @booking_alumno),
    NOW() - INTERVAL 120 HOUR, NOW() - INTERVAL 118 HOUR),
 
   -- 9. Fondos suspendidos por reclamo activo (variante alumno)
   (UNHEX(REPLACE(UUID(), '-', '')), @alumno_id, @alumno_role, 'FUNDS_SUSPENDED', @booking_alumno,
    'Fondos retenidos. Disputa activa',
-   'Los fondos de la sesión con Julián López Salvucci están retenidos hasta que se resuelva el reclamo activo.',
+   'Los fondos de la sesión con Tutor Demo están retenidos hasta que se resuelva el reclamo activo.',
    CONCAT('FUNDS_SUSPENDED:', @booking_alumno), NOW() - INTERVAL 40 HOUR, NOW() - INTERVAL 38 HOUR),
 
   -- 10. Fondos liberados tras resolver el reclamo

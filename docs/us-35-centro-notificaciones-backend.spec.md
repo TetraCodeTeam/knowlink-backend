@@ -27,7 +27,7 @@ Una cuenta dual (STUDENT/TUTOR) comparte `userId`, por lo que el feed se separa 
 - `GET /notifications`, `GET /unread-count`, `GET /support/unread-count`, `PATCH /read-all` y el marcado masivo de soporte filtran por `principal.getUser().getRole()`.
 - `unread-count` devuelve `{ "count", "otherRoleCount" }`: `count` son las no leídas del rol activo y `otherRoleCount` las del otro rol STUDENT/TUTOR (0 para ADMIN).
 - `markAsRead` no cambia: sigue validando pertenencia por `recipient_user_id`.
-- No hay Flyway: antes de levantar la app con la nueva entidad se ejecuta `src/main/resources/migration-user-notification-recipient-role.sql` (`TRUNCATE TABLE user_notification;`). Las filas previas eran datos de prueba.
+- No hay Flyway: antes de desplegar se ejecuta `src/main/resources/migration-user-notification-recipient-role.sql`, que agrega `recipient_role`, hace backfill de las filas existentes (tipo administrativo, lado de la reserva o rol del destinatario) y recrea los índices. No borra notificaciones y no depende de `DDL_AUTO`.
 
 ---
 
@@ -141,7 +141,7 @@ Feature: Centro de notificaciones (API)
 ## Advertencias de dependencias (verificadas en el código)
 
 1. **IDs son `UUID`**, no `Long` (convención del proyecto; los specs viejos con `Long` no aplican).
-2. **No hay Flyway.** La tabla `user_notification` nace por `ddl-auto`; antes de desplegar con `recipient_role` se ejecuta `src/main/resources/migration-user-notification-recipient-role.sql` (`TRUNCATE TABLE user_notification;`). Confirmar `DDL_AUTO` en Render: si es `validate` o `none`, crear/ajustar la tabla a mano.
+2. **No hay Flyway.** La tabla `user_notification` nace por `ddl-auto`. Antes de desplegar con `recipient_role` se ejecuta `src/main/resources/migration-user-notification-recipient-role.sql`: agrega la columna como NULL, hace backfill, aplica NOT NULL y recrea los índices. Es idempotente, funciona con `DDL_AUTO=none`, `validate` o `update` y no borra filas.
 3. **Eventos que faltan.** No existe evento de "reserva creada" ni de "transferencia de fondos procesada". Se crean en esta historia (ver catálogo).
 4. **`BookingCancelledEvent` no informa quién canceló.** Se extiende con `cancelledByUserId`. Único publicador: `BookingCancellationServiceImpl` (~línea 95). Nota: su campo `tutorProfileId` en realidad recibe `booking.getTutor().getUserId()`; no tocarlo acá.
 5. **`SessionConfirmationTokenGeneratedEvent` lleva el token en claro (`rawToken`).** El listener de notificaciones **no debe** suscribirse a este evento ni persistir el token jamás.
@@ -208,7 +208,7 @@ Tabla `user_notification`.
 - `idx_user_notification_recipient_created` → `(recipient_user_id, recipient_role, created_at)` - listado por rol.
 - `idx_user_notification_recipient_read` → `(recipient_user_id, recipient_role, read_at)` - conteo por rol.
 - `uk_user_notification_recipient_dedupe` → único `(recipient_user_id, dedupe_key)` (MySQL permite varios `NULL`).
-- Migración: `src/main/resources/migration-user-notification-recipient-role.sql` trunca la tabla antes del despliegue; sin Flyway.
+- Migración: `src/main/resources/migration-user-notification-recipient-role.sql` agrega `recipient_role`, hace backfill por tipo/reserva/rol y recrea los índices; no borra filas y es idempotente.
 
 ---
 
@@ -256,7 +256,7 @@ com.knowlink.api.payments.events
 
 Todos los listeners: `@Async("taskExecutor")` + `@TransactionalEventListener(phase = AFTER_COMMIT)`, `try/catch` que **solo loguea** (`log.error`), nunca relanza. Como los eventos de bookings llevan la entidad `Booking` ya cargada, **no** acceder a relaciones LAZY sin cargarlas: re-leer la reserva por `bookingId` dentro de un método `@Transactional(readOnly = true)` (o usar un fetch join) antes de leer `student` / `tutor` / nombres.
 
-Fechas en mensajes: `dd/MM/yyyy` y `HH:mm`. Montos: `NumberFormat.getCurrencyInstance(Locale.forLanguageTag("es-AR"))`.
+Fechas en mensajes: `dd/MM/yyyy` y `HH:mm`. Montos: `NotificationTextFormats.amount` con `DecimalFormat("#,##0.00", es-AR)`: siempre dos decimales (`$323,10`, `$2.100,00`).
 
 | Evento origen | Destinatarios | Tipo | Mensaje (ejemplo) | `referenceId` | `dedupeKey` |
 |---|---|---|---|---|---|
@@ -268,7 +268,7 @@ Fechas en mensajes: `dd/MM/yyyy` y `HH:mm`. Montos: `NumberFormat.getCurrencyIns
 | | alumno | `SESSION_CONFIRMATION_REMINDER` | "Recordá compartir tu código de confirmación con {tutor}." | bookingId | idem |
 | `SessionNotConfirmedEvent` | ambos | `SESSION_NOT_CONFIRMED` | "La clase del {fecha} no fue confirmada." | bookingId | `SESSION_NOT_CONFIRMED:{bookingId}` |
 | `SessionCompletionNotificationEvent` | ambos | `SESSION_COMPLETED` | "La clase del {fecha} finalizó. Si hubo algún problema, podés hacer un reclamo." | bookingId | `SESSION_COMPLETED:{bookingId}` |
-| `FundsTransferProcessedEvent` (nuevo) | ambos | `FUNDS_TRANSFERRED` | "Se procesó una transferencia de {monto}: {concepto}." | bookingId | `FUNDS_TRANSFERRED:{bookingId}` |
+| `FundsTransferProcessedEvent` (nuevo) | ambos | `FUNDS_TRANSFERRED` | "Se procesó una transferencia de {monto}: {concepto}." | bookingId | `FUNDS_TRANSFERRED:{concepto}:{bookingId}` |
 
 > El reparto tutor/alumno del recordatorio sale de `BookingServiceImpl.confirmSession` (lo ejecuta el tutor) y `getConfirmationToken` (lo consulta el alumno). **Confirmar contra el spec de US-41** antes de fijar los textos; el contrato (tipo + ambos destinatarios + dedupe) no cambia.
 
@@ -277,11 +277,13 @@ Fechas en mensajes: `dd/MM/yyyy` y `HH:mm`. Montos: `NumberFormat.getCurrencyIns
 public record FundsTransferProcessedEvent(
         UUID bookingId,
         FundsRecipient recipient,
+        BigDecimal originalAmount,
         BigDecimal transferredAmount,
-        String concept
+        BigDecimal retentionPercentage,
+        FundsConcept concept
 ) {}
 ```
-`BookingCreatedEvent`: `public record BookingCreatedEvent(UUID bookingId) {}`.
+`BookingCreatedEvent`: `public record BookingCreatedEvent(UUID bookingId) {}`. `FundsConcept` (`payments/domain`) es el enum con el que se elige el mensaje; su `label()` se persiste en `funds_transfer.concept`. Los listeners hacen `switch` sobre el enum y nunca comparan el texto del concepto.
 
 ### Tipos que conectan otras historias (no implementar acá)
 
@@ -427,9 +429,9 @@ Errores en formato del proyecto: `{ "status": 404, "message": "La notificación 
 - [x] Las notificaciones se crean con el rol de la rama de origen (reserva/fondos/soporte) y ADMIN para administradores
 - [x] `unread-count` devuelve `count` del rol activo y `otherRoleCount` del otro rol STUDENT/TUTOR (0 para ADMIN)
 - [x] Tests de separación por rol y cuenta dual (CP-06) en service, repository e integración
-- [x] Script de truncado en `src/main/resources` y seed con `recipient_role`
+- [x] Migración idempotente en `src/main/resources` (agrega `recipient_role`, backfill sin borrar filas) y seeds anonimizados en `docs/seeds/`
 - [ ] `Notification`, `NotificationType`, repository, mapper, service (interface + impl), controller (interface + impl) y responses creados con la estructura del módulo
-- [ ] Índices y restricción única definidos en la entidad; confirmado el valor de `DDL_AUTO` en Render
+- [x] Índices y restricción única definidos en la entidad; la migración crea el esquema sin depender de `DDL_AUTO`
 - [ ] `BookingCreatedEvent` y `FundsTransferProcessedEvent` creados y publicados desde sus puntos de origen
 - [ ] `BookingCancelledEvent` extendido con `cancelledByUserId` y publicador actualizado (sin romper compilación de otros usos)
 - [ ] `BookingNotificationListener` y `FundsNotificationListener` cubren los 6 tipos del catálogo, ambos destinatarios, mensajes en español

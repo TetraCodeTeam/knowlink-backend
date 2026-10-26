@@ -1,14 +1,15 @@
 -- =============================================
+-- Demo data only: replace the .test emails below with real users from your local database if needed.
 -- KnowLink - Seed: clase terminada reclamable (US-51)
--- Alumno: test02.t02@gmail.com
--- Tutor : julianls783@gmail.com
+-- Alumno: alumno.demo@knowlink.test
+-- Tutor : tutor.demo@knowlink.test
 -- La clase ya finalizo por horario hoy y nunca se
 -- confirmo con codigo, por lo que el alumno puede
 -- reclamarla durante 24 h desde su hora de fin.
 -- =============================================
 
-SET @alumno_id = (SELECT user_id FROM users WHERE email = 'test02.t02@gmail.com');
-SET @tutor_id = (SELECT user_id FROM users WHERE email = 'julianls783@gmail.com');
+SET @alumno_id = (SELECT user_id FROM users WHERE email = 'alumno.demo@knowlink.test');
+SET @tutor_id = (SELECT user_id FROM users WHERE email = 'tutor.demo@knowlink.test');
 SET @tutor_profile_id = (SELECT tutor_profile_id FROM tutor_profile WHERE user_id = @tutor_id);
 -- materia ofertada del tutor (la de menor precio: Fisica, 10000/h)
 SET @tutor_subject_id = (SELECT tutor_subject_id
@@ -45,7 +46,7 @@ INSERT INTO booking (booking_id, created_at, amount, session_date, start_time, e
                      student_id, tutor_id)
 SELECT @booking_id, NOW(6), 10300.00, @sesion_fecha, @hora_inicio, @hora_fin,
        'Resolucion de ejercicios de Fisica', 'VIRTUAL',
-       'https://meet.jit.si/knowlink-fisica-test02', NULL, NULL, 0, NULL, NULL, b'0',
+       'https://meet.jit.si/knowlink-fisica-demo', NULL, NULL, 0, NULL, NULL, b'0',
        'BOOKED', @slot_id, @tutor_subject_id, @alumno_id, @tutor_id
 WHERE @ya_existe = 0;
 

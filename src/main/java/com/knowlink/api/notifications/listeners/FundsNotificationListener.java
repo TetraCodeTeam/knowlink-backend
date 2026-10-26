@@ -20,11 +20,6 @@ import java.util.UUID;
 @Slf4j
 public class FundsNotificationListener {
 
-    private static final String CONCEPT_HELD = "Fondos retenidos para reserva";
-    private static final String CONCEPT_RELEASE_COMPLETED = "Liberacion por sesion completada";
-    private static final String CONCEPT_RELEASE_ABSENT_STUDENT = "Liberacion por alumno ausente";
-    private static final String CONCEPT_REFUND_ABSENT_TUTOR = "Devolucion por tutor ausente";
-    private static final String CONCEPT_REFUND_NOT_HELD = "Devolucion por sesion no realizada";
 
     private final INotificationService notificationService;
     private final BookingNotificationContext bookingNotificationContext;
@@ -37,35 +32,35 @@ public class FundsNotificationListener {
                     .orElseThrow(() -> new IllegalStateException("Booking not found: " + event.bookingId()));
 
             switch (event.concept()) {
-                case CONCEPT_HELD -> notifyQuietly(snapshot.studentUserId(), Role.STUDENT,
+                case HELD -> notifyQuietly(snapshot.studentUserId(), Role.STUDENT,
                         NotificationType.FUNDS_TRANSFERRED,
                         "Pago realizado. Reserva realizada",
                         "Pagaste " + NotificationTextFormats.amount(event.originalAmount()) + " por la sesión de "
                                 + snapshot.subjectName() + " con " + snapshot.tutorName()
                                 + ". Los fondos quedarán retenidos hasta la finalización de la sesión.",
                         event);
-                case CONCEPT_RELEASE_COMPLETED -> notifyQuietly(snapshot.tutorUserId(), Role.TUTOR,
+                case RELEASED_SESSION_COMPLETED -> notifyQuietly(snapshot.tutorUserId(), Role.TUTOR,
                         NotificationType.FUNDS_TRANSFERRED,
                         "Pago acreditado. Sesión completada",
                         "Recibiste " + NotificationTextFormats.amount(event.transferredAmount())
                                 + " por la sesión de " + snapshot.subjectName() + " con " + snapshot.studentName()
                                 + ". (" + retentionLabel(event) + "% de retención aplicada)",
                         event);
-                case CONCEPT_RELEASE_ABSENT_STUDENT -> notifyQuietly(snapshot.tutorUserId(), Role.TUTOR,
+                case RELEASED_STUDENT_ABSENT -> notifyQuietly(snapshot.tutorUserId(), Role.TUTOR,
                         NotificationType.FUNDS_TRANSFERRED,
                         "Pago acreditado. Alumno ausente",
                         "Recibiste " + NotificationTextFormats.amount(event.transferredAmount())
                                 + " por la sesión del " + snapshot.formattedDateWithWeekday()
                                 + ". El alumno no confirmó asistencia pero cumpliste tu parte.",
                         event);
-                case CONCEPT_REFUND_ABSENT_TUTOR -> notifyQuietly(snapshot.studentUserId(), Role.STUDENT,
+                case REFUNDED_TUTOR_ABSENT -> notifyQuietly(snapshot.studentUserId(), Role.STUDENT,
                         NotificationType.FUNDS_TRANSFERRED,
                         "Pago acreditado. Tutor ausente",
                         "Reembolsado " + NotificationTextFormats.amount(event.transferredAmount())
                                 + " por la sesión del " + snapshot.formattedDateWithWeekday()
                                 + ". El tutor no confirmó asistencia pero cumpliste tu parte.",
                         event);
-                case CONCEPT_REFUND_NOT_HELD -> notifyQuietly(snapshot.studentUserId(), Role.STUDENT,
+                case REFUNDED_SESSION_NOT_HELD -> notifyQuietly(snapshot.studentUserId(), Role.STUDENT,
                         NotificationType.FUNDS_TRANSFERRED,
                         "Pago acreditado. Sesión no realizada",
                         "Reembolsado " + NotificationTextFormats.amount(event.transferredAmount())
@@ -73,7 +68,7 @@ public class FundsNotificationListener {
                         event);
                 default -> {
                     String message = "Se procesó una transferencia de "
-                            + NotificationTextFormats.amount(event.transferredAmount()) + ": " + event.concept()
+                            + NotificationTextFormats.amount(event.transferredAmount()) + ": " + event.concept().label()
                             + ".";
                     notifyQuietly(snapshot.studentUserId(), Role.STUDENT, NotificationType.FUNDS_TRANSFERRED,
                             "Pago procesado", message, event);
@@ -128,7 +123,7 @@ public class FundsNotificationListener {
 
     private void notifyQuietly(UUID recipientUserId, Role recipientRole, NotificationType type, String title,
                                String message, FundsTransferProcessedEvent event) {
-        String dedupeKey = type.name() + ":" + event.concept() + ":" + event.bookingId();
+        String dedupeKey = type.name() + ":" + event.concept().label() + ":" + event.bookingId();
         notifyQuietly(recipientUserId, recipientRole, type, title, message, event.bookingId(), dedupeKey);
     }
 }

@@ -36,6 +36,6 @@ public final class NotificationTextFormats {
 
     public static String amount(BigDecimal amount) {
         DecimalFormatSymbols symbols = DecimalFormatSymbols.getInstance(new Locale("es", "AR"));
-        return "$" + new DecimalFormat("#,##0.##", symbols).format(amount);
+        return "$" + new DecimalFormat("#,##0.00", symbols).format(amount);
     }
 }

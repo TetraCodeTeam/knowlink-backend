@@ -12,22 +12,22 @@ import static org.assertj.core.api.Assertions.assertThat;
 class NotificationTextFormatsTest {
 
     @Test
-    @DisplayName("Monto entero - agrupa los miles con el formato es-AR")
+    @DisplayName("Monto entero - agrupa los miles y agrega dos decimales")
     void amount_wholeNumber_groupsThousands() {
-        assertThat(NotificationTextFormats.amount(new BigDecimal("2100"))).isEqualTo("$2.100");
+        assertThat(NotificationTextFormats.amount(new BigDecimal("2100"))).isEqualTo("$2.100,00");
     }
 
     @Test
-    @DisplayName("Monto con centavos - conserva hasta dos decimales")
+    @DisplayName("Monto con centavos - completa o redondea a dos decimales")
     void amount_withDecimals_keepsCents() {
-        assertThat(NotificationTextFormats.amount(new BigDecimal("1234.5"))).isEqualTo("$1.234,5");
+        assertThat(NotificationTextFormats.amount(new BigDecimal("1234.5"))).isEqualTo("$1.234,50");
         assertThat(NotificationTextFormats.amount(new BigDecimal("1234.567"))).isEqualTo("$1.234,57");
     }
 
     @Test
-    @DisplayName("Monto cero - sin decimales")
+    @DisplayName("Monto cero - muestra dos decimales")
     void amount_zero() {
-        assertThat(NotificationTextFormats.amount(BigDecimal.ZERO)).isEqualTo("$0");
+        assertThat(NotificationTextFormats.amount(BigDecimal.ZERO)).isEqualTo("$0,00");
     }
 
     @Test
