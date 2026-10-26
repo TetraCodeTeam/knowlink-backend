@@ -4,6 +4,7 @@ import com.knowlink.api.notifications.data.enums.NotificationType;
 import com.knowlink.api.notifications.utils.NotificationTextFormats;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.UUID;
 
@@ -15,7 +16,9 @@ public record BookingSnapshot(
         String tutorName,
         String subjectName,
         LocalDate sessionDate,
-        LocalTime startTime) {
+        LocalTime startTime,
+        LocalTime endTime,
+        LocalDateTime confirmedAt) {
 
     public String formattedDate() {
         return NotificationTextFormats.date(sessionDate);

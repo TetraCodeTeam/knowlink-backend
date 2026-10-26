@@ -36,6 +36,9 @@ import com.knowlink.api.students.repositories.IStudentProfileRepository;
 import com.knowlink.api.students.data.models.StudentProfile;
 import com.knowlink.api.bookings.events.BookingCreatedEvent;
 import com.knowlink.api.payments.services.FundsLedgerService;
+import com.knowlink.api.ratings.data.enums.RatingStatus;
+import com.knowlink.api.ratings.repositories.IRatingRepository;
+import com.knowlink.api.ratings.utils.RatingWindow;
 import com.knowlink.api.bookings.events.SessionConfirmedEvent;
 
 import lombok.RequiredArgsConstructor;
@@ -49,6 +52,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -75,6 +79,8 @@ public class BookingServiceImpl implements IBookingService {
         private final IStudentProfileRepository studentProfileRepository;
         private final ISessionClaimService sessionClaimService;
         private final FundsLedgerService fundsLedgerService;
+        private final IRatingRepository ratingRepository;
+        private final Clock clock;
 
         @Override
         @Transactional
@@ -216,7 +222,10 @@ public class BookingServiceImpl implements IBookingService {
                 bookingValidationService.validateOwnership(booking, userId);
 
                 String otherPartyProfilePictureUrl = resolveOtherPartyProfilePicture(booking, userId);
-                return bookingMapper.toDetail(booking, userId, otherPartyProfilePictureUrl);
+                LocalDateTime ratingDeadline = resolveRatingDeadline(booking);
+                RatingStatus ratingStatus = resolveRatingStatus(booking, userId, ratingDeadline);
+                return bookingMapper.toDetail(booking, userId, otherPartyProfilePictureUrl, ratingStatus,
+                                ratingDeadline);
         }
 
         @Override
@@ -231,7 +240,30 @@ public class BookingServiceImpl implements IBookingService {
                 // acá el viewer siempre es el tutor (la validación de arriba lo exige), así que
                 // la otra parte siempre es el alumno
                 String otherPartyProfilePictureUrl = resolveOtherPartyProfilePicture(booking, tutorUserId);
-                return bookingMapper.toDetail(booking, tutorUserId, otherPartyProfilePictureUrl);
+                LocalDateTime ratingDeadline = resolveRatingDeadline(booking);
+                RatingStatus ratingStatus = resolveRatingStatus(booking, tutorUserId, ratingDeadline);
+                return bookingMapper.toDetail(booking, tutorUserId, otherPartyProfilePictureUrl, ratingStatus,
+                                ratingDeadline);
+        }
+
+        private LocalDateTime resolveRatingDeadline(Booking booking) {
+                if (booking.getBookingStatus() != BookingStatus.COMPLETED) {
+                        return null;
+                }
+                return RatingWindow.deadline(booking.getSessionDate(), booking.getEndTime(),
+                                booking.getConfirmedAt());
+        }
+
+        private RatingStatus resolveRatingStatus(Booking booking, UUID userId, LocalDateTime ratingDeadline) {
+                if (booking.getBookingStatus() != BookingStatus.COMPLETED) {
+                        return RatingStatus.NOT_AVAILABLE;
+                }
+                if (ratingRepository.existsByBooking_BookingIdAndRaterUser_UserId(booking.getBookingId(), userId)) {
+                        return RatingStatus.SUBMITTED;
+                }
+                return RatingWindow.isOpen(ratingDeadline, LocalDateTime.now(clock))
+                                ? RatingStatus.PENDING
+                                : RatingStatus.EXPIRED;
         }
 
         private String resolveOtherPartyProfilePicture(Booking booking, UUID viewerUserId) {

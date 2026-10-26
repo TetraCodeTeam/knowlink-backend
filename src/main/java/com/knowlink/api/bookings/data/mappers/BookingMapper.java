@@ -6,6 +6,7 @@ import com.knowlink.api.bookings.controllers.responses.BookingResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryItemResponse;
 import com.knowlink.api.bookings.controllers.responses.BookingHistoryDetailResponse;
 import com.knowlink.api.bookings.data.models.Hold;
+import com.knowlink.api.ratings.data.enums.RatingStatus;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.tutors.data.enums.Modality;
@@ -83,7 +84,8 @@ public class BookingMapper {
         }
 
         public BookingHistoryDetailResponse toDetail(Booking booking, UUID viewerUserId,
-                        String otherPartyProfilePictureUrl) {
+                        String otherPartyProfilePictureUrl, RatingStatus ratingStatus,
+                        LocalDateTime ratingDeadline) {
                 OtherParty otherParty = resolveOtherParty(booking, viewerUserId);
                 boolean isVirtual = booking.getModality() == Modality.VIRTUAL;
 
@@ -102,7 +104,9 @@ public class BookingMapper {
                                 isVirtual ? booking.getVirtualSessionLink() : null,
                                 isVirtual ? null : booking.getTutorSubject().getTutorProfile().getAddress(),
                                 booking.getCreatedAt(),
-                                booking.getConfirmationTokenExpiration());
+                                booking.getConfirmationTokenExpiration(),
+                                ratingStatus,
+                                ratingDeadline);
         }
 
         private OtherParty resolveOtherParty(Booking booking, UUID viewerUserId) {

@@ -26,9 +26,11 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -51,6 +53,7 @@ public class NotificationServiceImpl implements INotificationService {
     private final IUserRepository userRepository;
     private final NotificationMapper notificationMapper;
     private final PlatformTransactionManager transactionManager;
+    private final Clock clock;
 
     @Override
     @Transactional
@@ -79,9 +82,15 @@ public class NotificationServiceImpl implements INotificationService {
     @Override
     public void notifyUser(UUID recipientUserId, Role recipientRole, NotificationType type, String title,
                            String message, UUID referenceId, String dedupeKey) {
+        notifyUser(recipientUserId, recipientRole, type, title, message, referenceId, dedupeKey, null);
+    }
+
+    @Override
+    public void notifyUser(UUID recipientUserId, Role recipientRole, NotificationType type, String title,
+                           String message, UUID referenceId, String dedupeKey, LocalDateTime expiresAt) {
         notifyTransactionTemplate().executeWithoutResult(status ->
                 createNotification(findRecipient(recipientUserId), recipientRole, type, title, message, referenceId,
-                        dedupeKey));
+                        dedupeKey, expiresAt));
     }
 
     @Override
@@ -95,7 +104,8 @@ public class NotificationServiceImpl implements INotificationService {
         admins.forEach(admin -> {
             try {
                 notifyTransactionTemplate().executeWithoutResult(status ->
-                        createNotification(admin, Role.ADMIN, type, title, message, referenceId, dedupeKey));
+                        createNotification(admin, Role.ADMIN, type, title, message, referenceId, dedupeKey,
+                                null));
             } catch (RuntimeException e) {
                 log.error("Failed to create notification {} for admin {}", type, admin.getUserId(), e);
             }
@@ -119,7 +129,7 @@ public class NotificationServiceImpl implements INotificationService {
 
         Page<Notification> notifications = switch (readFilter) {
             case UNREAD -> notificationRepository
-                    .findByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(userId, activeRole, safePageable);
+                    .findUnreadVisibleByRecipient(userId, activeRole, LocalDateTime.now(clock), safePageable);
             case READ -> notificationRepository
                     .findByRecipient_UserIdAndRecipientRoleAndReadAtIsNotNull(userId, activeRole, safePageable);
             case ALL -> notificationRepository
@@ -132,11 +142,12 @@ public class NotificationServiceImpl implements INotificationService {
     @Override
     @Transactional(readOnly = true)
     public UnreadCountResponse getUnreadCount(UUID userId, Role activeRole) {
+        LocalDateTime now = LocalDateTime.now(clock);
         long count = notificationRepository
-                .countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(userId, activeRole);
+                .countUnreadVisibleByRecipient(userId, activeRole, now);
         Role otherRole = otherRoleOf(activeRole);
         long otherRoleCount = otherRole == null ? 0L : notificationRepository
-                .countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(userId, otherRole);
+                .countUnreadVisibleByRecipient(userId, otherRole, now);
         return new UnreadCountResponse(count, otherRoleCount);
     }
 
@@ -203,7 +214,8 @@ public class NotificationServiceImpl implements INotificationService {
     }
 
     private void createNotification(User recipient, Role recipientRole, NotificationType type, String title,
-                                    String message, UUID referenceId, String dedupeKey) {
+                                    String message, UUID referenceId, String dedupeKey,
+                                    LocalDateTime expiresAt) {
         UUID recipientUserId = recipient.getUserId();
         try {
             if (dedupeKey != null
@@ -221,6 +233,7 @@ public class NotificationServiceImpl implements INotificationService {
                     .message(message)
                     .resourceId(referenceId)
                     .dedupeKey(dedupeKey)
+                    .expiresAt(expiresAt)
                     .createdAt(LocalDateTime.now(AppTimeZone.ZONE))
                     .build();
             notificationRepository.saveAndFlush(notification);
@@ -232,6 +245,24 @@ public class NotificationServiceImpl implements INotificationService {
             log.debug("Duplicated notification {} for user {} with key {} skipped by unique constraint", type,
                     recipientUserId, dedupeKey);
         }
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void resolveNotification(UUID recipientUserId, NotificationType type, UUID resourceId) {
+        notificationRepository.findByRecipient_UserIdAndTypeAndResourceId(recipientUserId, type, resourceId)
+                .ifPresentOrElse(notification -> {
+                    if (notification.getResolvedAt() == null) {
+                        LocalDateTime now = LocalDateTime.now(clock);
+                        notification.setResolvedAt(now);
+                        if (notification.getReadAt() == null) {
+                            notification.setReadAt(now);
+                        }
+                        notificationRepository.save(notification);
+                    }
+                }, () -> log.debug(
+                        "No notification {} for user {} and resource {} to resolve",
+                        type, recipientUserId, resourceId));
     }
 
     private Role otherRoleOf(Role activeRole) {
