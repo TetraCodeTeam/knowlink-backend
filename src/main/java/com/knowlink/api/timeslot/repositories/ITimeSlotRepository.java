@@ -80,6 +80,13 @@ public interface ITimeSlotRepository extends JpaRepository<TimeSlot, UUID> {
                         @Param("today") LocalDate today,
                         @Param("nowTime") LocalTime nowTime);
 
+        @Query("""
+                        SELECT ts FROM TimeSlot ts
+                        WHERE (ts.date < :today OR (ts.date = :today AND ts.endTime <= :nowTime))
+                        AND NOT EXISTS (SELECT 1 FROM Booking b WHERE b.timeSlot = ts)
+                        """)
+        List<TimeSlot> findPastUnbooked(@Param("today") LocalDate today, @Param("nowTime") LocalTime nowTime);
+
         @Modifying
         @Query("""
                         DELETE FROM TimeSlot ts
