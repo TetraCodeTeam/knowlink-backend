@@ -5,6 +5,7 @@ import com.knowlink.api.bookings.events.BookingCancelledEvent;
 import com.knowlink.api.bookings.events.BookingCreatedEvent;
 import com.knowlink.api.bookings.events.SessionCompletionNotificationEvent;
 import com.knowlink.api.bookings.events.SessionConfirmationReminderEvent;
+import com.knowlink.api.bookings.events.SessionConfirmationTokenGeneratedEvent;
 import com.knowlink.api.bookings.events.SessionConfirmedEvent;
 import com.knowlink.api.bookings.events.SessionNotConfirmedEvent;
 import com.knowlink.api.notifications.data.enums.NotificationType;
@@ -47,6 +48,21 @@ public class BookingNotificationListener {
 
     @Async("taskExecutor")
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void handleSessionConfirmationTokenGenerated(SessionConfirmationTokenGeneratedEvent event) {
+        // The raw token is never read here: it must stay private to the student and it is
+        // delivered only through the confirmation-token endpoint.
+        withSnapshot(event.booking().getBookingId(), snapshot ->
+                notifyQuietly(snapshot.studentUserId(), Role.STUDENT,
+                        NotificationType.SESSION_CONFIRMATION_TOKEN_AVAILABLE,
+                        "Código de confirmación disponible",
+                        "Tu clase de " + snapshot.subjectName() + " con " + snapshot.tutorName()
+                                + " empieza a las " + snapshot.formattedTime()
+                                + ". Ya podés ver el código en el detalle de la clase para compartirlo con tu tutor.",
+                        snapshot));
+    }
+
+    @Async("taskExecutor")
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleBookingCancelled(BookingCancelledEvent event) {
         withSnapshot(event.bookingId(), snapshot -> {
             if (event.cancelledByUserId() == null) {
@@ -84,16 +100,21 @@ public class BookingNotificationListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleSessionConfirmationReminder(SessionConfirmationReminderEvent event) {
         withSnapshot(event.booking().getBookingId(), snapshot -> {
+            // Every reminder is a new notification: the timestamp keeps the per-recipient
+            // dedupe from swallowing the next 10-minute reminder of the same booking.
+            String dedupeKey = NotificationType.SESSION_CONFIRMATION_REMINDER.name() + ":"
+                    + snapshot.bookingId() + ":" + event.reminderAt();
+
             notifyQuietly(snapshot.tutorUserId(), Role.TUTOR, NotificationType.SESSION_CONFIRMATION_REMINDER,
                     "Recordatorio de token. Clase en curso",
                     "Tu clase de " + snapshot.subjectName() + " con " + snapshot.studentName()
                             + " está en curso. Ingresá el código para confirmar la sesión.",
-                    snapshot);
+                    snapshot, dedupeKey);
             notifyQuietly(snapshot.studentUserId(), Role.STUDENT, NotificationType.SESSION_CONFIRMATION_REMINDER,
                     "Recordatorio de token. Clase en curso",
                     "Tu clase de " + snapshot.subjectName() + " con " + snapshot.tutorName()
                             + " está en curso. Entregá el código al tutor para confirmar la sesión.",
-                    snapshot);
+                    snapshot, dedupeKey);
         });
     }
 
@@ -174,9 +195,14 @@ public class BookingNotificationListener {
 
     private void notifyQuietly(UUID recipientUserId, Role recipientRole, NotificationType type, String title,
                                String message, BookingSnapshot snapshot) {
+        notifyQuietly(recipientUserId, recipientRole, type, title, message, snapshot, snapshot.dedupeKeyFor(type));
+    }
+
+    private void notifyQuietly(UUID recipientUserId, Role recipientRole, NotificationType type, String title,
+                               String message, BookingSnapshot snapshot, String dedupeKey) {
         try {
             notificationService.notifyUser(recipientUserId, recipientRole, type, title, message, snapshot.bookingId(),
-                    snapshot.dedupeKeyFor(type));
+                    dedupeKey);
         } catch (Exception e) {
             log.error("Failed to create notification {} for user {}: {}", type, recipientUserId, e.getMessage(), e);
         }

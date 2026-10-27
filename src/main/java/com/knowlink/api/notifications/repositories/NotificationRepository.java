@@ -30,6 +30,10 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
 
     long countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(UUID userId, Role recipientRole);
 
+    long countByRecipient_UserIdAndRecipientRole(UUID userId, Role recipientRole);
+
+    long countByResourceIdAndType(UUID resourceId, NotificationType type);
+
     Optional<Notification> findByNotificationIdAndRecipient_UserId(UUID notificationId, UUID userId);
 
     boolean existsByRecipient_UserIdAndDedupeKey(UUID userId, String dedupeKey);

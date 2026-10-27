@@ -1,16 +1,16 @@
 package com.knowlink.api.notifications.controllers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.knowlink.api.bookings.data.enums.BookingStatus;
-import com.knowlink.api.bookings.data.models.Booking;
-import com.knowlink.api.bookings.events.BookingCreatedEvent;
-import com.knowlink.api.bookings.repositories.IBookingRepository;
+import com.knowlink.api.bookings.controllers.requests.CreateBookingRequest;
+import com.knowlink.api.bookings.data.models.Hold;
+import com.knowlink.api.bookings.repositories.IHoldRepository;
+import com.knowlink.api.bookings.services.interfaces.IBookingService;
 import com.knowlink.api.notifications.data.enums.NotificationType;
 import com.knowlink.api.notifications.data.models.Notification;
-import com.knowlink.api.notifications.listeners.BookingNotificationListener;
 import com.knowlink.api.notifications.repositories.NotificationRepository;
 import com.knowlink.api.notifications.services.interfaces.INotificationService;
 import com.knowlink.api.security.enums.Role;
+import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.students.data.models.StudentProfile;
 import com.knowlink.api.students.repositories.IStudentProfileRepository;
 import com.knowlink.api.timeslot.data.enums.SlotStatus;
@@ -83,7 +83,10 @@ class NotificationControllerIntegrationTest {
     private INotificationService notificationService;
 
     @Autowired
-    private BookingNotificationListener bookingNotificationListener;
+    private IBookingService bookingService;
+
+    @Autowired
+    private IHoldRepository holdRepository;
 
     @Autowired
     private ICareerRepository careerRepository;
@@ -102,9 +105,6 @@ class NotificationControllerIntegrationTest {
 
     @Autowired
     private ITimeSlotRepository timeSlotRepository;
-
-    @Autowired
-    private IBookingRepository bookingRepository;
 
     private Career career;
 
@@ -201,14 +201,12 @@ class NotificationControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("CP-03 - reserva creada: ambas partes ven BOOKING_CONFIRMED y el reintento no duplica (CA 6)")
+    @DisplayName("CP-03 - reserva creada por el flujo real: ambas partes ven BOOKING_CONFIRMED (CA 6)")
     void bookingCreated_showsBookingConfirmedForBothParties() throws Exception {
         User student = saveUser("Student Booking", Role.STUDENT, AccountStatus.ACTIVE);
         User tutor = saveUser("Tutor Booking", Role.TUTOR, AccountStatus.ACTIVE);
-        Booking booking = createBooking(student, tutor);
-        BookingCreatedEvent event = new BookingCreatedEvent(booking.getBookingId());
-
-        bookingNotificationListener.handleBookingCreated(event);
+        CreatedBooking booking = createBookingThroughService(student, tutor);
+        awaitBookingConfirmedNotifications(booking.bookingId());
 
         String studentToken = login(student);
         mockMvc.perform(get("/api/v1/notifications")
@@ -216,12 +214,12 @@ class NotificationControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].type").value(NotificationType.BOOKING_CONFIRMED.name()))
-                .andExpect(jsonPath("$.content[0].referenceId").value(booking.getBookingId().toString()))
+                .andExpect(jsonPath("$.content[0].referenceId").value(booking.bookingId().toString()))
                 .andExpect(jsonPath("$.content[0].title").value("Reserva confirmada"))
                 .andExpect(jsonPath("$.content[0].message").value(
-                        "Reservaste " + booking.getTutorSubject().getSubject().getName() + " - "
+                        "Reservaste " + booking.subjectName() + " - "
                                 + com.knowlink.api.notifications.utils.NotificationTextFormats
-                                        .dateWithWeekday(booking.getSessionDate())
+                                        .dateWithWeekday(booking.sessionDate())
                                 + " a las 15:00."));
 
         String tutorToken = login(tutor);
@@ -231,15 +229,18 @@ class NotificationControllerIntegrationTest {
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].type").value(NotificationType.BOOKING_CONFIRMED.name()))
                 .andExpect(jsonPath("$.content[0].title").value("Nueva reserva confirmada"))
-                .andExpect(jsonPath("$.content[0].message", containsString("reservó " + booking.getTutorSubject().getSubject().getName())));
-
-        bookingNotificationListener.handleBookingCreated(event);
+                .andExpect(jsonPath("$.content[0].message", containsString("reservó " + booking.subjectName())));
 
         mockMvc.perform(get("/api/v1/notifications/unread-count")
                         .header(HttpHeaders.AUTHORIZATION, bearer(studentToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.count").value(1))
                 .andExpect(jsonPath("$.otherRoleCount").value(0));
+
+        assertThat(notificationRepository.countByRecipient_UserIdAndRecipientRole(
+                student.getUserId(), Role.STUDENT)).isEqualTo(1);
+        assertThat(notificationRepository.countByRecipient_UserIdAndRecipientRole(
+                tutor.getUserId(), Role.TUTOR)).isEqualTo(1);
     }
 
     @Test
@@ -395,7 +396,7 @@ class NotificationControllerIntegrationTest {
         return user;
     }
 
-    private Booking createBooking(User student, User tutor) {
+    private CreatedBooking createBookingThroughService(User student, User tutor) {
         TutorProfile tutorProfile = tutorProfileRepository.findByUserId(tutor.getUserId()).orElseThrow();
         Subject subject = subjectRepository.save(Subject.builder()
                 .name("Subject " + UUID.randomUUID()).isBasic(true).career(career).build());
@@ -403,31 +404,52 @@ class NotificationControllerIntegrationTest {
                 .tutorProfile(tutorProfile)
                 .subject(subject)
                 .pricePerHour(new BigDecimal("2000.00"))
-                .compensationType(CompensationType.PAID)
+                .compensationType(CompensationType.FREE)
                 .tutorSubjectStatus(TutorSubjectStatus.ACTIVE)
                 .modality(Modality.BOTH)
                 .build());
-        LocalDate sessionDate = LocalDate.now().plusDays(1);
+        LocalDate sessionDate = LocalDate.now(AppTimeZone.ZONE).plusDays(1);
+        LocalTime startTime = LocalTime.of(15, 0);
+        LocalTime endTime = LocalTime.of(16, 0);
         TimeSlot slot = timeSlotRepository.save(TimeSlot.builder()
                 .date(sessionDate)
-                .startTime(LocalTime.of(15, 0))
-                .endTime(LocalTime.of(16, 0))
-                .status(SlotStatus.OCCUPIED)
+                .startTime(startTime)
+                .endTime(endTime)
+                .status(SlotStatus.AVAILABLE)
                 .tutorProfileId(tutorProfile.getTutorProfileId())
                 .build());
-        return bookingRepository.save(Booking.builder()
-                .amount(new BigDecimal("2100.00"))
-                .sessionDate(sessionDate)
-                .startTime(LocalTime.of(15, 0))
-                .endTime(LocalTime.of(16, 0))
-                .topic("Notification topic")
-                .modality(Modality.VIRTUAL)
-                .bookingStatus(BookingStatus.BOOKED)
+        holdRepository.save(Hold.builder()
                 .timeSlot(slot)
-                .tutorSubject(tutorSubject)
                 .student(student)
-                .tutor(tutor)
+                .startTime(startTime)
+                .endTime(endTime)
+                .expiresAt(LocalDateTime.now(AppTimeZone.ZONE).plusMinutes(10))
                 .build());
+
+        UUID bookingId = bookingService.createBooking(student.getUserId(), new CreateBookingRequest(
+                slot.getTimeSlotId() + "__booking",
+                tutorSubject.getTutorSubjectId(),
+                "Notification topic",
+                Modality.VIRTUAL,
+                sessionDate.atTime(startTime).atZone(AppTimeZone.ZONE).toInstant(),
+                sessionDate.atTime(endTime).atZone(AppTimeZone.ZONE).toInstant())).bookingId();
+
+        return new CreatedBooking(bookingId, subject.getName(), sessionDate);
+    }
+
+    private void awaitBookingConfirmedNotifications(UUID bookingId) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + 5000;
+        while (System.currentTimeMillis() < deadline) {
+            if (notificationRepository.countByResourceIdAndType(bookingId,
+                    NotificationType.BOOKING_CONFIRMED) == 2) {
+                return;
+            }
+            Thread.sleep(50);
+        }
+        throw new AssertionError("Timed out waiting for BOOKING_CONFIRMED notifications of booking " + bookingId);
+    }
+
+    private record CreatedBooking(UUID bookingId, String subjectName, LocalDate sessionDate) {
     }
 
     private String login(User user) throws Exception {

@@ -103,9 +103,20 @@ Feature: Centro de notificaciones (API)
     When una de las partes cancela una reserva confirmada
     Then ambas partes reciben una notificación BOOKING_CANCELLED
 
+  Scenario: Código de confirmación disponible (CA 1 y 2 — US-41)
+    When se genera el token 5 minutos antes del inicio
+    Then solo el alumno recibe SESSION_CONFIRMATION_TOKEN_AVAILABLE
+    And el mensaje no incluye el token
+
   Scenario: Eventos de sesión (CA 6 — US-41)
     When se publica SessionConfirmationReminderEvent, SessionNotConfirmedEvent o SessionCompletionNotificationEvent
     Then ambas partes reciben la notificación de tipo correspondiente
+
+  Scenario: Recordatorio de confirmación cada 10 minutos (CA 8 — US-41)
+    Given la sesión ya empezó y el token sigue sin ingresarse
+    When pasan 10 minutos desde el último recordatorio
+    Then el tutor recibe un nuevo SESSION_CONFIRMATION_REMINDER
+    And el dedupe no bloquea el recordatorio siguiente
 
   Scenario: Transferencia de fondos ejecutada (CA 6 — US-15)
     When el ledger registra una liberación o devolución final
@@ -175,6 +186,7 @@ public enum NotificationType {
     BOOKING_CONFIRMED,
     BOOKING_CANCELLED,
     SESSION_CONFIRMATION_REMINDER,
+    SESSION_CONFIRMATION_TOKEN_AVAILABLE,
     SESSION_NOT_CONFIRMED,
     SESSION_COMPLETED,
     FUNDS_TRANSFERRED,
@@ -264,13 +276,15 @@ Fechas en mensajes: `dd/MM/yyyy` y `HH:mm`. Montos: `NotificationTextFormats.amo
 | | tutor | `BOOKING_CONFIRMED` | "{alumno} reservó una clase para el {fecha} a las {hora}." | bookingId | idem |
 | `BookingCancelledEvent` | quien canceló | `BOOKING_CANCELLED` | "Cancelaste la clase del {fecha} a las {hora}." | bookingId | `BOOKING_CANCELLED:{bookingId}` |
 | | la otra parte | `BOOKING_CANCELLED` | "{quien canceló} canceló la clase del {fecha} a las {hora}." | bookingId | idem |
-| `SessionConfirmationReminderEvent` | tutor | `SESSION_CONFIRMATION_REMINDER` | "Recordá confirmar la clase con {alumno} ingresando su código." | bookingId | `SESSION_CONFIRMATION_REMINDER:{bookingId}` |
+| `SessionConfirmationTokenGeneratedEvent` | alumno | `SESSION_CONFIRMATION_TOKEN_AVAILABLE` | "Tu clase de {materia} con {tutor} empieza a las {hora}. Ya podés ver el código en el detalle de la clase para compartirlo con tu tutor." | bookingId | `SESSION_CONFIRMATION_TOKEN_AVAILABLE:{bookingId}` |
+| `SessionConfirmationReminderEvent` | tutor | `SESSION_CONFIRMATION_REMINDER` | "Recordá confirmar la clase con {alumno} ingresando su código." | bookingId | `SESSION_CONFIRMATION_REMINDER:{bookingId}:{reminderAt}` |
 | | alumno | `SESSION_CONFIRMATION_REMINDER` | "Recordá compartir tu código de confirmación con {tutor}." | bookingId | idem |
+| `FundsSuspendedByClaimEvent` | ambos | `FUNDS_SUSPENDED` | "Los fondos de la sesión con {otra parte} están retenidos hasta que se resuelva el reclamo activo." | bookingId | `FUNDS_SUSPENDED:{bookingId}` |
 | `SessionNotConfirmedEvent` | ambos | `SESSION_NOT_CONFIRMED` | "La clase del {fecha} no fue confirmada." | bookingId | `SESSION_NOT_CONFIRMED:{bookingId}` |
 | `SessionCompletionNotificationEvent` | ambos | `SESSION_COMPLETED` | "La clase del {fecha} finalizó. Si hubo algún problema, podés hacer un reclamo." | bookingId | `SESSION_COMPLETED:{bookingId}` |
 | `FundsTransferProcessedEvent` (nuevo) | ambos | `FUNDS_TRANSFERRED` | "Se procesó una transferencia de {monto}: {concepto}." | bookingId | `FUNDS_TRANSFERRED:{concepto}:{bookingId}` |
 
-> El reparto tutor/alumno del recordatorio sale de `BookingServiceImpl.confirmSession` (lo ejecuta el tutor) y `getConfirmationToken` (lo consulta el alumno). **Confirmar contra el spec de US-41** antes de fijar los textos; el contrato (tipo + ambos destinatarios + dedupe) no cambia.
+> El recordatorio se repite cada 10 minutos mientras la sesión siga sin confirmar: el job publica `SessionConfirmationReminderEvent` con `reminderAt`, que forma parte de la `dedupeKey` para que el aviso siguiente no quede bloqueado por el dedupe. El de token disponible lo recibe solo el alumno y **nunca incluye el código** en el mensaje.
 
 `FundsTransferProcessedEvent`:
 ```java
@@ -399,7 +413,7 @@ Errores en formato del proyecto: `{ "status": 404, "message": "La notificación 
 ## No hacer
 
 - No guardar ni loguear `rawToken` ni ningún dato sensible (token, DNI, email, teléfono) en `message`.
-- No suscribirse a `SessionConfirmationTokenGeneratedEvent`.
+- El listener de `SessionConfirmationTokenGeneratedEvent` avisa solo al alumno que el código está disponible; no lee, guarda ni loguea `event.rawToken()` (el código se entrega únicamente por `GET /bookings/{id}/confirmation-token`).
 - No crear eventos ni listeners para US-18, US-22, US-24 o US-27 (sus módulos no existen en el backend).
 - No agregar los endpoints a `PUBLIC_WHITELIST`.
 - No usar `@PreAuthorize` por rol en estos endpoints (cualquier rol autenticado; filtrar por usuario y rol activo).
@@ -419,7 +433,7 @@ Errores en formato del proyecto: `{ "status": 404, "message": "La notificación 
 
 1. **Marcado masivo:** implementado para notificaciones generales (`PATCH /read-all`) y soporte; siempre acotado al rol activo.
 2. **Retención / limpieza** de notificaciones viejas: hay un precedente (`PastAvailabilityCleanupJob`) si más adelante se decide.
-3. **Código de confirmación disponible:** hoy nadie consume `SessionConfirmationTokenGeneratedEvent`. Si se quiere avisar "ya podés ver tu código", se agrega un tipo nuevo **sin** incluir el código en el mensaje.
+3. **Código de confirmación disponible:** `BookingNotificationListener` consume `SessionConfirmationTokenGeneratedEvent` y avisa solo al alumno con `SESSION_CONFIRMATION_TOKEN_AVAILABLE`, **sin** incluir el código en el mensaje.
 
 ---
 
@@ -443,6 +457,7 @@ Errores en formato del proyecto: `{ "status": 404, "message": "La notificación 
 - [ ] Tests unitarios de `NotificationServiceImpl`: crear, dedupe, `notifyAdmins` (con y sin admins), `markAsRead` (propia, ya leída, ajena), conteo, `size` máximo
 - [ ] Test de repository (`@DataJpaTest`, H2): orden descendente, `unreadOnly`, conteo, unicidad `(recipient, dedupeKey)`
 - [ ] Tests de listeners: un evento → notificación para cada destinatario correcta; una excepción en el service no se propaga
-- [ ] Test de integración: crear reserva → `GET /notifications` del alumno y del tutor muestra `BOOKING_CONFIRMED`; `PATCH …/read` baja `unread-count`
+- [x] `SESSION_CONFIRMATION_TOKEN_AVAILABLE` avisa solo al alumno y no incluye el token; el recordatorio de 10 minutos usa `reminderAt` en la `dedupeKey` (listener + job)
+- [x] Test de integración (CP-03): crear reserva con `BookingServiceImpl.createBooking` (mismo flujo que `POST /api/v1/bookings`) → `GET /notifications` del alumno y del tutor muestra `BOOKING_CONFIRMED`
 - [ ] Verificado a mano que ningún mensaje de notificación contiene el token de confirmación
 - [ ] Commits en español con prefijo convencional (`feat:`, `test:`, `docs:`)

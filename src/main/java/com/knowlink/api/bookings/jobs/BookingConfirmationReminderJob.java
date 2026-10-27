@@ -48,7 +48,7 @@ public class BookingConfirmationReminderJob {
             if (dueForReminder) {
                 booking.setLastConfirmationReminderAt(now);
                 bookingRepository.save(booking);
-                eventPublisher.publishEvent(new SessionConfirmationReminderEvent(booking));
+                eventPublisher.publishEvent(new SessionConfirmationReminderEvent(booking, now));
             }
         }
     }

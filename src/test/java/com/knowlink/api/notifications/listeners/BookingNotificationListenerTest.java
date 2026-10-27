@@ -6,6 +6,7 @@ import com.knowlink.api.bookings.events.BookingCancelledEvent;
 import com.knowlink.api.bookings.events.BookingCreatedEvent;
 import com.knowlink.api.bookings.events.SessionCompletionNotificationEvent;
 import com.knowlink.api.bookings.events.SessionConfirmationReminderEvent;
+import com.knowlink.api.bookings.events.SessionConfirmationTokenGeneratedEvent;
 import com.knowlink.api.bookings.events.SessionConfirmedEvent;
 import com.knowlink.api.bookings.events.SessionNotConfirmedEvent;
 import com.knowlink.api.notifications.data.enums.NotificationType;
@@ -21,12 +22,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -118,18 +121,58 @@ class BookingNotificationListenerTest {
     void sessionConfirmationReminder_notifiesEachRole() {
         when(bookingNotificationContext.loadSnapshot(bookingId)).thenReturn(Optional.of(snapshot));
 
-        listener.handleSessionConfirmationReminder(new SessionConfirmationReminderEvent(bookingWithId()));
+        LocalDateTime reminderAt = LocalDateTime.of(2026, 10, 20, 15, 10);
 
+        listener.handleSessionConfirmationReminder(new SessionConfirmationReminderEvent(bookingWithId(), reminderAt));
+
+        String dedupeKey = "SESSION_CONFIRMATION_REMINDER:" + bookingId + ":" + reminderAt;
         verify(notificationService).notifyUser(eq(tutorId), eq(Role.TUTOR), eq(NotificationType.SESSION_CONFIRMATION_REMINDER),
                 eq("Recordatorio de token. Clase en curso"),
                 eq("Tu clase de Sistemas Operativos con Ana Estudiante está en curso."
                         + " Ingresá el código para confirmar la sesión."),
-                eq(bookingId), eq("SESSION_CONFIRMATION_REMINDER:" + bookingId));
+                eq(bookingId), eq(dedupeKey));
         verify(notificationService).notifyUser(eq(studentId), eq(Role.STUDENT), eq(NotificationType.SESSION_CONFIRMATION_REMINDER),
                 eq("Recordatorio de token. Clase en curso"),
                 eq("Tu clase de Sistemas Operativos con Carlos Lopez está en curso."
                         + " Entregá el código al tutor para confirmar la sesión."),
-                eq(bookingId), eq("SESSION_CONFIRMATION_REMINDER:" + bookingId));
+                eq(bookingId), eq(dedupeKey));
+    }
+
+    @Test
+    @DisplayName("Recordatorio cada 10 minutos - cada aviso usa una clave distinta para no quedar deduplicado")
+    void sessionConfirmationReminder_eachReminderHasItsOwnDedupeKey() {
+        when(bookingNotificationContext.loadSnapshot(bookingId)).thenReturn(Optional.of(snapshot));
+        LocalDateTime firstReminder = LocalDateTime.of(2026, 10, 20, 15, 0);
+        LocalDateTime secondReminder = firstReminder.plusMinutes(10);
+
+        listener.handleSessionConfirmationReminder(new SessionConfirmationReminderEvent(bookingWithId(), firstReminder));
+        listener.handleSessionConfirmationReminder(new SessionConfirmationReminderEvent(bookingWithId(), secondReminder));
+
+        verify(notificationService).notifyUser(eq(tutorId), eq(Role.TUTOR),
+                eq(NotificationType.SESSION_CONFIRMATION_REMINDER), anyString(), anyString(), eq(bookingId),
+                eq("SESSION_CONFIRMATION_REMINDER:" + bookingId + ":" + firstReminder));
+        verify(notificationService).notifyUser(eq(tutorId), eq(Role.TUTOR),
+                eq(NotificationType.SESSION_CONFIRMATION_REMINDER), anyString(), anyString(), eq(bookingId),
+                eq("SESSION_CONFIRMATION_REMINDER:" + bookingId + ":" + secondReminder));
+    }
+
+    @Test
+    @DisplayName("Token generado - solo el alumno recibe el aviso y el codigo no viaja en el mensaje")
+    void sessionConfirmationTokenGenerated_notifiesOnlyTheStudentWithoutTheToken() {
+        when(bookingNotificationContext.loadSnapshot(bookingId)).thenReturn(Optional.of(snapshot));
+
+        listener.handleSessionConfirmationTokenGenerated(
+                new SessionConfirmationTokenGeneratedEvent(bookingWithId(), "4821"));
+
+        verify(notificationService).notifyUser(eq(studentId), eq(Role.STUDENT),
+                eq(NotificationType.SESSION_CONFIRMATION_TOKEN_AVAILABLE),
+                eq("Código de confirmación disponible"),
+                eq("Tu clase de Sistemas Operativos con Carlos Lopez empieza a las 15:00."
+                        + " Ya podés ver el código en el detalle de la clase para compartirlo con tu tutor."),
+                eq(bookingId), eq("SESSION_CONFIRMATION_TOKEN_AVAILABLE:" + bookingId));
+        verify(notificationService, never()).notifyUser(eq(tutorId), any(), any(), any(), any(), any(), any());
+        verify(notificationService, never()).notifyUser(any(), any(), any(), anyString(), contains("4821"),
+                any(), any());
     }
 
     @Test
