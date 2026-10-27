@@ -1,4 +1,4 @@
-package com.knowlink.api.tutors.support.controllers.responses;
+package com.knowlink.api.materials.controller.responses;
 
 import java.util.List;
 

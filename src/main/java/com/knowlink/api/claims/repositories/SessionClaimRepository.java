@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -41,7 +42,43 @@ public interface SessionClaimRepository extends JpaRepository<SessionClaim, UUID
             @Param("claimId") UUID claimId,
             @Param("tutorUserId") UUID tutorUserId);
 
-    List<SessionClaim> findByStatusInOrderByCreatedAtAsc(Collection<ClaimStatus> statuses);
+    @Query("""
+            SELECT COUNT(claim) FROM SessionClaim claim
+            WHERE claim.status = com.knowlink.api.claims.data.enums.ClaimStatus.OPEN
+              AND (claim.createdAt < :createdAt
+                   OR (claim.createdAt = :createdAt AND claim.claimId <= :claimId))
+            """)
+    long countOpenClaimsInQueueThrough(
+            @Param("createdAt") LocalDateTime createdAt,
+            @Param("claimId") UUID claimId);
+
+    @Query("""
+            SELECT claim FROM SessionClaim claim
+            JOIN FETCH claim.booking booking
+            JOIN FETCH booking.tutor
+            JOIN FETCH booking.tutorSubject tutorSubject
+            JOIN FETCH tutorSubject.subject subject
+            JOIN FETCH subject.career
+            WHERE booking.student.userId = :studentUserId
+            ORDER BY claim.createdAt DESC
+            """)
+    List<SessionClaim> findStudentClaims(@Param("studentUserId") UUID studentUserId);
+
+    @Query("""
+            SELECT claim FROM SessionClaim claim
+            JOIN FETCH claim.booking booking
+            JOIN FETCH booking.student
+            JOIN FETCH booking.tutor
+            JOIN FETCH booking.tutorSubject tutorSubject
+            JOIN FETCH tutorSubject.subject subject
+            JOIN FETCH subject.career
+            JOIN FETCH claim.claimant
+            WHERE claim.claimId = :claimId
+              AND booking.student.userId = :studentUserId
+            """)
+    Optional<SessionClaim> findStudentClaimDetails(
+            @Param("claimId") UUID claimId,
+            @Param("studentUserId") UUID studentUserId);
 
     @Query("""
             SELECT claim FROM SessionClaim claim

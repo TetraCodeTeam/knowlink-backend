@@ -8,6 +8,7 @@ import com.knowlink.api.materials.data.models.AcademicMaterialReport;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -27,6 +28,38 @@ public interface IAcademicMaterialReportRepository extends JpaRepository<Academi
             """)
     List<AcademicMaterialReport> findByMaterial_TutorSubject_TutorProfile_User_UserIdOrderByReportedAtDesc(
             @Param("tutorUserId") UUID tutorUserId);
+
+    @Query("""
+            SELECT report FROM AcademicMaterialReport report
+            JOIN FETCH report.material material
+            JOIN FETCH material.tutorSubject tutorSubject
+            JOIN FETCH tutorSubject.subject subject
+            JOIN FETCH subject.career
+            JOIN FETCH tutorSubject.tutorProfile tutorProfile
+            JOIN FETCH tutorProfile.user
+            JOIN FETCH report.reporter
+            LEFT JOIN FETCH report.reviewedBy
+            WHERE report.reporter.userId = :studentUserId
+            ORDER BY report.reportedAt DESC
+            """)
+    List<AcademicMaterialReport> findStudentReports(@Param("studentUserId") UUID studentUserId);
+
+    @Query("""
+            SELECT report FROM AcademicMaterialReport report
+            JOIN FETCH report.material material
+            JOIN FETCH material.tutorSubject tutorSubject
+            JOIN FETCH tutorSubject.subject subject
+            JOIN FETCH subject.career
+            JOIN FETCH tutorSubject.tutorProfile tutorProfile
+            JOIN FETCH tutorProfile.user
+            JOIN FETCH report.reporter
+            LEFT JOIN FETCH report.reviewedBy
+            WHERE report.academicMaterialReportId = :reportId
+              AND report.reporter.userId = :studentUserId
+            """)
+    Optional<AcademicMaterialReport> findStudentReportDetails(
+            @Param("reportId") UUID reportId,
+            @Param("studentUserId") UUID studentUserId);
 
     @Query("""
             SELECT report.material.academicMaterialId

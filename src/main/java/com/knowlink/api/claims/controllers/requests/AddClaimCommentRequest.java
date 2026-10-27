@@ -1,4 +1,4 @@
-package com.knowlink.api.tutors.support.controllers.requests;
+package com.knowlink.api.claims.controllers.requests;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;

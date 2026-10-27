@@ -1,4 +1,4 @@
-package com.knowlink.api.tutors.support.controllers.responses;
+package com.knowlink.api.claims.controllers.responses;
 
 import com.knowlink.api.security.enums.Role;
 

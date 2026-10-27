@@ -43,6 +43,11 @@ public class SupabaseStorageServiceImpl implements ISupabaseStorageService {
     }
 
     @Override
+    public String upload(MultipartFile file, String folder) {
+        return upload(file, materialsBucket, folder);
+    }
+
+    @Override
     public String upload(MultipartFile file, String bucket, String folder) {
         String path = folder + "/" + UUID.randomUUID() + "-" + file.getOriginalFilename();
         String uploadUrl = supabaseUrl + "/storage/v1/object/" + bucket + "/" + path;
