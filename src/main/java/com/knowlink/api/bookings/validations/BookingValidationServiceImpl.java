@@ -3,6 +3,7 @@ package com.knowlink.api.bookings.validations;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.shared.utils.AppTimeZone;
+import com.knowlink.api.shared.utils.EndOfDay;
 import com.knowlink.api.timeslot.data.models.TimeSlot;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.tutors.data.enums.Modality;
@@ -97,10 +98,10 @@ public class BookingValidationServiceImpl implements IBookingValidationService {
                 student.getUserId(), tutorSubjectId, date, BookingConstants.ACTIVE_STATUSES);
 
         Duration existing = sameDaySubjectBookings.stream()
-                .map(b -> Duration.between(b.getStartTime(), b.getEndTime()))
+                .map(b -> EndOfDay.between(b.getStartTime(), b.getEndTime()))
                 .reduce(Duration.ZERO, Duration::plus);
 
-        Duration requested = Duration.between(startTime, endTime);
+        Duration requested = EndOfDay.between(startTime, endTime);
 
         if (existing.plus(requested).compareTo(BookingConstants.MAX_DAILY_SUBJECT_DURATION) > 0) {
             throw new ValidationException(

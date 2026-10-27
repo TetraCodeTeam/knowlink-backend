@@ -1,5 +1,7 @@
 package com.knowlink.api.notifications.utils;
 
+import com.knowlink.api.shared.utils.EndOfDay;
+
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
@@ -31,7 +33,8 @@ public final class NotificationTextFormats {
     }
 
     public static String time(LocalTime time) {
-        return time.format(TIME_FORMAT);
+        // Un horario que termina a medianoche se guarda como EndOfDay.TIME y se muestra como 24:00.
+        return EndOfDay.isEndOfDay(time) ? "24:00" : time.format(TIME_FORMAT);
     }
 
     public static String amount(BigDecimal amount) {
