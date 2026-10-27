@@ -15,6 +15,7 @@ import com.knowlink.api.materials.service.interfaces.IMaterialAccessService;
 import com.knowlink.api.materials.service.interfaces.IMaterialService;
 import com.knowlink.api.materials.service.interfaces.ISupabaseStorageService;
 import com.knowlink.api.security.enums.Role;
+import com.knowlink.api.support.utils.FileFormatConstants;
 import com.knowlink.api.tutors.data.enums.CompensationType;
 import com.knowlink.api.tutors.data.enums.Modality;
 import com.knowlink.api.tutors.data.enums.TutorSubjectStatus;
@@ -37,14 +38,6 @@ import java.util.*;
 @RequiredArgsConstructor
 @Slf4j
 public class MaterialServiceImpl implements IMaterialService {
-
-    private static final Map<String, Set<String>> ALLOWED_FORMATS = Map.of(
-            "PNG", Set.of("image/png"),
-            "PDF", Set.of("application/pdf"),
-            "XLSX", Set.of("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    );
-
-    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("png", "pdf", "xlsx");
 
     private final IAcademicMaterialRepository materialRepository;
     private final IAcademicMaterialReportRepository reportRepository;
@@ -181,20 +174,16 @@ public class MaterialServiceImpl implements IMaterialService {
             throw new FormatNotAllowedException("El formato del archivo no está permitido");
         }
 
-        String extension = getFileExtension(originalFilename).toLowerCase();
-        if (!ALLOWED_EXTENSIONS.contains(extension)) {
+        String extension = getFileExtension(originalFilename).toLowerCase(Locale.ROOT);
+        if (!FileFormatConstants.ALLOWED_EXTENSIONS.contains(extension)) {
             throw new FormatNotAllowedException("El formato del archivo no está permitido");
         }
 
         String contentType = file.getContentType();
-        if (contentType == null || !isContentTypeAllowed(extension, contentType)) {
+        if (contentType == null
+                || !FileFormatConstants.ALLOWED_CONTENT_TYPES.get(extension).equals(contentType)) {
             throw new FormatNotAllowedException("El formato del archivo no está permitido");
         }
-    }
-
-    private boolean isContentTypeAllowed(String extension, String contentType) {
-        Set<String> allowedContentTypes = ALLOWED_FORMATS.get(extension.toUpperCase());
-        return allowedContentTypes != null && allowedContentTypes.contains(contentType);
     }
 
     private String getFileExtension(String filename) {
@@ -206,7 +195,7 @@ public class MaterialServiceImpl implements IMaterialService {
     }
 
     private MaterialType resolveMaterialType(MultipartFile file) {
-        String extension = getFileExtension(file.getOriginalFilename()).toUpperCase();
+        String extension = getFileExtension(file.getOriginalFilename()).toUpperCase(Locale.ROOT);
         return MaterialType.valueOf(extension);
     }
 

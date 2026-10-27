@@ -52,8 +52,8 @@ public class MaterialReportServiceImpl implements IMaterialReportService {
                         "Active material not found for report: " + materialId));
 
         boolean reportUnderReview = reportRepository.findDetailsByMaterialId(materialId).stream()
-                .anyMatch(existingReport -> existingReport.getStatus() == null
-                        || existingReport.getStatus() != MaterialReportStatus.RESOLVED);
+                .anyMatch(existingReport -> MaterialReportStatus.orPending(existingReport.getStatus())
+                        != MaterialReportStatus.RESOLVED);
         if (!material.isAvailable() && !reportUnderReview) {
             throw new ResourceAccessDeniedException("No podés denunciar un material que ya no está disponible.");
         }
@@ -122,9 +122,7 @@ public class MaterialReportServiceImpl implements IMaterialReportService {
                         "La denuncia no existe.",
                         "Material report not found for id: " + reportId));
 
-        MaterialReportStatus currentStatus = report.getStatus() == null
-                ? MaterialReportStatus.PENDING
-                : report.getStatus();
+        MaterialReportStatus currentStatus = MaterialReportStatus.orPending(report.getStatus());
         if (!currentStatus.canTransitionTo(status)) {
             throw new ValidationException("No se puede cambiar el estado de la denuncia.");
         }
@@ -164,25 +162,31 @@ public class MaterialReportServiceImpl implements IMaterialReportService {
                 report.getMaterial().getAcademicMaterialId(),
                 "Actualización de denuncia",
                 "El estado de la denuncia de tu material " + report.getMaterial().getName()
-                        + " cambió a " + statusLabel(status) + ".");
-        if (status == MaterialReportStatus.RESOLVED) {
-            notificationService.createSupportNotification(
-                    report.getReporter().getUserId(),
-                    NotificationType.MATERIAL_REPORT_UPDATE,
-                    report.getMaterial().getAcademicMaterialId(),
-                    "Resultado de tu denuncia",
-                    resolution == MaterialReportResolution.UPHELD
-                            ? "La revisión confirmó el incumplimiento denunciado."
-                            : "La revisión desestimó la denuncia.");
-        }
+                        + " cambió a " + status.displayLabel() + ".");
+        notificationService.createSupportNotification(
+                report.getReporter().getUserId(),
+                NotificationType.MATERIAL_REPORT_UPDATE,
+                report.getAcademicMaterialReportId(),
+                status == MaterialReportStatus.RESOLVED
+                        ? "Resultado de tu denuncia"
+                        : "Actualización de tu denuncia",
+                studentStatusMessage(report, status, resolution));
     }
 
-    private String statusLabel(MaterialReportStatus status) {
-        return switch (status) {
-            case PENDING -> "Pendiente";
-            case IN_REVIEW -> "En revisión";
-            case RESOLVED -> "Resuelto";
-        };
+    private String studentStatusMessage(
+            AcademicMaterialReport report,
+            MaterialReportStatus status,
+            MaterialReportResolution resolution) {
+        if (status == MaterialReportStatus.RESOLVED) {
+            return resolution == MaterialReportResolution.UPHELD
+                    ? "La revisión confirmó tu denuncia sobre " + report.getMaterial().getName()
+                            + ". El material dejó de estar disponible."
+                    : "La revisión desestimó tu denuncia sobre " + report.getMaterial().getName()
+                            + ". El material continúa disponible.";
+        }
+
+        return "Tu denuncia sobre " + report.getMaterial().getName()
+                + " cambió a estado " + status.displayLabel() + ".";
     }
 
     private DuplicateResourceException duplicateReport(UUID studentId, UUID materialId) {

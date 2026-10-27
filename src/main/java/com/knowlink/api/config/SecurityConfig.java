@@ -51,6 +51,7 @@ public class SecurityConfig {
                         .requestMatchers(SWAGGER_WHITELIST).permitAll()
                         .requestMatchers(PUBLIC_WHITELIST).permitAll()
                         .requestMatchers("/api/v1/tutors/support/**").hasRole("TUTOR")
+                        .requestMatchers("/api/v1/students/support/**").hasRole("STUDENT")
                         .requestMatchers("/api/v1/admin/support/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .authenticationProvider(authenticationProvider)
