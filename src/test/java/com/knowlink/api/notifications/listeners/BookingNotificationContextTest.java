@@ -13,6 +13,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -43,6 +44,8 @@ class BookingNotificationContextTest {
         assertThat(snapshot.get().subjectName()).isEqualTo("Sistemas Operativos");
         assertThat(snapshot.get().studentUserId()).isEqualTo(booking.getStudent().getUserId());
         assertThat(snapshot.get().tutorUserId()).isEqualTo(booking.getTutor().getUserId());
+        assertThat(snapshot.get().endTime()).isEqualTo(booking.getEndTime());
+        assertThat(snapshot.get().confirmedAt()).isEqualTo(booking.getConfirmedAt());
     }
 
     @Test
@@ -82,6 +85,8 @@ class BookingNotificationContextTest {
                 .bookingId(bookingId)
                 .sessionDate(LocalDate.of(2026, 10, 20))
                 .startTime(LocalTime.of(8, 0))
+                .endTime(LocalTime.of(9, 0))
+                .confirmedAt(LocalDateTime.of(2026, 10, 20, 9, 5))
                 .student(User.builder().userId(UUID.randomUUID()).fullName("Alumno Test").build())
                 .tutor(User.builder().userId(UUID.randomUUID()).fullName("Tutor Test").build())
                 .tutorSubject(tutorSubject)

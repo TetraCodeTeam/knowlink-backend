@@ -1,5 +1,6 @@
 package com.knowlink.api.notifications.controllers.responses;
 
+import com.knowlink.api.notifications.data.enums.NotificationActionStatus;
 import com.knowlink.api.notifications.data.enums.NotificationType;
 
 import java.time.LocalDateTime;
@@ -13,5 +14,7 @@ public record NotificationResponse(
         UUID referenceId,
         boolean read,
         LocalDateTime createdAt,
-        LocalDateTime readAt) {
+        LocalDateTime readAt,
+        LocalDateTime expiresAt,
+        NotificationActionStatus actionStatus) {
 }

@@ -45,6 +45,8 @@ public interface IRatingRepository extends JpaRepository<Rating, UUID> {
 
     List<Rating> findByBookingBookingId(UUID bookingId);
 
+    boolean existsByBooking_BookingIdAndRaterUser_UserId(UUID bookingId, UUID raterUserId);
+
     @EntityGraph(attributePaths = { "booking.tutor", "ratedUser" })
     @Query("""
                 SELECT r FROM Rating r JOIN r.booking b

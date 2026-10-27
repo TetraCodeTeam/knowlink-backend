@@ -33,7 +33,9 @@ public class BookingNotificationContext {
                 booking.getTutor().getFullName(),
                 resolveSubjectName(booking),
                 booking.getSessionDate(),
-                booking.getStartTime());
+                booking.getStartTime(),
+                booking.getEndTime(),
+                booking.getConfirmedAt());
     }
 
     private static String resolveSubjectName(Booking booking) {

@@ -12,6 +12,7 @@ import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.users.data.enums.AccountStatus;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.repositories.IUserRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +27,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.transaction.PlatformTransactionManager;
 
+import java.time.Clock;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -34,6 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -53,11 +58,23 @@ class NotificationServiceImplTest {
     @Mock
     private PlatformTransactionManager transactionManager;
 
+    @Mock
+    private Clock clock;
+
     @InjectMocks
     private NotificationServiceImpl service;
 
+    private static final ZoneId ZONE = ZoneId.of("America/Argentina/Cordoba");
+    private static final LocalDateTime NOW = LocalDateTime.of(2026, 10, 20, 12, 0);
+
     private final UUID recipientId = UUID.randomUUID();
     private final UUID bookingId = UUID.randomUUID();
+
+    @BeforeEach
+    void setUp() {
+        lenient().when(clock.instant()).thenReturn(NOW.atZone(ZONE).toInstant());
+        lenient().when(clock.getZone()).thenReturn(ZONE);
+    }
 
     @Test
     @DisplayName("notifyUser - crea la notificación con destinatario, rol, tipo, mensaje, referencia y dedupeKey")
@@ -248,10 +265,10 @@ class NotificationServiceImplTest {
     @Test
     @DisplayName("getUnreadCount - devuelve el conteo del rol activo y del otro rol")
     void getUnreadCount_returnsActiveRoleAndOtherRoleCounts() {
-        when(notificationRepository.countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(recipientId, Role.STUDENT))
-                .thenReturn(3L);
-        when(notificationRepository.countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(recipientId, Role.TUTOR))
-                .thenReturn(2L);
+        when(notificationRepository.countUnreadVisibleByRecipient(eq(recipientId), eq(Role.STUDENT),
+                any(LocalDateTime.class))).thenReturn(3L);
+        when(notificationRepository.countUnreadVisibleByRecipient(eq(recipientId), eq(Role.TUTOR),
+                any(LocalDateTime.class))).thenReturn(2L);
 
         UnreadCountResponse response = service.getUnreadCount(recipientId, Role.STUDENT);
 
@@ -262,15 +279,15 @@ class NotificationServiceImplTest {
     @Test
     @DisplayName("getUnreadCount - un admin no tiene otro rol asociado")
     void getUnreadCount_adminHasNoOtherRoleCount() {
-        when(notificationRepository.countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(recipientId, Role.ADMIN))
-                .thenReturn(5L);
+        when(notificationRepository.countUnreadVisibleByRecipient(eq(recipientId), eq(Role.ADMIN),
+                any(LocalDateTime.class))).thenReturn(5L);
 
         UnreadCountResponse response = service.getUnreadCount(recipientId, Role.ADMIN);
 
         assertThat(response.count()).isEqualTo(5L);
         assertThat(response.otherRoleCount()).isZero();
         verify(notificationRepository, never())
-                .countByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(recipientId, Role.STUDENT);
+                .countUnreadVisibleByRecipient(eq(recipientId), eq(Role.STUDENT), any(LocalDateTime.class));
     }
 
     @Test
@@ -293,13 +310,14 @@ class NotificationServiceImplTest {
     @Test
     @DisplayName("getNotifications - filtro UNREAD consulta solo las filas sin leer del rol activo")
     void getNotifications_unreadFilterQueriesUnreadRows() {
-        when(notificationRepository.findByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
-                eq(recipientId), eq(Role.STUDENT), any(Pageable.class))).thenReturn(Page.empty());
+        when(notificationRepository.findUnreadVisibleByRecipient(
+                eq(recipientId), eq(Role.STUDENT), any(LocalDateTime.class), any(Pageable.class)))
+                .thenReturn(Page.empty());
 
         service.getNotifications(recipientId, Role.STUDENT, NotificationReadFilter.UNREAD, PageRequest.of(0, 20));
 
-        verify(notificationRepository).findByRecipient_UserIdAndRecipientRoleAndReadAtIsNull(
-                eq(recipientId), eq(Role.STUDENT), any(Pageable.class));
+        verify(notificationRepository).findUnreadVisibleByRecipient(
+                eq(recipientId), eq(Role.STUDENT), any(LocalDateTime.class), any(Pageable.class));
         verify(notificationRepository, never()).findByRecipient_UserIdAndRecipientRole(any(UUID.class), any(),
                 any(Pageable.class));
     }
@@ -339,6 +357,71 @@ class NotificationServiceImplTest {
                 recipientId, Role.TUTOR);
     }
 
+
+    @Test
+    @DisplayName("resolveNotification - propia sin leer: setea readAt y resolvedAt")
+    void resolveNotification_ownUnreadNotification_marksReadAndResolved() {
+        Notification notification = ratingNotification(null, null);
+        when(notificationRepository.findByRecipient_UserIdAndTypeAndResourceId(
+                recipientId, NotificationType.RATING_ENABLED, bookingId)).thenReturn(Optional.of(notification));
+
+        service.resolveNotification(recipientId, NotificationType.RATING_ENABLED, bookingId);
+
+        assertThat(notification.getResolvedAt()).isEqualTo(NOW);
+        assertThat(notification.getReadAt()).isEqualTo(NOW);
+        verify(notificationRepository).save(notification);
+    }
+
+    @Test
+    @DisplayName("resolveNotification - ya resuelta: es idempotente y conserva las fechas")
+    void resolveNotification_alreadyResolved_doesNothing() {
+        LocalDateTime resolvedAt = NOW.minusHours(2);
+        Notification notification = ratingNotification(resolvedAt, resolvedAt);
+        when(notificationRepository.findByRecipient_UserIdAndTypeAndResourceId(
+                recipientId, NotificationType.RATING_ENABLED, bookingId)).thenReturn(Optional.of(notification));
+
+        service.resolveNotification(recipientId, NotificationType.RATING_ENABLED, bookingId);
+
+        assertThat(notification.getResolvedAt()).isEqualTo(resolvedAt);
+        assertThat(notification.getReadAt()).isEqualTo(resolvedAt);
+        verify(notificationRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("resolveNotification - no existe: no hace nada")
+    void resolveNotification_missingNotification_doesNothing() {
+        when(notificationRepository.findByRecipient_UserIdAndTypeAndResourceId(
+                recipientId, NotificationType.RATING_ENABLED, bookingId)).thenReturn(Optional.empty());
+
+        service.resolveNotification(recipientId, NotificationType.RATING_ENABLED, bookingId);
+
+        verify(notificationRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("resolveNotification - notificación de otro usuario: la búsqueda filtrada no la encuentra")
+    void resolveNotification_notificationOfAnotherUser_isNotTouched() {
+        UUID otherUserId = UUID.randomUUID();
+        when(notificationRepository.findByRecipient_UserIdAndTypeAndResourceId(
+                otherUserId, NotificationType.RATING_ENABLED, bookingId)).thenReturn(Optional.empty());
+
+        service.resolveNotification(otherUserId, NotificationType.RATING_ENABLED, bookingId);
+
+        verify(notificationRepository, never()).save(any());
+    }
+
+    private Notification ratingNotification(java.time.LocalDateTime readAt, java.time.LocalDateTime resolvedAt) {
+        return Notification.builder()
+                .notificationId(UUID.randomUUID())
+                .recipient(user(recipientId, Role.STUDENT, AccountStatus.ACTIVE))
+                .recipientRole(Role.STUDENT)
+                .type(NotificationType.RATING_ENABLED)
+                .message("msg")
+                .resourceId(bookingId)
+                .readAt(readAt)
+                .resolvedAt(resolvedAt)
+                .build();
+    }
     private static User user(UUID id, Role role, AccountStatus status) {
         return User.builder()
                 .userId(id)
