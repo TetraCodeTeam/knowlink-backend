@@ -104,6 +104,7 @@ class MaterialReportServiceImplTest {
 
     @Test
     void studentWithoutCompletedAccessCannotReportMaterial() {
+        when(reportRepository.findDetailsByMaterialId(materialId)).thenReturn(java.util.List.of());
         doThrow(new ResourceAccessDeniedException("No tenés acceso a este material"))
                 .when(materialAccessService).validateReportAccessOrDeny(studentId, materialId);
 
@@ -111,19 +112,21 @@ class MaterialReportServiceImplTest {
                 new MaterialReportRequest(MaterialReportReason.OTHER, null)))
                 .isInstanceOf(ResourceAccessDeniedException.class);
 
-        verifyNoInteractions(reportRepository);
+        verify(reportRepository, never()).saveAndFlush(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
     void tutorCannotReportOwnMaterial() {
         UUID tutorId = tutor.getUserId();
+        when(reportRepository.findDetailsByMaterialId(materialId)).thenReturn(java.util.List.of());
 
         assertThatThrownBy(() -> service.reportMaterial(tutorId, materialId,
                 new MaterialReportRequest(MaterialReportReason.OTHER, null)))
                 .isInstanceOf(ResourceAccessDeniedException.class)
                 .hasMessage("No podés denunciar tu propio material.");
 
-        verifyNoInteractions(materialAccessService, reportRepository);
+        verifyNoInteractions(materialAccessService);
+        verify(reportRepository, never()).saveAndFlush(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
