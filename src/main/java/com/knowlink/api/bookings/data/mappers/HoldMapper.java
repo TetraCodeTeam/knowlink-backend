@@ -4,6 +4,7 @@ package com.knowlink.api.bookings.data.mappers;
 import com.knowlink.api.bookings.controllers.responses.ActiveHoldResponse;
 import com.knowlink.api.bookings.data.models.Hold;
 import com.knowlink.api.shared.utils.AppTimeZone;
+import com.knowlink.api.shared.utils.EndOfDay;
 import com.knowlink.api.users.data.models.User;
 
 import org.springframework.stereotype.Component;
@@ -22,7 +23,7 @@ public class HoldMapper {
                 tutor.getFullName(),
                 hold.getTimeSlot().getTimeSlotId(),
                 date.atTime(hold.getStartTime()).atZone(AppTimeZone.ZONE).toInstant(),
-                date.atTime(hold.getEndTime()).atZone(AppTimeZone.ZONE).toInstant(),
+                EndOfDay.toInstant(date, hold.getEndTime()),
                 hold.getExpiresAt().atZone(AppTimeZone.ZONE).toInstant());
     }
 }

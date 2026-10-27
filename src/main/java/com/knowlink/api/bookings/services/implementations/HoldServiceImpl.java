@@ -17,6 +17,7 @@ import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.bookings.data.mappers.HoldMapper;
 import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
 import com.knowlink.api.shared.utils.AppTimeZone;
+import com.knowlink.api.shared.utils.EndOfDay;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.services.interfaces.IUserService;
 
@@ -62,7 +63,7 @@ public class HoldServiceImpl implements IHoldService {
                                 + tutorProfile.getTutorProfileId() + ": " + request.slotId()));
 
         LocalTime startTime = request.start().atZone(AppTimeZone.ZONE).toLocalTime();
-        LocalTime endTime = request.end().atZone(AppTimeZone.ZONE).toLocalTime();
+        LocalTime endTime = EndOfDay.endTimeFromInstant(request.end());
 
         holdValidationService.validateExactDuration(startTime, endTime);
         holdValidationService.validateTimeWithinSlot(timeSlot, startTime, endTime);
@@ -93,7 +94,7 @@ public class HoldServiceImpl implements IHoldService {
     @Transactional
     public void releaseHold(UUID studentUserId, CreateHoldRequest request) {
         LocalTime startTime = request.start().atZone(AppTimeZone.ZONE).toLocalTime();
-        LocalTime endTime = request.end().atZone(AppTimeZone.ZONE).toLocalTime();
+        LocalTime endTime = EndOfDay.endTimeFromInstant(request.end());
 
         // Idempotente: si no existe (ya liberado, ya expirado, ya convertido a
         // Booking),
@@ -131,7 +132,7 @@ public class HoldServiceImpl implements IHoldService {
 
             eventPublisher.publish(tutorProfileId, timeSlotId, "AVAILABLE",
                     start.atDate(date).atZone(AppTimeZone.ZONE).toInstant(),
-                    end.atDate(date).atZone(AppTimeZone.ZONE).toInstant());
+                    EndOfDay.toInstant(date, end));
         }
     }
 

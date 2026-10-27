@@ -25,6 +25,7 @@ import com.knowlink.api.bookings.utils.BookingConstants;
 import com.knowlink.api.bookings.validations.IBookingValidationService;
 import com.knowlink.api.shared.responses.PagedResponse;
 import com.knowlink.api.shared.utils.AppTimeZone;
+import com.knowlink.api.shared.utils.EndOfDay;
 import com.knowlink.api.tutors.data.enums.CompensationType;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.tutors.data.models.TutorSubject;
@@ -89,7 +90,7 @@ public class BookingServiceImpl implements IBookingService {
 
                 UUID timeSlotId = UUID.fromString(request.bookingSlotId().split("__")[0]);
                 LocalTime startTime = request.start().atZone(AppTimeZone.ZONE).toLocalTime();
-                LocalTime endTime = request.end().atZone(AppTimeZone.ZONE).toLocalTime();
+                LocalTime endTime = EndOfDay.endTimeFromInstant(request.end());
 
                 // Lockeamos la fila del Hold antes de leerla, para que no compita contra el
                 // job de expiración (BookingHoldExpirationJob) que también puede estar
@@ -155,7 +156,7 @@ public class BookingServiceImpl implements IBookingService {
         }
 
         private BigDecimal calculateAmount(TutorSubject tutorSubject, LocalTime startTime, LocalTime endTime) {
-                long minutes = Duration.between(startTime, endTime).toMinutes();
+                long minutes = EndOfDay.between(startTime, endTime).toMinutes();
                 BigDecimal hours = BigDecimal.valueOf(minutes).divide(BigDecimal.valueOf(60));
                 BigDecimal base = tutorSubject.getPricePerHour().multiply(hours);
                 return base.multiply(BigDecimal.ONE.add(BookingConstants.SERVICE_FEE_RATE)).setScale(2,

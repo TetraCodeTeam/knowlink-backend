@@ -2,6 +2,7 @@ package com.knowlink.api.bookings.validations;
 
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.shared.utils.AppTimeZone;
+import com.knowlink.api.shared.utils.EndOfDay;
 import com.knowlink.api.bookings.utils.HoldTutorResolver;
 import com.knowlink.api.timeslot.data.models.TimeSlot;
 import com.knowlink.api.bookings.data.models.Hold;
@@ -36,7 +37,7 @@ public class HoldValidationServiceImpl implements IHoldValidationService {
 
     @Override
     public void validateExactDuration(LocalTime startTime, LocalTime endTime) {
-        if (!Duration.between(startTime, endTime).equals(BOOKING_DURATION)) {
+        if (!EndOfDay.between(startTime, endTime).equals(BOOKING_DURATION)) {
             throw new ValidationException("Las clases se reservan en bloques de exactamente 1 hora.");
         }
     }

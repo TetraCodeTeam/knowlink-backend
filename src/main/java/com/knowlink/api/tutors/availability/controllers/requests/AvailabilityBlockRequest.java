@@ -1,5 +1,6 @@
 package com.knowlink.api.tutors.availability.controllers.requests;
 
+import com.knowlink.api.shared.utils.EndOfDay;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDate;
@@ -17,4 +18,10 @@ public record AvailabilityBlockRequest(
 
         @NotNull(message = "repeatWeekly is required")
         Boolean repeatWeekly
-) {}
+) {
+
+    // Un bloque que termina a las 00:00 llega como medianoche del día siguiente (fin de día).
+    public AvailabilityBlockRequest {
+        endTime = EndOfDay.normalizeEnd(endTime);
+    }
+}
