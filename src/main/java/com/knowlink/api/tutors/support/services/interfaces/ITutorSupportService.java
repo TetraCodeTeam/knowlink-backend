@@ -4,9 +4,9 @@ import com.knowlink.api.tutors.support.controllers.responses.TutorSupportRespons
 import com.knowlink.api.tutors.support.controllers.responses.TutorSupportClaimDetailResponse;
 import com.knowlink.api.tutors.support.controllers.responses.TutorReportedMaterialDetailResponse;
 import com.knowlink.api.tutors.support.controllers.requests.SubmitMaterialDefenseRequest;
-import com.knowlink.api.tutors.support.controllers.requests.AddClaimCommentRequest;
-import com.knowlink.api.tutors.support.controllers.responses.ClaimCommentResponse;
-import com.knowlink.api.tutors.support.controllers.responses.MaterialReportingPolicyResponse;
+import com.knowlink.api.claims.controllers.requests.AddClaimCommentRequest;
+import com.knowlink.api.claims.controllers.responses.ClaimCommentResponse;
+import com.knowlink.api.materials.controller.responses.MaterialReportingPolicyResponse;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
