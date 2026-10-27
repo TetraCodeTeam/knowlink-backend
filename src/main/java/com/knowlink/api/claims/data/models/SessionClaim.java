@@ -17,7 +17,8 @@ import java.util.UUID;
 @Table(name = "session_claim", uniqueConstraints = @UniqueConstraint(name = "uk_session_claim_active_key", columnNames = {
         "active_key" }), indexes = {
                 @Index(name = "idx_session_claim_booking_id", columnList = "booking_id"),
-                @Index(name = "idx_session_claim_user_status", columnList = "user_id, status") })
+                @Index(name = "idx_session_claim_user_status", columnList = "user_id, status"),
+                @Index(name = "idx_session_claim_status_created_id", columnList = "status, created_at, claim_id") })
 @Getter
 @Setter
 @NoArgsConstructor

@@ -31,7 +31,7 @@ import static org.springframework.http.HttpStatus.OK;
 public interface IClaimController {
 
     @PostMapping(value = "/{bookingId}/claims", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Crear un reclamo sobre una sesión finalizada, con hasta 3 adjuntos (pdf, jpg o png)")
+    @Operation(summary = "Crear un reclamo sobre una sesión finalizada, con hasta 3 adjuntos (PDF, JPG, JPEG, PNG o XLSX)")
     @ApiResponse(responseCode = "201", description = "Reclamo creado y fondos de la sesión retenidos")
     @ApiResponse(responseCode = "400", description = "Motivo ausente o inválido, comentario demasiado largo, o adjuntos inválidos")
     @ApiResponse(responseCode = "401", description = "Sin autenticar")

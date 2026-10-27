@@ -16,6 +16,7 @@ import com.knowlink.api.claims.repositories.ClaimAttachmentRepository;
 import com.knowlink.api.claims.repositories.SessionClaimRepository;
 import com.knowlink.api.claims.services.interfaces.ISessionClaimService;
 import com.knowlink.api.claims.utils.ClaimDeadlineCalculator;
+import com.knowlink.api.claims.utils.ClaimSupportConstants;
 import com.knowlink.api.exceptions.custom_exceptions.ClaimDeadlineExceededException;
 import com.knowlink.api.exceptions.custom_exceptions.ClaimReasonNotAllowedException;
 import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
@@ -28,9 +29,11 @@ import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.payments.services.FundsLedgerService;
 import com.knowlink.api.materials.exception.FormatNotAllowedException;
 import com.knowlink.api.materials.service.interfaces.ISupabaseStorageService;
+import com.knowlink.api.materials.utils.StorageConstants;
 import com.knowlink.api.notifications.data.enums.NotificationType;
 import com.knowlink.api.notifications.services.interfaces.INotificationService;
 import com.knowlink.api.security.enums.Role;
+import com.knowlink.api.support.utils.FileFormatConstants;
 import com.knowlink.api.users.data.models.User;
 
 import lombok.extern.slf4j.Slf4j;
@@ -56,16 +59,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class SessionClaimServiceImpl implements ISessionClaimService {
 
-    private static final String EVIDENCE_BUCKET = "claimEvidence";
-    private static final int SIGNED_URL_EXPIRATION_SECONDS = 3600;
     private static final String ACTIVE_CLAIM_MESSAGE = "Ya tenés un reclamo activo para esta sesión";
-    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "jpg", "jpeg", "png");
-    private static final Map<String, Set<String>> ALLOWED_CONTENT_TYPES = Map.of(
-            "pdf", Set.of("application/pdf"),
-            "jpg", Set.of("image/jpeg"),
-            "jpeg", Set.of("image/jpeg"),
-            "png", Set.of("image/png"));
-
     private final IBookingRepository bookingRepository;
     private final SessionClaimRepository sessionClaimRepository;
     private final ClaimAttachmentRepository claimAttachmentRepository;
@@ -143,7 +137,7 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
         List<ClaimAttachment> attachmentEntities = new ArrayList<>();
         try {
             for (MultipartFile file : attachments) {
-                uploadedPaths.add(storageService.upload(file, EVIDENCE_BUCKET, bookingId.toString()));
+                uploadedPaths.add(storageService.upload(file, ClaimSupportConstants.EVIDENCE_BUCKET, bookingId.toString()));
             }
 
             for (int i = 0; i < attachments.size(); i++) {
@@ -213,7 +207,7 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
                 "Actualización de reclamo",
                 "El estado de tu reclamo por la sesión de "
                         + claim.getBooking().getTutorSubject().getSubject().getName()
-                        + " cambió a " + statusLabel(status) + ".");
+                        + " cambió a " + status.displayLabel() + ".");
         notificationService.createSupportNotification(
                 claim.getBooking().getStudent().getUserId(),
                 NotificationType.SESSION_CLAIM_UPDATE,
@@ -221,7 +215,7 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
                 "Actualización de reclamo",
                 "El estado de tu reclamo por la sesión de "
                         + claim.getBooking().getTutorSubject().getSubject().getName()
-                        + " cambió a " + statusLabel(status) + ".");
+                        + " cambió a " + status.displayLabel() + ".");
     }
 
     @Override
@@ -245,8 +239,8 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
                         attachment.getOriginalFileName(),
                         attachment.getContentType(),
                         attachment.getSizeInBytes(),
-                        storageService.generateSignedUrl(EVIDENCE_BUCKET, attachment.getStoragePath(),
-                                SIGNED_URL_EXPIRATION_SECONDS)))
+                        storageService.generateSignedUrl(ClaimSupportConstants.EVIDENCE_BUCKET,
+                                attachment.getStoragePath(), StorageConstants.SIGNED_URL_EXPIRATION_SECONDS)))
                 .toList();
     }
 
@@ -339,14 +333,6 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
         return activeClaimExists(bookingId, userId, null);
     }
 
-    private String statusLabel(ClaimStatus status) {
-        return switch (status) {
-            case OPEN -> "Abierto";
-            case IN_REVIEW -> "En revisión";
-            case RESOLVED -> "Resuelto";
-        };
-    }
-
     private DuplicateResourceException activeClaimExists(UUID bookingId, UUID userId, Throwable cause) {
         String technicalMessage = "Active claim already exists for booking " + bookingId + " and user " + userId;
         if (cause != null) {
@@ -410,11 +396,12 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
             throw new FormatNotAllowedException("El formato del archivo no está permitido");
         }
         String extension = getFileExtension(originalFilename).toLowerCase(Locale.ROOT);
-        if (!ALLOWED_EXTENSIONS.contains(extension)) {
+        if (!FileFormatConstants.ALLOWED_EXTENSIONS.contains(extension)) {
             throw new FormatNotAllowedException("El formato del archivo no está permitido");
         }
         String contentType = file.getContentType();
-        if (contentType == null || !ALLOWED_CONTENT_TYPES.get(extension).contains(contentType)) {
+        if (contentType == null
+                || !FileFormatConstants.ALLOWED_CONTENT_TYPES.get(extension).equals(contentType)) {
             throw new FormatNotAllowedException("El formato del archivo no está permitido");
         }
     }
@@ -434,7 +421,7 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
     private void cleanupUploads(List<String> paths) {
         for (String path : paths) {
             try {
-                storageService.delete(EVIDENCE_BUCKET, path);
+                storageService.delete(ClaimSupportConstants.EVIDENCE_BUCKET, path);
             } catch (Exception ex) {
                 log.warn("Failed to clean up uploaded attachment {}: {}", path, ex.getMessage());
             }
