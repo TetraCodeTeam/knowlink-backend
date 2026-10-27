@@ -8,5 +8,6 @@ public final class RatingConstants {
     }
 
     public static final Duration BLIND_REVIEW_WINDOW = Duration.ofHours(24);
+    public static final Duration RATING_WINDOW = Duration.ofHours(24);
     public static final int MAX_COMMENT_LENGTH = 2_000;
 }

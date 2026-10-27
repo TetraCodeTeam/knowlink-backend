@@ -4,6 +4,7 @@ import com.knowlink.api.claims.controllers.requests.AddClaimCommentRequest;
 import com.knowlink.api.claims.controllers.responses.ClaimCommentResponse;
 import com.knowlink.api.materials.controller.responses.MaterialReportingPolicyResponse;
 import com.knowlink.api.notifications.services.interfaces.INotificationService;
+import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.students.support.controllers.responses.StudentMaterialReportDetailResponse;
 import com.knowlink.api.students.support.controllers.responses.StudentSessionClaimDetailResponse;
 import com.knowlink.api.students.support.controllers.responses.StudentSupportResponse;
@@ -31,7 +32,7 @@ public class StudentSupportServiceImpl implements IStudentSupportService {
     public StudentSupportResponse getSupport(UUID studentUserId) {
         var claims = sessionSupportService.getClaims(studentUserId);
         var reports = materialSupportService.getReports(studentUserId);
-        notificationService.markSupportAsRead(studentUserId);
+        notificationService.markSupportAsRead(studentUserId, Role.STUDENT);
         return new StudentSupportResponse(
                 studentSupportMapper.toSummary(claims, reports),
                 claims,

@@ -13,6 +13,7 @@ import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.notifications.data.enums.NotificationType;
 import com.knowlink.api.notifications.services.interfaces.INotificationService;
+import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.students.support.controllers.responses.StudentSessionClaimDetailResponse;
 import com.knowlink.api.students.support.controllers.responses.StudentSessionClaimResponse;
 import com.knowlink.api.students.support.data.mappers.StudentSupportMapper;
@@ -85,6 +86,7 @@ public class StudentSessionSupportService implements IStudentSessionSupportServi
                 .build());
         notificationService.createSupportNotification(
                 booking.getTutor().getUserId(),
+                Role.TUTOR,
                 NotificationType.SESSION_CLAIM_COMMENT,
                 claim.getClaimId(),
                 "Nuevo comentario en un reclamo",

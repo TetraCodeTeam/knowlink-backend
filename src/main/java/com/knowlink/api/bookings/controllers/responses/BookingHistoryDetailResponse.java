@@ -1,6 +1,7 @@
 package com.knowlink.api.bookings.controllers.responses;
 
 import com.knowlink.api.bookings.data.enums.BookingStatus;
+import com.knowlink.api.ratings.data.enums.RatingStatus;
 import com.knowlink.api.tutors.data.enums.Modality;
 
 import java.math.BigDecimal;
@@ -24,5 +25,7 @@ public record BookingHistoryDetailResponse(
         String virtualSessionLink, // solo si modality == VIRTUAL
         String address,            // solo si modality == IN_PERSON
         LocalDateTime createdAt,
-        LocalDateTime confirmationTokenExpiresAt
+        LocalDateTime confirmationTokenExpiresAt,
+        RatingStatus ratingStatus,
+        LocalDateTime ratingDeadline
 ) {}

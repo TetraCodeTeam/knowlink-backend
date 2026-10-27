@@ -18,6 +18,7 @@ import com.knowlink.api.materials.service.interfaces.IMaterialAccessService;
 import com.knowlink.api.materials.service.interfaces.IMaterialReportService;
 import com.knowlink.api.notifications.data.enums.NotificationType;
 import com.knowlink.api.notifications.services.interfaces.INotificationService;
+import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.repositories.IUserRepository;
 import lombok.RequiredArgsConstructor;
@@ -101,6 +102,7 @@ public class MaterialReportServiceImpl implements IMaterialReportService {
 
         notificationService.createSupportNotification(
                 tutorUserId,
+                Role.TUTOR,
                 NotificationType.MATERIAL_REPORT_UPDATE,
                 material.getAcademicMaterialId(),
                 "Denuncia de material recibida",
@@ -158,6 +160,7 @@ public class MaterialReportServiceImpl implements IMaterialReportService {
         materialRepository.save(material);
         notificationService.createSupportNotification(
                 report.getMaterial().getTutorSubject().getTutorProfile().getUser().getUserId(),
+                Role.TUTOR,
                 NotificationType.MATERIAL_REPORT_UPDATE,
                 report.getMaterial().getAcademicMaterialId(),
                 "Actualización de denuncia",
@@ -165,6 +168,7 @@ public class MaterialReportServiceImpl implements IMaterialReportService {
                         + " cambió a " + status.displayLabel() + ".");
         notificationService.createSupportNotification(
                 report.getReporter().getUserId(),
+                Role.STUDENT,
                 NotificationType.MATERIAL_REPORT_UPDATE,
                 report.getAcademicMaterialReportId(),
                 status == MaterialReportStatus.RESOLVED

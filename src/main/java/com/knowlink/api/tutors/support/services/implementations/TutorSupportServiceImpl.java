@@ -2,6 +2,7 @@ package com.knowlink.api.tutors.support.services.implementations;
 
 import com.knowlink.api.claims.controllers.responses.ClaimCommentResponse;
 import com.knowlink.api.notifications.services.interfaces.INotificationService;
+import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.claims.controllers.requests.AddClaimCommentRequest;
 import com.knowlink.api.tutors.support.controllers.requests.SubmitMaterialDefenseRequest;
 import com.knowlink.api.materials.controller.responses.MaterialReportingPolicyResponse;
@@ -35,7 +36,7 @@ public class TutorSupportServiceImpl implements ITutorSupportService {
     public TutorSupportResponse getSupport(UUID tutorUserId) {
         var claims = sessionSupportService.getClaims(tutorUserId);
         var reportedMaterials = materialSupportService.getReportedMaterials(tutorUserId);
-        notificationService.markSupportAsRead(tutorUserId);
+        notificationService.markSupportAsRead(tutorUserId, Role.TUTOR);
         TutorSupportSummaryResponse summary = tutorSupportMapper.toSummary(claims, reportedMaterials);
         return new TutorSupportResponse(summary, claims, reportedMaterials);
     }

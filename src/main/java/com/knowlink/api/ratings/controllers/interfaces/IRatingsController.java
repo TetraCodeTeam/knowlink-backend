@@ -28,6 +28,7 @@ public interface IRatingsController {
     @ApiResponse(responseCode = "201", description = "Calificación registrada")
     @ApiResponse(responseCode = "400", description = "La sesión no está realizada o el puntaje es inválido")
     @ApiResponse(responseCode = "409", description = "El usuario ya calificó esta sesión")
+    @ApiResponse(responseCode = "422", description = "Ya pasó el plazo de 24 horas para calificar la sesión")
     @ApiResponse(responseCode = "404", description = "La reserva no existe o no pertenece al usuario autenticado")
     @ResponseStatus(CREATED)
     RatingResponse submitRating(

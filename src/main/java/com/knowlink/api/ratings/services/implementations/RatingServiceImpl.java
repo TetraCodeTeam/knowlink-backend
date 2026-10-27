@@ -9,14 +9,18 @@ import com.knowlink.api.bookings.repositories.IBookingRepository;
 import com.knowlink.api.ratings.services.interfaces.IRatingService;
 import com.knowlink.api.bookings.validations.IBookingValidationService;
 import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
+import com.knowlink.api.exceptions.custom_exceptions.RatingWindowExpiredException;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.ratings.data.models.Rating;
+import com.knowlink.api.ratings.events.RatingSubmittedEvent;
 import com.knowlink.api.ratings.repositories.IRatingRepository;
 import com.knowlink.api.ratings.services.interfaces.IRatingReputationService;
 import com.knowlink.api.ratings.utils.RatingConstants;
+import com.knowlink.api.ratings.utils.RatingWindow;
 import com.knowlink.api.users.data.models.User;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,6 +42,7 @@ public class RatingServiceImpl implements IRatingService {
     private final IBookingValidationService bookingValidationService;
     private final RatingMapper ratingMapper;
     private final Clock clock;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Override
     @Transactional
@@ -65,7 +70,13 @@ public class RatingServiceImpl implements IRatingService {
                 "User " + userId + " already submitted a rating for booking " + bookingId);
         }
 
+        LocalDateTime ratingDeadline = RatingWindow.deadline(
+                booking.getSessionDate(), booking.getEndTime(), booking.getConfirmedAt());
         LocalDateTime now = LocalDateTime.now(clock);
+        if (!RatingWindow.isOpen(ratingDeadline, now)) {
+            throw new RatingWindowExpiredException(
+                    "Booking " + bookingId + " rating window closed for user " + userId);
+        }
         LocalDateTime visibleBefore = now.minus(RatingConstants.BLIND_REVIEW_WINDOW);
         boolean deadlineElapsed = ratingRepository.isBlindReviewDeadlineElapsed(
             bookingId,
@@ -86,6 +97,8 @@ public class RatingServiceImpl implements IRatingService {
         } else {
             ratingRepository.save(rating);
         }
+
+        applicationEventPublisher.publishEvent(new RatingSubmittedEvent(bookingId, userId));
 
         return new RatingResponse(visible, SUBMITTED_MESSAGE);
     }

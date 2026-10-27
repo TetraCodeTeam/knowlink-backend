@@ -154,8 +154,10 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
 
             fundsLedgerService.markSuspendedByClaim(bookingId, savedClaim.getClaimId());
             User otherParticipant = claimantRole == Role.TUTOR ? booking.getStudent() : booking.getTutor();
+            Role otherParticipantRole = claimantRole == Role.TUTOR ? Role.STUDENT : Role.TUTOR;
             notificationService.createSupportNotification(
                     otherParticipant.getUserId(),
+                    otherParticipantRole,
                     NotificationType.SESSION_CLAIM_UPDATE,
                     savedClaim.getClaimId(),
                     "Nuevo reclamo de sesión",
@@ -202,6 +204,7 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
 
         notificationService.createSupportNotification(
                 claim.getBooking().getTutor().getUserId(),
+                Role.TUTOR,
                 NotificationType.SESSION_CLAIM_UPDATE,
                 claim.getClaimId(),
                 "Actualización de reclamo",
@@ -210,6 +213,7 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
                         + " cambió a " + status.displayLabel() + ".");
         notificationService.createSupportNotification(
                 claim.getBooking().getStudent().getUserId(),
+                Role.STUDENT,
                 NotificationType.SESSION_CLAIM_UPDATE,
                 claim.getClaimId(),
                 "Actualización de reclamo",
