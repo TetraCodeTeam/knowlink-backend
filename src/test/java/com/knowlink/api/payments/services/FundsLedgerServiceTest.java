@@ -204,6 +204,59 @@ class FundsLedgerServiceTest {
         assertThat(event.concept()).isEqualTo(FundsConcept.HELD);
     }
 
+    @Test
+    @DisplayName("Reasignacion - si se resuelve el reclamo que bloqueaba, los fondos pasan al reclamo activo de la otra parte")
+    void reassignBlockingClaim_blockedByResolvedClaim_pointsToActiveClaim() {
+        fundsLedgerService = new FundsLedgerService(fundsTransferRepository, applicationEventPublisher);
+        UUID activeClaimId = UUID.randomUUID();
+        FundsTransfer transfer = FundsTransfer.builder()
+                .fundsTransferId(UUID.randomUUID())
+                .fundsStatus(FundsStatus.SUSPENDED_BY_CLAIM)
+                .blockingClaimId(claimId)
+                .build();
+        when(fundsTransferRepository.findByBooking_BookingId(bookingId)).thenReturn(Optional.of(transfer));
+
+        fundsLedgerService.reassignBlockingClaim(bookingId, claimId, activeClaimId);
+
+        assertThat(transfer.getBlockingClaimId()).isEqualTo(activeClaimId);
+        assertThat(transfer.getFundsStatus()).isEqualTo(FundsStatus.SUSPENDED_BY_CLAIM);
+        verify(fundsTransferRepository).save(transfer);
+    }
+
+    @Test
+    @DisplayName("Reasignacion - si el bloqueo es de otro reclamo, no se modifica")
+    void reassignBlockingClaim_blockedByAnotherClaim_isLeftUntouched() {
+        fundsLedgerService = new FundsLedgerService(fundsTransferRepository, applicationEventPublisher);
+        UUID blockingClaimId = UUID.randomUUID();
+        FundsTransfer transfer = FundsTransfer.builder()
+                .fundsTransferId(UUID.randomUUID())
+                .fundsStatus(FundsStatus.SUSPENDED_BY_CLAIM)
+                .blockingClaimId(blockingClaimId)
+                .build();
+        when(fundsTransferRepository.findByBooking_BookingId(bookingId)).thenReturn(Optional.of(transfer));
+
+        fundsLedgerService.reassignBlockingClaim(bookingId, claimId, UUID.randomUUID());
+
+        assertThat(transfer.getBlockingClaimId()).isEqualTo(blockingClaimId);
+        verify(fundsTransferRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Reasignacion - fondos que no estan suspendidos no se tocan")
+    void reassignBlockingClaim_transferNotSuspended_isLeftUntouched() {
+        fundsLedgerService = new FundsLedgerService(fundsTransferRepository, applicationEventPublisher);
+        FundsTransfer transfer = FundsTransfer.builder()
+                .fundsTransferId(UUID.randomUUID())
+                .fundsStatus(FundsStatus.HELD)
+                .build();
+        when(fundsTransferRepository.findByBooking_BookingId(bookingId)).thenReturn(Optional.of(transfer));
+
+        fundsLedgerService.reassignBlockingClaim(bookingId, claimId, UUID.randomUUID());
+
+        assertThat(transfer.getBlockingClaimId()).isNull();
+        verify(fundsTransferRepository, never()).save(any());
+    }
+
     private void injectRetention(BigDecimal retention) throws Exception {
         Field field = FundsLedgerService.class.getDeclaredField("systemRetentionPercentage");
         field.setAccessible(true);

@@ -110,6 +110,24 @@ public class FundsLedgerService {
                 });
     }
 
+    /**
+     * Tutor y alumno pueden reclamar la misma sesión (cada uno con su propio reclamo) pero los fondos
+     * guardan un único {@code blockingClaimId}. Si se resuelve el reclamo que bloqueaba y el de la otra
+     * parte sigue activo, los fondos siguen suspendidos y pasan a apuntar a ese reclamo.
+     */
+    @Transactional
+    public void reassignBlockingClaim(UUID bookingId, UUID resolvedClaimId, UUID activeClaimId) {
+        fundsTransferRepository.findByBooking_BookingId(bookingId)
+                .filter(transfer -> transfer.getFundsStatus() == FundsStatus.SUSPENDED_BY_CLAIM
+                        && resolvedClaimId.equals(transfer.getBlockingClaimId()))
+                .ifPresent(transfer -> {
+                    transfer.setBlockingClaimId(activeClaimId);
+                    fundsTransferRepository.save(transfer);
+                    log.info("Funds for booking {} now blocked by claim {} (claim {} was resolved)",
+                            bookingId, activeClaimId, resolvedClaimId);
+                });
+    }
+
     @Transactional
     public void createHeldTransfer(Booking booking) {
         FundsTransfer transfer = FundsTransfer.builder()

@@ -624,8 +624,8 @@ class SessionClaimServiceImplTest {
     @Test
     @DisplayName("hasActiveClaim - delega en el repositorio por reserva (cualquiera de las partes)")
     void hasActiveClaim_delegatesToRepository() {
-        when(sessionClaimRepository.existsByBooking_BookingIdAndStatus(booking.getBookingId(), ClaimStatus.OPEN))
-                .thenReturn(true);
+        when(sessionClaimRepository.existsByBooking_BookingIdAndStatusIn(
+                booking.getBookingId(), ClaimStatus.ACTIVE_STATUSES)).thenReturn(true);
 
         assertThat(service.hasActiveClaim(booking.getBookingId())).isTrue();
     }
@@ -726,11 +726,7 @@ class SessionClaimServiceImplTest {
     @Test
     @DisplayName("updateStatus - a RESOLVED: notifica a ambas partes y no emite FUNDS_RELEASED")
     void updateStatus_resolved_notifiesPartiesWithoutFundsReleased() {
-        SessionClaim claim = SessionClaim.builder()
-                .claimId(UUID.randomUUID())
-                .status(ClaimStatus.OPEN)
-                .booking(booking)
-                .build();
+        SessionClaim claim = claimBy(Role.STUDENT, ClaimStatus.OPEN);
         when(sessionClaimRepository.findById(claim.getClaimId())).thenReturn(Optional.of(claim));
         when(sessionClaimRepository.save(any(SessionClaim.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -741,5 +737,94 @@ class SessionClaimServiceImplTest {
         verify(notificationService).createSupportNotification(eq(studentId), eq(Role.STUDENT),
                 eq(NotificationType.SESSION_CLAIM_UPDATE), eq(claim.getClaimId()), anyString(), anyString());
         verify(notificationService, never()).notifyUser(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("updateStatus - reclamo del alumno: el alumno lo ve como suyo y el tutor como del alumno")
+    void updateStatus_studentClaim_messagesNameWhoseClaimItIs() {
+        SessionClaim claim = claimBy(Role.STUDENT, ClaimStatus.OPEN);
+        when(sessionClaimRepository.findById(claim.getClaimId())).thenReturn(Optional.of(claim));
+        when(sessionClaimRepository.save(any(SessionClaim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.updateStatus(claim.getClaimId(), ClaimStatus.IN_REVIEW);
+
+        verify(notificationService).createSupportNotification(eq(studentId), eq(Role.STUDENT),
+                eq(NotificationType.SESSION_CLAIM_UPDATE), eq(claim.getClaimId()), anyString(),
+                eq("El estado de tu reclamo por la sesión de Test subject cambió a En revisión."));
+        verify(notificationService).createSupportNotification(eq(tutorId), eq(Role.TUTOR),
+                eq(NotificationType.SESSION_CLAIM_UPDATE), eq(claim.getClaimId()), anyString(),
+                eq("El estado del reclamo del alumno por la sesión de Test subject cambió a En revisión."));
+    }
+
+    @Test
+    @DisplayName("updateStatus - reclamo del tutor: el tutor lo ve como suyo y el alumno como del tutor")
+    void updateStatus_tutorClaim_messagesNameWhoseClaimItIs() {
+        SessionClaim claim = claimBy(Role.TUTOR, ClaimStatus.OPEN);
+        when(sessionClaimRepository.findById(claim.getClaimId())).thenReturn(Optional.of(claim));
+        when(sessionClaimRepository.save(any(SessionClaim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.updateStatus(claim.getClaimId(), ClaimStatus.IN_REVIEW);
+
+        verify(notificationService).createSupportNotification(eq(tutorId), eq(Role.TUTOR),
+                eq(NotificationType.SESSION_CLAIM_UPDATE), eq(claim.getClaimId()), anyString(),
+                eq("El estado de tu reclamo por la sesión de Test subject cambió a En revisión."));
+        verify(notificationService).createSupportNotification(eq(studentId), eq(Role.STUDENT),
+                eq(NotificationType.SESSION_CLAIM_UPDATE), eq(claim.getClaimId()), anyString(),
+                eq("El estado del reclamo del tutor por la sesión de Test subject cambió a En revisión."));
+    }
+
+    @Test
+    @DisplayName("updateStatus - resolver el reclamo que bloquea con el de la otra parte activo: reasigna el bloqueo")
+    void updateStatus_resolvedWhileCounterpartClaimActive_reassignsFundsBlock() {
+        SessionClaim claim = claimBy(Role.STUDENT, ClaimStatus.IN_REVIEW);
+        SessionClaim counterpartClaim = claimBy(Role.TUTOR, ClaimStatus.OPEN);
+        when(sessionClaimRepository.findById(claim.getClaimId())).thenReturn(Optional.of(claim));
+        when(sessionClaimRepository.save(any(SessionClaim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(sessionClaimRepository.findFirstByBooking_BookingIdAndClaimIdNotAndStatusInOrderByCreatedAtAsc(
+                booking.getBookingId(), claim.getClaimId(), ClaimStatus.ACTIVE_STATUSES))
+                .thenReturn(Optional.of(counterpartClaim));
+
+        service.updateStatus(claim.getClaimId(), ClaimStatus.RESOLVED);
+
+        verify(fundsLedgerService).reassignBlockingClaim(
+                booking.getBookingId(), claim.getClaimId(), counterpartClaim.getClaimId());
+    }
+
+    @Test
+    @DisplayName("updateStatus - resolver el único reclamo activo: no hay bloqueo que reasignar")
+    void updateStatus_resolvedWithoutOtherActiveClaim_doesNotReassignFundsBlock() {
+        SessionClaim claim = claimBy(Role.STUDENT, ClaimStatus.IN_REVIEW);
+        when(sessionClaimRepository.findById(claim.getClaimId())).thenReturn(Optional.of(claim));
+        when(sessionClaimRepository.save(any(SessionClaim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(sessionClaimRepository.findFirstByBooking_BookingIdAndClaimIdNotAndStatusInOrderByCreatedAtAsc(
+                booking.getBookingId(), claim.getClaimId(), ClaimStatus.ACTIVE_STATUSES))
+                .thenReturn(Optional.empty());
+
+        service.updateStatus(claim.getClaimId(), ClaimStatus.RESOLVED);
+
+        verify(fundsLedgerService, never()).reassignBlockingClaim(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("updateStatus - pasar a IN_REVIEW no toca el bloqueo de fondos")
+    void updateStatus_inReview_doesNotLookForOtherClaims() {
+        SessionClaim claim = claimBy(Role.STUDENT, ClaimStatus.OPEN);
+        when(sessionClaimRepository.findById(claim.getClaimId())).thenReturn(Optional.of(claim));
+        when(sessionClaimRepository.save(any(SessionClaim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.updateStatus(claim.getClaimId(), ClaimStatus.IN_REVIEW);
+
+        verify(sessionClaimRepository, never())
+                .findFirstByBooking_BookingIdAndClaimIdNotAndStatusInOrderByCreatedAtAsc(any(), any(), any());
+        verify(fundsLedgerService, never()).reassignBlockingClaim(any(), any(), any());
+    }
+
+    private SessionClaim claimBy(Role claimantRole, ClaimStatus status) {
+        return SessionClaim.builder()
+                .claimId(UUID.randomUUID())
+                .status(status)
+                .claimantRole(claimantRole)
+                .booking(booking)
+                .build();
     }
 }

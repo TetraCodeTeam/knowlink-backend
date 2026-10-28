@@ -202,24 +202,41 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
         }
         sessionClaimRepository.save(claim);
 
+        if (status == ClaimStatus.RESOLVED) {
+            // La otra parte puede tener su propio reclamo abierto sobre la misma sesión.
+            sessionClaimRepository.findFirstByBooking_BookingIdAndClaimIdNotAndStatusInOrderByCreatedAtAsc(
+                            claim.getBooking().getBookingId(), claim.getClaimId(), ClaimStatus.ACTIVE_STATUSES)
+                    .ifPresent(remaining -> fundsLedgerService.reassignBlockingClaim(
+                            claim.getBooking().getBookingId(), claim.getClaimId(), remaining.getClaimId()));
+        }
+
         notificationService.createSupportNotification(
                 claim.getBooking().getTutor().getUserId(),
                 Role.TUTOR,
                 NotificationType.SESSION_CLAIM_UPDATE,
                 claim.getClaimId(),
                 "Actualización de reclamo",
-                "El estado de tu reclamo por la sesión de "
-                        + claim.getBooking().getTutorSubject().getSubject().getName()
-                        + " cambió a " + status.displayLabel() + ".");
+                statusChangeMessage(claim, Role.TUTOR, status));
         notificationService.createSupportNotification(
                 claim.getBooking().getStudent().getUserId(),
                 Role.STUDENT,
                 NotificationType.SESSION_CLAIM_UPDATE,
                 claim.getClaimId(),
                 "Actualización de reclamo",
-                "El estado de tu reclamo por la sesión de "
-                        + claim.getBooking().getTutorSubject().getSubject().getName()
-                        + " cambió a " + status.displayLabel() + ".");
+                statusChangeMessage(claim, Role.STUDENT, status));
+    }
+
+    /**
+     * Como cada parte puede tener su propio reclamo sobre la sesión, el texto aclara de quién es:
+     * quien lo inició lo ve como "tu reclamo" y la contraparte como el reclamo de la otra parte.
+     */
+    private String statusChangeMessage(SessionClaim claim, Role recipientRole, ClaimStatus status) {
+        String claimReference = recipientRole == claim.getClaimantRole()
+                ? "de tu reclamo"
+                : claim.getClaimantRole() == Role.TUTOR ? "del reclamo del tutor" : "del reclamo del alumno";
+        return "El estado " + claimReference + " por la sesión de "
+                + claim.getBooking().getTutorSubject().getSubject().getName()
+                + " cambió a " + status.displayLabel() + ".";
     }
 
     @Override
@@ -270,7 +287,7 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
     @Override
     @Transactional(readOnly = true)
     public boolean hasActiveClaim(UUID bookingId) {
-        return sessionClaimRepository.existsByBooking_BookingIdAndStatus(bookingId, ClaimStatus.OPEN);
+        return sessionClaimRepository.existsByBooking_BookingIdAndStatusIn(bookingId, ClaimStatus.ACTIVE_STATUSES);
     }
 
     /**

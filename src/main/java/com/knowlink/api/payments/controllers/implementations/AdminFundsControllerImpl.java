@@ -26,6 +26,7 @@ public class AdminFundsControllerImpl {
     @Operation(summary = "Reintentar resolucion de fondos tras resolver disputa")
     @ApiResponse(responseCode = "200", description = "Resolucion de fondos reintentada exitosamente")
     @ApiResponse(responseCode = "404", description = "No hay fondos suspendidos para esta reserva")
+    @ApiResponse(responseCode = "409", description = "La sesion todavia tiene reclamos sin resolver")
     public ResponseEntity<Map<String, String>> retryFundsResolution(
             @PathVariable UUID bookingId) {
         fundsResolutionService.retryAfterClaimResolution(bookingId);
