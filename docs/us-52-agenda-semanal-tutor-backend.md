@@ -120,6 +120,8 @@ GET /api/v1/tutors/me/weekly-schedule?from=YYYY-MM-DD&to=YYYY-MM-DD
 ```
 
 - `summary.nextClass` es `null` cuando no hay reservas `BOOKED` futuras.
+- `summary.freeBlocksCount` cuenta los tramos libres que se muestran en el calendario: un bloque
+  de disponibilidad partido por una reserva aporta dos tramos libres.
 
 ### DTOs nuevos (únicos que hace falta crear)
 
