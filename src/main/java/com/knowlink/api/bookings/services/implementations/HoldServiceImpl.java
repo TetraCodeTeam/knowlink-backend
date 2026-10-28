@@ -65,7 +65,7 @@ public class HoldServiceImpl implements IHoldService {
         LocalTime startTime = request.start().atZone(AppTimeZone.ZONE).toLocalTime();
         LocalTime endTime = EndOfDay.endTimeFromInstant(request.end());
 
-        holdValidationService.validateExactDuration(startTime, endTime);
+        holdValidationService.validateDuration(startTime, endTime);
         holdValidationService.validateTimeWithinSlot(timeSlot, startTime, endTime);
         holdValidationService.validateMinNotice(tutorProfile, timeSlot, startTime);
         holdValidationService.validateNoOverlap(timeSlot.getTimeSlotId(), startTime, endTime);

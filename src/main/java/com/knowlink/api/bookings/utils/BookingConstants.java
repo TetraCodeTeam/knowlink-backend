@@ -19,6 +19,9 @@ public final class BookingConstants {
     public static final Duration CONFIRMATION_TOKEN_LEAD_TIME = Duration.ofMinutes(5);
     public static final Duration CONFIRMATION_WINDOW_GRACE_PERIOD = Duration.ofMinutes(10);
     public static final Duration CONFIRMATION_REMINDER_INTERVAL = Duration.ofMinutes(10);
+    public static final Duration MIN_BOOKING_DURATION = Duration.ofHours(1);
+    // Same cap as the daily per-subject limit, so a hold that passes validation can always be confirmed.
+    public static final Duration MAX_BOOKING_DURATION = Duration.ofHours(3);
     public static final Duration MAX_DAILY_SUBJECT_DURATION = Duration.ofHours(3);
     public static final List<BookingStatus> ACTIVE_STATUSES =
             List.of(BookingStatus.PENDING, BookingStatus.BOOKED, BookingStatus.IN_PROGRESS);

@@ -3,6 +3,7 @@ package com.knowlink.api.bookings.validations;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.shared.utils.EndOfDay;
+import com.knowlink.api.bookings.utils.BookingConstants;
 import com.knowlink.api.bookings.utils.HoldTutorResolver;
 import com.knowlink.api.timeslot.data.models.TimeSlot;
 import com.knowlink.api.bookings.data.models.Hold;
@@ -28,7 +29,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class HoldValidationServiceImpl implements IHoldValidationService {
 
-    private static final Duration BOOKING_DURATION = Duration.ofHours(1);
+    private static final long MINUTES_PER_HOUR = Duration.ofHours(1).toMinutes();
 
     private final IHoldRepository holdRepository;
     private final IBookingRepository bookingRepository;
@@ -36,9 +37,17 @@ public class HoldValidationServiceImpl implements IHoldValidationService {
     private final HoldTutorResolver holdTutorResolver;
 
     @Override
-    public void validateExactDuration(LocalTime startTime, LocalTime endTime) {
-        if (!EndOfDay.between(startTime, endTime).equals(BOOKING_DURATION)) {
-            throw new ValidationException("Las clases se reservan en bloques de exactamente 1 hora.");
+    public void validateDuration(LocalTime startTime, LocalTime endTime) {
+        Duration duration = EndOfDay.between(startTime, endTime);
+
+        if (duration.toMinutes() % MINUTES_PER_HOUR != 0
+                || duration.compareTo(BookingConstants.MIN_BOOKING_DURATION) < 0) {
+            throw new ValidationException(
+                    "Las clases se reservan en horas completas, con una duración mínima de 1 hora.");
+        }
+
+        if (duration.compareTo(BookingConstants.MAX_BOOKING_DURATION) > 0) {
+            throw new ValidationException("La duración máxima de una clase es de 3 horas.");
         }
     }
 
