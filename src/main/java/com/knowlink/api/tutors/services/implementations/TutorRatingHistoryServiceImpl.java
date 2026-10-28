@@ -49,6 +49,9 @@ public class TutorRatingHistoryServiceImpl implements ITutorRatingHistoryService
         Double averageRating = totalRatings == 0L || summary.getAverageScore() == null
                 ? null
                 : roundOneDecimal(summary.getAverageScore());
+        long totalComments = summary == null || summary.getCommentCount() == null
+                ? 0L
+                : summary.getCommentCount();
 
         List<SubjectAverageResponse> subjects = ratingRepository.findAverageGroupedBySubject(tutorId)
                 .stream()
@@ -68,7 +71,8 @@ public class TutorRatingHistoryServiceImpl implements ITutorRatingHistoryService
                 comments.getTotalElements(),
                 comments.getTotalPages());
 
-        return new TutorRatingHistoryResponse(tutorId, averageRating, totalRatings, subjects, pagedComments);
+        return new TutorRatingHistoryResponse(tutorId, averageRating, totalRatings, totalComments, subjects,
+                pagedComments);
     }
 
     private static SubjectAverageResponse toSubjectAverage(SubjectRatingSummary summary) {
@@ -76,7 +80,8 @@ public class TutorRatingHistoryServiceImpl implements ITutorRatingHistoryService
                 summary.getSubjectId(),
                 summary.getSubjectName(),
                 summary.getAverageScore() == null ? null : roundOneDecimal(summary.getAverageScore()),
-                summary.getRatingCount() == null ? 0L : summary.getRatingCount());
+                summary.getRatingCount() == null ? 0L : summary.getRatingCount(),
+                summary.getCommentCount() == null ? 0L : summary.getCommentCount());
     }
 
     private static RatingCommentResponse toComment(Rating rating) {

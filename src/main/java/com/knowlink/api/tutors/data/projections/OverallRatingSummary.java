@@ -5,4 +5,6 @@ public interface OverallRatingSummary {
     Double getAverageScore();
 
     Long getRatingCount();
+
+    Long getCommentCount();
 }

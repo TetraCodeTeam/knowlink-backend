@@ -6,5 +6,6 @@ public record SubjectAverageResponse(
         UUID subjectId,
         String name,
         Double average,
-        Long count) {
+        Long count,
+        Long commentCount) {
 }

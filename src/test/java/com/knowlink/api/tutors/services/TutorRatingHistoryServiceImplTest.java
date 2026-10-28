@@ -58,6 +58,10 @@ class TutorRatingHistoryServiceImplTest {
     }
 
     private OverallRatingSummary summary(Double averageScore, Long ratingCount) {
+        return summary(averageScore, ratingCount, 0L);
+    }
+
+    private OverallRatingSummary summary(Double averageScore, Long ratingCount, Long commentCount) {
         return new OverallRatingSummary() {
             @Override
             public Double getAverageScore() {
@@ -68,11 +72,21 @@ class TutorRatingHistoryServiceImplTest {
             public Long getRatingCount() {
                 return ratingCount;
             }
+
+            @Override
+            public Long getCommentCount() {
+                return commentCount;
+            }
         };
     }
 
     private SubjectRatingSummary subjectSummary(UUID subjectId, String subjectName, Double averageScore,
             Long ratingCount) {
+        return subjectSummary(subjectId, subjectName, averageScore, ratingCount, 0L);
+    }
+
+    private SubjectRatingSummary subjectSummary(UUID subjectId, String subjectName, Double averageScore,
+            Long ratingCount, Long commentCount) {
         return new SubjectRatingSummary() {
             @Override
             public UUID getSubjectId() {
@@ -92,6 +106,11 @@ class TutorRatingHistoryServiceImplTest {
             @Override
             public Long getRatingCount() {
                 return ratingCount;
+            }
+
+            @Override
+            public Long getCommentCount() {
+                return commentCount;
             }
         };
     }
@@ -123,10 +142,10 @@ class TutorRatingHistoryServiceImplTest {
         UUID secondSubjectId = UUID.randomUUID();
         when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorId))
                 .thenReturn(null);
-        when(ratingRepository.findOverallSummaryByTutorId(tutorId)).thenReturn(summary(4.26, 14L));
+        when(ratingRepository.findOverallSummaryByTutorId(tutorId)).thenReturn(summary(4.26, 14L, 11L));
         when(ratingRepository.findAverageGroupedBySubject(tutorId)).thenReturn(List.of(
-                subjectSummary(firstSubjectId, "Analisis Matematico I", 4.84, 9L),
-                subjectSummary(secondSubjectId, "Fisica I", 4.24, 5L)));
+                subjectSummary(firstSubjectId, "Analisis Matematico I", 4.84, 9L, 7L),
+                subjectSummary(secondSubjectId, "Fisica I", 4.24, 5L, 4L)));
         when(ratingRepository.findCompletedComments(eq(tutorId), any(Pageable.class)))
                 .thenReturn(ratingPage(List.of(), 0));
 
@@ -135,13 +154,16 @@ class TutorRatingHistoryServiceImplTest {
         assertThat(response.tutorId()).isEqualTo(tutorId);
         assertThat(response.averageRating()).isEqualTo(4.3);
         assertThat(response.totalRatings()).isEqualTo(14L);
+        assertThat(response.totalComments()).isEqualTo(11L);
         assertThat(response.subjects()).hasSize(2);
         assertThat(response.subjects().get(0).subjectId()).isEqualTo(firstSubjectId);
         assertThat(response.subjects().get(0).name()).isEqualTo("Analisis Matematico I");
         assertThat(response.subjects().get(0).average()).isEqualTo(4.8);
         assertThat(response.subjects().get(0).count()).isEqualTo(9L);
+        assertThat(response.subjects().get(0).commentCount()).isEqualTo(7L);
         assertThat(response.subjects().get(1).average()).isEqualTo(4.2);
         assertThat(response.subjects().get(1).count()).isEqualTo(5L);
+        assertThat(response.subjects().get(1).commentCount()).isEqualTo(4L);
     }
 
     @Test
@@ -158,6 +180,7 @@ class TutorRatingHistoryServiceImplTest {
 
         assertThat(response.averageRating()).isNull();
         assertThat(response.totalRatings()).isZero();
+        assertThat(response.totalComments()).isZero();
         assertThat(response.subjects()).isEmpty();
         assertThat(response.comments().content()).isEmpty();
         assertThat(response.comments().totalElements()).isZero();

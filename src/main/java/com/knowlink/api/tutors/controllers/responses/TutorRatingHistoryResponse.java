@@ -7,6 +7,7 @@ public record TutorRatingHistoryResponse(
         UUID tutorId,
         Double averageRating,
         Long totalRatings,
+        Long totalComments,
         List<SubjectAverageResponse> subjects,
         PagedCommentsResponse comments) {
 }

@@ -81,7 +81,8 @@ public interface IRatingRepository extends JpaRepository<Rating, UUID> {
 
     @Query("""
             SELECT AVG(r.score) AS averageScore,
-                   COUNT(r) AS ratingCount
+                   COUNT(r) AS ratingCount,
+                   COUNT(CASE WHEN r.comment IS NOT NULL THEN 1 END) AS commentCount
             FROM Rating r
             JOIN r.booking b
             WHERE r.ratedUser.userId = :tutorId
@@ -95,7 +96,8 @@ public interface IRatingRepository extends JpaRepository<Rating, UUID> {
             SELECT s.subjectId AS subjectId,
                    s.name AS subjectName,
                    AVG(r.score) AS averageScore,
-                   COUNT(r) AS ratingCount
+                   COUNT(r) AS ratingCount,
+                   COUNT(CASE WHEN r.comment IS NOT NULL THEN 1 END) AS commentCount
             FROM Rating r
             JOIN r.booking b
             JOIN b.tutorSubject ts
