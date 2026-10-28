@@ -8,10 +8,7 @@ import com.knowlink.api.bookings.repositories.IBookingRepository;
 import com.knowlink.api.bookings.utils.ReservationWindowUtil;
 import com.knowlink.api.tutors.availability.controllers.responses.AvailabilityBlockResponse;
 import com.knowlink.api.tutors.availability.data.enums.BookingStatusGroups;
-import com.knowlink.api.tutors.availability.data.models.AvailabilityBlock;
-import com.knowlink.api.tutors.availability.repositories.IAvailabilityBlockRepository;
 import com.knowlink.api.tutors.availability.services.interfaces.IAvailabilityBlockService;
-import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.schedule.controllers.responses.NextClassResponse;
 import com.knowlink.api.tutors.schedule.controllers.responses.WeeklyScheduleResponse;
 import com.knowlink.api.tutors.schedule.controllers.responses.WeeklyScheduleSummaryResponse;
@@ -38,14 +35,13 @@ public class TutorWeeklyScheduleServiceImpl implements ITutorWeeklyScheduleServi
 
     private final ITutorProfileValidationService tutorProfileValidationService;
     private final IAvailabilityBlockService availabilityBlockService;
-    private final IAvailabilityBlockRepository availabilityBlockRepository;
     private final IBookingRepository bookingRepository;
     private final BookingMapper bookingMapper;
 
     @Override
     @Transactional(readOnly = true)
     public WeeklyScheduleResponse getWeeklySchedule(UUID tutorUserId, LocalDate from, LocalDate to) {
-        TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
+        tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
 
         List<AvailabilityBlockResponse> rawBlocks =
                 availabilityBlockService.getBlocksInRange(tutorUserId, from, to);
@@ -67,12 +63,6 @@ public class TutorWeeklyScheduleServiceImpl implements ITutorWeeklyScheduleServi
 
         LocalDateTime now = LocalDateTime.now(AppTimeZone.ZONE);
 
-        List<AvailabilityBlock> freeBlocks = availabilityBlockRepository.findInRange(
-                tutorProfile.getTutorProfileId(), from, to, now.toLocalDate(), now.toLocalTime())
-                .stream()
-                .filter(AvailabilityBlock::isAvailable)
-                .toList();
-
         NextClassResponse nextClass = confirmedBookings.stream()
                 .filter(b -> b.getSessionDate().isAfter(now.toLocalDate())
                         || (b.getSessionDate().isEqual(now.toLocalDate())
@@ -89,6 +79,7 @@ public class TutorWeeklyScheduleServiceImpl implements ITutorWeeklyScheduleServi
                         b.getEndTime()))
                 .orElse(null);
 
+        // Counts the free segments rendered in the calendar: a block split by a booking yields two segments.
         WeeklyScheduleSummaryResponse summary = new WeeklyScheduleSummaryResponse(
                 confirmedBookings.size(),
                 availabilityBlocks.size(),
