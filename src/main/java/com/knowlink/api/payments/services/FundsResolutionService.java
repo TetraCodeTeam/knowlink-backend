@@ -5,6 +5,7 @@ import com.knowlink.api.claims.data.enums.ClaimStatus;
 import com.knowlink.api.claims.repositories.SessionClaimRepository;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
+import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
 import com.knowlink.api.exceptions.custom_exceptions.ImmutableBookingException;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.payments.controllers.responses.FundsTransferResponseDTO;
@@ -75,6 +76,16 @@ public class FundsResolutionService {
 
     @Transactional
     public void retryAfterClaimResolution(UUID bookingId) {
+        // Tutor y alumno pueden tener reclamos independientes sobre la misma sesión: los fondos solo se
+        // desbloquean cuando ya no queda ninguno activo.
+        if (sessionClaimRepository.existsByBooking_BookingIdAndStatusIn(
+                bookingId, ClaimStatus.ACTIVE_STATUSES)) {
+            throw new DuplicateResourceException(
+                    "BOOKING_HAS_ACTIVE_CLAIMS",
+                    "La sesión todavía tiene reclamos sin resolver.",
+                    "Funds for booking " + bookingId + " cannot be unblocked while claims are still active");
+        }
+
         Optional<FundsTransfer> suspendedTransfer = fundsTransferRepository
                 .findByBooking_BookingIdAndFundsStatus(bookingId, FundsStatus.SUSPENDED_BY_CLAIM);
 

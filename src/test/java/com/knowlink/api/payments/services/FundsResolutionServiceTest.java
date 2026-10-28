@@ -5,6 +5,7 @@ import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
 import com.knowlink.api.claims.data.enums.ClaimStatus;
 import com.knowlink.api.claims.repositories.SessionClaimRepository;
+import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
 import com.knowlink.api.exceptions.custom_exceptions.ImmutableBookingException;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.payments.data.models.FundsTransfer;
@@ -196,5 +197,19 @@ class FundsResolutionServiceTest {
         verify(fundsTransferRepository).save(suspendedTransfer);
         assertThat(suspendedTransfer.getFundsStatus()).isEqualTo(FundsStatus.HELD);
         assertThat(suspendedTransfer.getBlockingClaimId()).isNull();
+    }
+
+    @Test
+    @DisplayName("Reintento post-disputa - con un reclamo de la otra parte aun activo, los fondos siguen suspendidos")
+    void retryAfterClaimResolution_counterpartClaimStillActive_throwsAndKeepsFundsSuspended() {
+        when(sessionClaimRepository.existsByBooking_BookingIdAndStatusIn(bookingId, ClaimStatus.ACTIVE_STATUSES))
+                .thenReturn(true);
+
+        assertThatThrownBy(() -> fundsResolutionService.retryAfterClaimResolution(bookingId))
+                .isInstanceOf(DuplicateResourceException.class)
+                .hasFieldOrPropertyWithValue("errorCode", "BOOKING_HAS_ACTIVE_CLAIMS");
+
+        verify(fundsTransferRepository, never()).findByBooking_BookingIdAndFundsStatus(any(), any());
+        verify(fundsTransferRepository, never()).save(any());
     }
 }
