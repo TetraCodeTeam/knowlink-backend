@@ -91,12 +91,16 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
                                 AND b.startTime <= :currentTime
                                 AND b.endTime > :currentTime)
                         )
+                        AND (:upcomingOnly = false
+                            OR b.sessionDate > :currentDate
+                            OR (b.sessionDate = :currentDate AND b.endTime > :currentTime))
                         ORDER BY b.sessionDate ASC, b.startTime ASC
                         """)
         Page<Booking> findHistoryByStudentAsc(
                         @Param("studentUserId") UUID studentUserId, @Param("statuses") List<BookingStatus> statuses,
                         @Param("includeRunningCompleted") boolean includeRunningCompleted,
                         @Param("excludeRunningCompleted") boolean excludeRunningCompleted,
+                        @Param("upcomingOnly") boolean upcomingOnly,
                         @Param("currentDate") LocalDate currentDate,
                         @Param("currentTime") LocalTime currentTime,
                         Pageable pageable);
@@ -122,12 +126,16 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
                                 AND b.startTime <= :currentTime
                                 AND b.endTime > :currentTime)
                         )
+                        AND (:upcomingOnly = false
+                            OR b.sessionDate > :currentDate
+                            OR (b.sessionDate = :currentDate AND b.endTime > :currentTime))
                         ORDER BY b.sessionDate DESC, b.startTime DESC
                         """)
         Page<Booking> findHistoryByStudentDesc(
                         @Param("studentUserId") UUID studentUserId, @Param("statuses") List<BookingStatus> statuses,
                         @Param("includeRunningCompleted") boolean includeRunningCompleted,
                         @Param("excludeRunningCompleted") boolean excludeRunningCompleted,
+                        @Param("upcomingOnly") boolean upcomingOnly,
                         @Param("currentDate") LocalDate currentDate,
                         @Param("currentTime") LocalTime currentTime,
                         Pageable pageable);
@@ -153,12 +161,16 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
                                 AND b.startTime <= :currentTime
                                 AND b.endTime > :currentTime)
                         )
+                        AND (:upcomingOnly = false
+                            OR b.sessionDate > :currentDate
+                            OR (b.sessionDate = :currentDate AND b.endTime > :currentTime))
                         ORDER BY b.sessionDate ASC, b.startTime ASC
                         """)
         Page<Booking> findHistoryByTutorAsc(
                         @Param("tutorUserId") UUID tutorUserId, @Param("statuses") List<BookingStatus> statuses,
                         @Param("includeRunningCompleted") boolean includeRunningCompleted,
                         @Param("excludeRunningCompleted") boolean excludeRunningCompleted,
+                        @Param("upcomingOnly") boolean upcomingOnly,
                         @Param("currentDate") LocalDate currentDate,
                         @Param("currentTime") LocalTime currentTime,
                         Pageable pageable);
@@ -184,12 +196,16 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
                                 AND b.startTime <= :currentTime
                                 AND b.endTime > :currentTime)
                         )
+                        AND (:upcomingOnly = false
+                            OR b.sessionDate > :currentDate
+                            OR (b.sessionDate = :currentDate AND b.endTime > :currentTime))
                         ORDER BY b.sessionDate DESC, b.startTime DESC
                         """)
         Page<Booking> findHistoryByTutorDesc(
                         @Param("tutorUserId") UUID tutorUserId, @Param("statuses") List<BookingStatus> statuses,
                         @Param("includeRunningCompleted") boolean includeRunningCompleted,
                         @Param("excludeRunningCompleted") boolean excludeRunningCompleted,
+                        @Param("upcomingOnly") boolean upcomingOnly,
                         @Param("currentDate") LocalDate currentDate,
                         @Param("currentTime") LocalTime currentTime,
                         Pageable pageable);

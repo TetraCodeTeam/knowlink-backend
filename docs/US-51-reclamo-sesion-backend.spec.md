@@ -283,8 +283,9 @@ Cada ítem de `BookingHistoryItemResponse` ahora incluye:
 { "canClaim": true, "claimableUntil": "2026-10-02T15:00:00" }
 ```
 - `canClaim` = terminó por horario + no confirmada con código + estado reclamable + dentro de plazo + sin reclamo activo del usuario.
-- Nota: las sesiones `NOT_CONFIRMED` (terminaron sin código) se historían en la categoría `CANCELLED`
-  (`BookingHistoryCategoryMapper`), y en esa categoría es donde aplica `canClaim`/`claimableUntil` para ese estado.
+- Nota: las sesiones `NOT_CONFIRMED` (terminaron sin código) se historían en la categoría propia
+  `NOT_CONFIRMED` (`BookingHistoryCategoryMapper`), separada de `CANCELLED`. En esa categoría es donde
+  aplica `canClaim`/`claimableUntil` para ese estado.
 - Resuelto con **una sola consulta batch** por página (`findClaimedBookingIdsByUser`), sin N+1.
 
 ## 7. Implementación

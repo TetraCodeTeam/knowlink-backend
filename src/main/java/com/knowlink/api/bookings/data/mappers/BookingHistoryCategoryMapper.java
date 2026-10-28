@@ -15,9 +15,9 @@ public final class BookingHistoryCategoryMapper {
             case RESERVED -> List.of(BookingStatus.PENDING, BookingStatus.BOOKED);
             case IN_PROGRESS -> List.of(BookingStatus.IN_PROGRESS);
             case COMPLETED -> List.of(BookingStatus.COMPLETED);
+            case NOT_CONFIRMED -> List.of(BookingStatus.NOT_CONFIRMED);
             case CANCELLED -> List.of(
                     BookingStatus.CANCELLED,
-                    BookingStatus.NOT_CONFIRMED,
                     BookingStatus.NOT_FULFILLED_BY_TUTOR,
                     BookingStatus.SESSION_NOT_HELD,
                     BookingStatus.EXPIRED);
