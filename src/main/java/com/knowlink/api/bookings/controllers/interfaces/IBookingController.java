@@ -49,7 +49,8 @@ public interface IBookingController {
                         @RequestBody @Valid CreateBookingRequest request);
 
         @GetMapping("/mine")
-        @Operation(summary = "Listar mis reservas por categoría (Reservadas/En Curso/Realizadas/Canceladas), paginado")
+        @Operation(summary = "Listar mis reservas por categoría (Reservadas/En Curso/Realizadas/No confirmadas/Canceladas), paginado",
+                        description = "RESERVED devuelve únicamente reservas futuras o que todavía no terminaron; el resto de las categorías no se filtra por fecha.")
         @ApiResponse(responseCode = "200", description = "Listado paginado de reservas")
         @ApiResponse(responseCode = "403", description = "El rol solicitado no coincide con el de la cuenta autenticada")
         @ResponseStatus(OK)

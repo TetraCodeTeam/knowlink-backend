@@ -4,6 +4,7 @@ public enum BookingHistoryCategory {
     RESERVED,
     IN_PROGRESS,
     COMPLETED,
+    NOT_CONFIRMED,
     CANCELLED;
 
     public boolean isUpcoming() {

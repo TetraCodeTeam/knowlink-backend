@@ -582,7 +582,7 @@ class ClaimControllerIntegrationTest {
 
         MvcResult result = mockMvc.perform(get("/api/v1/bookings/mine")
                         .param("role", Role.STUDENT.name())
-                        .param("category", BookingHistoryCategory.CANCELLED.name())
+                        .param("category", BookingHistoryCategory.NOT_CONFIRMED.name())
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
                 .andReturn();
