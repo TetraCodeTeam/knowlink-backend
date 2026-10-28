@@ -11,4 +11,6 @@ public interface SubjectRatingSummary {
     Double getAverageScore();
 
     Long getRatingCount();
+
+    Long getCommentCount();
 }

@@ -129,6 +129,30 @@ class IRatingRepositoryTest {
     }
 
     @Test
+    void historyCommentCountsOnlyIncludeRatingsWithComment() {
+        LocalDate sessionDate = LocalDate.of(2026, 9, 30);
+        LocalDateTime completedAt = LocalDateTime.of(2026, 9, 30, 12, 0);
+        Booking withComment = persistBooking(
+                student, dualRoleUser, dualRoleProfile, dualRoleSubject, sessionDate, completedAt);
+        Booking withoutComment = persistBooking(
+                student, dualRoleUser, dualRoleProfile, dualRoleSubject, sessionDate.plusDays(1), completedAt);
+
+        persistRating(withComment, student, dualRoleUser, 5, true, "Buen trato.");
+        persistRating(withoutComment, student, dualRoleUser, 4, true);
+        entityManager.flush();
+
+        OverallRatingSummary summary = ratingRepository.findOverallSummaryByTutorId(dualRoleUser.getUserId());
+        List<SubjectRatingSummary> bySubject = ratingRepository
+                .findAverageGroupedBySubject(dualRoleUser.getUserId());
+
+        assertThat(summary.getRatingCount()).isEqualTo(2);
+        assertThat(summary.getCommentCount()).isEqualTo(1);
+        assertThat(bySubject).hasSize(1);
+        assertThat(bySubject.get(0).getRatingCount()).isEqualTo(2L);
+        assertThat(bySubject.get(0).getCommentCount()).isEqualTo(1L);
+    }
+
+    @Test
     void expiredRatingsWithNullConfirmedAtUseCompletedSessionEnd() {
         LocalDateTime visibleBefore = LocalDateTime.of(2026, 10, 2, 10, 0);
         Booking expiredBooking = persistBooking(
