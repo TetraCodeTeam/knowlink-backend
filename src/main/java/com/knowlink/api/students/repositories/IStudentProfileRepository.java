@@ -19,4 +19,12 @@ public interface IStudentProfileRepository extends JpaRepository<StudentProfile,
 
     @Query("SELECT sp FROM StudentProfile sp WHERE sp.user.userId IN :userIds")
     List<StudentProfile> findByUserIdIn(@Param("userIds") Collection<UUID> userIds);
+
+    @Query("""
+            SELECT sp FROM StudentProfile sp
+            JOIN FETCH sp.career
+            JOIN FETCH sp.user
+            WHERE sp.user.userId IN :userIds
+            """)
+    List<StudentProfile> findWithCareerByUserIdIn(@Param("userIds") Collection<UUID> userIds);
 }
