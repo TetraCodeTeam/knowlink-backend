@@ -24,5 +24,8 @@ public enum NotificationType {
     // Support notifications already in use (claims, materials, tutor support)
     SESSION_CLAIM_UPDATE,
     SESSION_CLAIM_COMMENT,
-    MATERIAL_REPORT_UPDATE
+    MATERIAL_REPORT_UPDATE,
+
+    // Community: someone replied to the user's post (referenceId = postId)
+    COMMUNITY_REPLY
 }
