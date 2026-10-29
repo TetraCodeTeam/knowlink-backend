@@ -41,6 +41,12 @@ public class EmailServiceImpl implements IEmailService {
         sendEmail(user.getEmail(), "Restablecé tu contraseña ✔", htmlContent);
     }
 
+    @Override
+    public void sendAdminNotificationEmail(User recipient, String subject, String heading, String bodyText) {
+        String htmlContent = emailBuilder.buildAdminNotification(recipient, heading, bodyText);
+        sendEmail(recipient.getEmail(), subject, htmlContent);
+    }
+
     private void sendEmail(String to, String subject, String htmlContent) {
         try {
             MimeMessage message = javaMailSender.createMimeMessage();

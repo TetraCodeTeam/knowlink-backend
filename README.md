@@ -23,6 +23,10 @@ Variables obligatorias en `.env`:
 | `JWT_EXPIRATION` | Expiración del token en ms (ej. `86400000`) |
 | `FRONTEND_URL` | URL del frontend (ej. `http://localhost:5173`) |
 | `APP_URL` | URL de la API (ej. `http://localhost:8080`) |
+| `KNOWLINK_ADMIN_ACCOUNTS_0_EMAIL` | Email del primer administrador (opcional) |
+| `KNOWLINK_ADMIN_ACCOUNTS_0_PASSWORD` | Contraseña del primer administrador (opcional, nunca se commitea) |
+| `KNOWLINK_ADMIN_ACCOUNTS_0_FULL_NAME` | Nombre visible del primer administrador |
+| `KNOWLINK_ADMIN_ACCOUNTS_1_*` | Segundo administrador opcional (mismas tres variables) |
 
 ## Ejecución local
 
@@ -38,6 +42,7 @@ La API queda disponible en `http://localhost:8080`.
 |---|---|
 | `http://localhost:8080/swagger-ui.html` | Swagger UI interactivo |
 | `http://localhost:8080/api-docs` | OpenAPI JSON |
+| [docs/admin/admin-frontend-contract.md](docs/admin/admin-frontend-contract.md) | Contrato HTTP del panel de administración |
 
 ## Ejecución de tests
 

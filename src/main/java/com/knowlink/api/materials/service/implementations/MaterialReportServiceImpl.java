@@ -1,5 +1,6 @@
 package com.knowlink.api.materials.service.implementations;
 
+import com.knowlink.api.admin.materialreports.services.interfaces.IMaterialReportIntakeService;
 import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
@@ -21,7 +22,7 @@ import com.knowlink.api.notifications.services.interfaces.INotificationService;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.repositories.IUserRepository;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,7 +30,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 public class MaterialReportServiceImpl implements IMaterialReportService {
 
     private static final String DUPLICATE_CODE = "MATERIAL_ALREADY_REPORTED";
@@ -42,6 +42,64 @@ public class MaterialReportServiceImpl implements IMaterialReportService {
     private final IMaterialAccessService materialAccessService;
     private final AcademicMaterialReportMapper reportMapper;
     private final INotificationService notificationService;
+    private final IMaterialReportIntakeService intakeService;
+
+    @Autowired
+    public MaterialReportServiceImpl(
+            IAcademicMaterialRepository materialRepository,
+            IAcademicMaterialReportRepository reportRepository,
+            IUserRepository userRepository,
+            IMaterialAccessService materialAccessService,
+            AcademicMaterialReportMapper reportMapper,
+            INotificationService notificationService,
+            IMaterialReportIntakeService intakeService) {
+        this.materialRepository = materialRepository;
+        this.reportRepository = reportRepository;
+        this.userRepository = userRepository;
+        this.materialAccessService = materialAccessService;
+        this.reportMapper = reportMapper;
+        this.notificationService = notificationService;
+        this.intakeService = intakeService;
+    }
+
+    /**
+     * Backward-compatible constructor used by unit tests that predate the report-case intake service.
+     * Production wiring always uses the constructor above.
+     */
+    public MaterialReportServiceImpl(
+            IAcademicMaterialRepository materialRepository,
+            IAcademicMaterialReportRepository reportRepository,
+            IUserRepository userRepository,
+            IMaterialAccessService materialAccessService,
+            AcademicMaterialReportMapper reportMapper,
+            INotificationService notificationService) {
+        this(materialRepository, reportRepository, userRepository, materialAccessService, reportMapper,
+                notificationService, (materialId, reporterUserId, reason, description) -> {
+                    AcademicMaterial material = materialRepository
+                            .findByAcademicMaterialIdAndActiveTrue(materialId)
+                            .orElseThrow(() -> new ResourceNotFoundException(
+                                    "MATERIAL_NOT_FOUND",
+                                    "El material no existe.",
+                                    "Active material not found for report: " + materialId));
+                    User reporter = userRepository.findById(reporterUserId)
+                            .orElseThrow(() -> new ResourceNotFoundException(
+                                    "USER_NOT_FOUND",
+                                    "El usuario no existe.",
+                                    "User not found while reporting material: " + reporterUserId));
+                    AcademicMaterialReport report = AcademicMaterialReport.builder()
+                            .material(material)
+                            .reporter(reporter)
+                            .reason(reason)
+                            .description(description)
+                            .build();
+                    try {
+                        return reportRepository.saveAndFlush(report);
+                    } catch (DataIntegrityViolationException exception) {
+                        throw new DuplicateResourceException(DUPLICATE_CODE, DUPLICATE_MESSAGE,
+                                "User " + reporterUserId + " already reported material " + materialId);
+                    }
+                });
+    }
 
     @Override
     @Transactional
@@ -73,15 +131,8 @@ public class MaterialReportServiceImpl implements IMaterialReportService {
             throw duplicateReport(studentId, materialId);
         }
 
-        User reporter = userRepository.findById(studentId)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "USER_NOT_FOUND",
-                        "El usuario no existe.",
-                        "User not found while reporting material: " + studentId));
-        AcademicMaterialReport report = reportMapper.toEntity(material, reporter, request);
-
         try {
-            reportRepository.saveAndFlush(report);
+            intakeService.registerReport(materialId, studentId, request.reason(), request.description());
         } catch (DataIntegrityViolationException exception) {
             throw duplicateReport(studentId, materialId);
         }

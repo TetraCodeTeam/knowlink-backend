@@ -11,4 +11,10 @@ public interface IEmailService {
     void sendResendConfirmAccountEmail(User user, UUID token);
 
     void sendResetPasswordEmail(User user, UUID token);
+
+    /**
+     * Sends a business notification email (admin module). Failures must not roll back
+     * the originating transaction; callers run after commit.
+     */
+    void sendAdminNotificationEmail(User recipient, String subject, String heading, String bodyText);
 }

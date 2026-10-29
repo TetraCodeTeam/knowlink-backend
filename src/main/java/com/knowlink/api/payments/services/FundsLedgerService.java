@@ -134,6 +134,19 @@ public class FundsLedgerService {
     }
 
     /**
+     * Amount the tutor receives for an amount held in the ledger, after the configured retention.
+     */
+    public BigDecimal calculateTutorTransferredAmount(BigDecimal originalAmount) {
+        if (originalAmount == null) {
+            return BigDecimal.ZERO;
+        }
+        BigDecimal retentionAmount = originalAmount.multiply(systemRetentionPercentage)
+                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        return originalAmount.subtract(retentionAmount);
+    }
+
+
+    /**
      * The ledger keeps a single row per booking that evolves through states
      * (HELD -> SUSPENDED_BY_CLAIM -> HELD -> RELEASED/REFUNDED). Rows created before
      * this lifecycle (or free sessions resolved without a prior hold) fall back to insert.

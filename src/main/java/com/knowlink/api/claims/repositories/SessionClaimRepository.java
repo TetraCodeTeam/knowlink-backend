@@ -26,6 +26,9 @@ public interface SessionClaimRepository extends JpaRepository<SessionClaim, UUID
 
     boolean existsByBooking_BookingIdAndStatus(UUID bookingId, ClaimStatus status);
 
+    Optional<SessionClaim> findFirstByBooking_BookingIdAndStatusInOrderByCreatedAtAsc(
+            UUID bookingId, Collection<ClaimStatus> statuses);
+
     Optional<SessionClaim> findByClaimIdAndBooking_BookingId(UUID claimId, UUID bookingId);
 
     @Query("""
