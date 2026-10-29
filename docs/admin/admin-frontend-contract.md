@@ -84,18 +84,23 @@ Todas las rutas `/api/v1/admin/**` exigen `hasRole('ADMIN')`.
 | `page` | `0` | Base 0. Valores negativos se normalizan a `0`. |
 | `size` | `10` | `<= 0` → `10`. Máximo `50`: los valores mayores se recortan a `50` (no devuelven error). |
 
-Envelope (`PagedResponse`):
+Los dos listados admin devuelven el `PagedResponse` dentro de `page` y agregan `statusCounts` en la raíz:
 
 ```json
 {
-  "content": [],
-  "page": 0,
-  "size": 10,
-  "totalElements": 0,
-  "totalPages": 0,
-  "hasNext": false
+  "page": {
+    "content": [],
+    "page": 0,
+    "size": 10,
+    "totalElements": 0,
+    "totalPages": 0,
+    "hasNext": false
+  },
+  "statusCounts": {}
 }
 ```
+
+El resto de endpoints paginados de la aplicación devuelve el `PagedResponse` plano (sin `page`), pero los listados admin **siempre** usan el envelope con `page` + `statusCounts` que se muestra en 5.2 y 6.2.
 
 `statusCounts` **ignora** el filtro `status`, pero **respeta** `from`/`to` y `assignedToMe`. Sirve para pintar las pestañas de estado.
 
