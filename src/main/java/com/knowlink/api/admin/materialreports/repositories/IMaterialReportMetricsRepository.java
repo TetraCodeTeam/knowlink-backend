@@ -24,6 +24,15 @@ public interface IMaterialReportMetricsRepository extends JpaRepository<Material
             """)
     long countPending();
 
+    /**
+     * Reports still unreviewed across every pending case.
+     */
+    @Query("""
+            SELECT COALESCE(SUM(c.reportsCount), 0) FROM MaterialReportCase c
+            WHERE c.status = com.knowlink.api.admin.materialreports.data.enums.MaterialReportCaseStatus.PENDING
+            """)
+    long sumPendingReports();
+
     @Query("""
             SELECT COUNT(c) FROM MaterialReportCase c
             WHERE c.status IN (com.knowlink.api.admin.materialreports.data.enums.MaterialReportCaseStatus.REMOVED,

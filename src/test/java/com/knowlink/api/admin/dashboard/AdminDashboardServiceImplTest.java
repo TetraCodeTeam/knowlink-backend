@@ -89,6 +89,7 @@ class AdminDashboardServiceImplTest {
         assertThat(response.performance().volumeSplit()).isEqualTo(new VolumeSplit(0, 0));
 
         verify(sessionClaimMetricsRepository, never()).findOldestPendingOpenedAt();
+        verify(materialReportMetricsRepository, never()).sumPendingReports();
         verify(materialReportMetricsRepository, never()).findMostReportedPending();
     }
 
@@ -118,6 +119,7 @@ class AdminDashboardServiceImplTest {
         when(materialReportMetricsRepository.countOpenedBetweenWithStatus(
                 LAST_7, NOW, MaterialReportCaseStatus.PENDING)).thenReturn(2L);
         when(materialReportMetricsRepository.countPending()).thenReturn(4L);
+        when(materialReportMetricsRepository.sumPendingReports()).thenReturn(11L);
         when(materialReportMetricsRepository.findMostReportedPending()).thenReturn(Optional.of(pendingCase));
 
         DashboardSummaryResponse response = service.getSummary(DashboardRange.WEEK);
@@ -132,6 +134,7 @@ class AdminDashboardServiceImplTest {
         assertThat(response.materialReports().resolvedDeltaPct()).isNull();
         assertThat(response.materialReports().newThisWeek()).isEqualTo(2);
         assertThat(response.materialReports().pendingCount()).isEqualTo(4);
+        assertThat(response.materialReports().pendingReports()).isEqualTo(11);
         assertThat(response.materialReports().mostReportedPendingFile().caseId()).isEqualTo(caseId);
         assertThat(response.materialReports().mostReportedPendingFile().materialId()).isEqualTo(materialId);
         assertThat(response.materialReports().mostReportedPendingFile().fileName()).isEqualTo("derivadas.pdf");

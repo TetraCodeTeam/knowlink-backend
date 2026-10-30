@@ -52,6 +52,8 @@ class AdminDashboardMetricsRepositoryTest {
         insertMaterialCase(MaterialReportCaseStatus.DISMISSED, NOW.minusDays(10), NOW.minusDays(8), 1);
 
         assertThat(materialReportMetricsRepository.countPending()).isEqualTo(2);
+        // Pending cases carry 2 and 5 reports each.
+        assertThat(materialReportMetricsRepository.sumPendingReports()).isEqualTo(7);
         assertThat(materialReportMetricsRepository.countResolvedBetween(LAST_7, NOW)).isEqualTo(1);
         assertThat(materialReportMetricsRepository.countOpenedBetweenWithStatus(
                 LAST_7, NOW, MaterialReportCaseStatus.PENDING)).isEqualTo(1);

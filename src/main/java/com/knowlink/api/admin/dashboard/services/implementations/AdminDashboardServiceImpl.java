@@ -96,8 +96,10 @@ public class AdminDashboardServiceImpl implements IAdminDashboardService {
                 last7, now, MaterialReportCaseStatus.PENDING);
         long pending = materialReportMetricsRepository.countPending();
 
+        int pendingReports = 0;
         MostReportedFile mostReportedPendingFile = null;
         if (pending > 0) {
+            pendingReports = toInt(materialReportMetricsRepository.sumPendingReports());
             mostReportedPendingFile = materialReportMetricsRepository.findMostReportedPending()
                     .map(this::toMostReportedFile)
                     .orElse(null);
@@ -108,6 +110,7 @@ public class AdminDashboardServiceImpl implements IAdminDashboardService {
                 DashboardMath.percentageDelta(resolved, previousResolved),
                 toInt(newThisWeek),
                 toInt(pending),
+                pendingReports,
                 mostReportedPendingFile);
     }
 

@@ -104,7 +104,8 @@ class AdminDashboardControllerTest {
                 .andExpect(jsonPath("$.performance.volumeSplit.claimsPct").isNumber())
                 .andExpect(jsonPath("$.performance.volumeSplit.reportsPct").isNumber())
                 .andExpect(jsonPath("$.sessionClaims.pendingCount").isNumber())
-                .andExpect(jsonPath("$.materialReports.pendingCount").isNumber());
+                .andExpect(jsonPath("$.materialReports.pendingCount").isNumber())
+                .andExpect(jsonPath("$.materialReports.pendingReports").isNumber());
     }
 
     @Test

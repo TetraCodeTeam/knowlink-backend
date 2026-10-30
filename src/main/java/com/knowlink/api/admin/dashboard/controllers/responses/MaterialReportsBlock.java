@@ -8,5 +8,6 @@ public record MaterialReportsBlock(
         Double resolvedDeltaPct,
         int newThisWeek,
         int pendingCount,
+        int pendingReports,
         MostReportedFile mostReportedPendingFile) {
 }

@@ -197,6 +197,7 @@ Un valor desconocido devuelve `400 VALIDATION_ERROR` (`El parámetro 'range' no 
     "resolvedDeltaPct": null,
     "newThisWeek": 3,
     "pendingCount": 3,
+    "pendingReports": 8,
     "mostReportedPendingFile": {
       "caseId": "0b0f5f0e-4a3e-4c39-9a55-1a2b3c4d5e6f",
       "materialId": "9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d",
@@ -228,6 +229,7 @@ Estos dos bloques son **siempre** ventanas móviles de 7 días y **no** cambian 
 | `resolvedDeltaPct` | Variación % contra los 7 días anteriores. `null` si la base es `0` (no hay comparación). Un valor negativo indica menos resoluciones que la semana previa. |
 | `newThisWeek` | Casos **creados** en los últimos 7 días que **hoy siguen pendientes** (`PENDING` / `OPEN`). |
 | `pendingCount` | Total de pendientes de todos los tiempos (mismo valor que el badge). |
+| `pendingReports` | Suma de denuncias sin revisar de todos los casos `PENDING`. `0` si `pendingCount` es `0`. |
 | `oldestPendingDays` | Días completos desde la creación del reclamo `OPEN` más antiguo. `null` si no hay pendientes. |
 | `mostReportedPendingFile` | Caso `PENDING` con más denuncias (desempate: `openedAt` más antiguo). `null` si no hay pendientes. |
 
