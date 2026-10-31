@@ -15,6 +15,7 @@ import com.knowlink.api.users.validation.IUserValidationService;
 import com.knowlink.api.users.repositories.IUserRepository;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.users.services.interfaces.ITokenService;
+import com.knowlink.api.users.utils.UserNameUtils;
 import com.knowlink.api.users.services.interfaces.IUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -87,6 +88,26 @@ public class UserServiceImpl implements IUserService {
                         "USER_NOT_FOUND",
                         "Usuario no encontrado.",
                         String.format("user con id '%s' no existe", userId)));
+    }
+
+    @Override
+    @Transactional
+    public User updatePersonalData(UUID userId, String firstName, String lastName, String dni,
+            String phoneNumber) {
+        User user = findByIdOrThrowException(userId);
+
+        String newDni = dni.trim();
+        if (!newDni.equals(user.getDni())) {
+            userValidationService.ifDniBelongsToAnotherUserThrowException(newDni, userId);
+        }
+
+        user.setFirstName(firstName.trim());
+        user.setLastName(lastName.trim());
+        user.setFullName(UserNameUtils.buildFullName(firstName, lastName));
+        user.setDni(newDni);
+        user.setPhoneNumber(phoneNumber.trim());
+        // The email is NEVER modified here.
+        return userRepository.save(user);
     }
 
     @Override

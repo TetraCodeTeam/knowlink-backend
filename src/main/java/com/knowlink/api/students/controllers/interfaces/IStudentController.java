@@ -2,6 +2,7 @@ package com.knowlink.api.students.controllers.interfaces;
 
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.students.controllers.requests.ActivateTutorRoleRequest;
+import com.knowlink.api.students.controllers.requests.UpdateStudentProfileRequest;
 import com.knowlink.api.students.controllers.responses.ActivateTutorRoleResponse;
 import com.knowlink.api.students.controllers.responses.StudentSelfProfileResponse;
 
@@ -17,6 +18,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -39,6 +41,24 @@ public interface IStudentController {
     @ResponseStatus(OK)
     @PreAuthorize("hasRole('STUDENT')")
     StudentSelfProfileResponse getMyProfile(@AuthenticationPrincipal UserPrincipal principal);
+
+    @PutMapping("/me/profile")
+    @Operation(summary = "Editar mis datos personales (alumno)",
+            description = "Modifica nombre, apellido, DNI, celular, carrera y legajo del alumno autenticado. "
+                    + "El correo electrónico no se puede modificar. Devuelve el perfil actualizado.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Perfil actualizado"),
+            @ApiResponse(responseCode = "400", description = "Datos inválidos (campo obligatorio faltante o DNI con formato inválido)"),
+            @ApiResponse(responseCode = "401", description = "No autenticado"),
+            @ApiResponse(responseCode = "403", description = "Acceso denegado"),
+            @ApiResponse(responseCode = "404", description = "Perfil o carrera no encontrados"),
+            @ApiResponse(responseCode = "409", description = "El DNI ya pertenece a otro usuario")
+    })
+    @ResponseStatus(OK)
+    @PreAuthorize("hasRole('STUDENT')")
+    StudentSelfProfileResponse updateMyProfile(
+            @Valid @RequestBody UpdateStudentProfileRequest request,
+            @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal);
 
     @PostMapping("/me/activate-tutor-role")
     @Operation(

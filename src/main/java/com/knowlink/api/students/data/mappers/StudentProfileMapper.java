@@ -6,6 +6,7 @@ import com.knowlink.api.students.data.models.StudentProfile;
 import com.knowlink.api.tutors.data.models.Career;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.users.data.models.User;
+import com.knowlink.api.users.utils.UserNameUtils;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -34,9 +35,13 @@ public class StudentProfileMapper {
         return new StudentSelfProfileResponse(
                 user.getUserId(),
                 user.getFullName(),
+                UserNameUtils.firstNameOf(user),
+                UserNameUtils.lastNameOf(user),
                 user.getEmail(),
                 user.getPhoneNumber(),
+                user.getDni(),
                 profile.getCareer().getName(),
+                profile.getInstitutionalId(),
                 profile.getProfilePictureUrl(),
                 user.getRole(),
                 hasTutorProfile);

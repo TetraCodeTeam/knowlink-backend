@@ -7,6 +7,7 @@ import com.knowlink.api.materials.service.interfaces.IProfileImageService;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.security.services.JwtService;
 import com.knowlink.api.students.controllers.requests.ActivateTutorRoleRequest;
+import com.knowlink.api.students.controllers.requests.UpdateStudentProfileRequest;
 import com.knowlink.api.students.controllers.responses.ActivateTutorRoleResponse;
 import com.knowlink.api.students.controllers.responses.StudentSelfProfileResponse;
 import com.knowlink.api.students.data.mappers.StudentProfileMapper;
@@ -24,6 +25,7 @@ import com.knowlink.api.users.data.enums.AccountStatus;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.repositories.IUserRepository;
 import com.knowlink.api.users.services.interfaces.IUserProfileLookupService;
+import com.knowlink.api.users.services.interfaces.IUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +48,7 @@ public class StudentProfileServiceImpl implements IStudentProfileService {
     private final ITutorSubjectAssemblyService tutorSubjectAssemblyService;
     private final IUserProfileLookupService userProfileLookupService;
     private final IProfileImageService profileImageService;
+    private final IUserService userService;
 
     @Override
     @Transactional
@@ -66,6 +69,27 @@ public class StudentProfileServiceImpl implements IStudentProfileService {
         boolean hasTutorProfile = userProfileLookupService.hasTutorProfile(userId);
 
         return studentProfileMapper.toSelfProfileResponse(user, profile, hasTutorProfile);
+    }
+
+    @Override
+    @Transactional
+    public StudentSelfProfileResponse updateProfile(UUID userId, UpdateStudentProfileRequest request) {
+        StudentProfile profile = studentProfileValidationService.getStudentProfileOrThrow(userId);
+        Career career = careerService.findByNameOrThrowException(request.career().trim());
+
+        User user = userService.updatePersonalData(
+                userId, request.firstName(), request.lastName(), request.dni(), request.phoneNumber());
+
+        profile.setCareer(career);
+        profile.setInstitutionalId(blankToNull(request.institutionalId()));
+        profile = studentProfileRepository.save(profile);
+
+        boolean hasTutorProfile = userProfileLookupService.hasTutorProfile(userId);
+        return studentProfileMapper.toSelfProfileResponse(user, profile, hasTutorProfile);
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     @Override

@@ -28,6 +28,9 @@ public interface IUserRepository extends JpaRepository<User, UUID> {
     @Query("SELECT CASE WHEN COUNT(u) > 0 THEN TRUE ELSE FALSE END FROM User u WHERE u.dni = :dni AND u.accountStatus != 'DELETED'")
     boolean existsByDni(@Param("dni") String dni);
 
+    @Query("SELECT CASE WHEN COUNT(u) > 0 THEN TRUE ELSE FALSE END FROM User u WHERE u.dni = :dni AND u.userId <> :userId AND u.accountStatus != 'DELETED'")
+    boolean existsByDniAndUserIdNot(@Param("dni") String dni, @Param("userId") UUID userId);
+
     List<User> findAllByRoleAndAccountStatus(Role role, AccountStatus accountStatus);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)

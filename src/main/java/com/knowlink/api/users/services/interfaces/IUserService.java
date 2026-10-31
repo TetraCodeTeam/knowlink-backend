@@ -17,6 +17,8 @@ public interface IUserService {
 
     User findByIdOrThrowException(UUID userId);
 
+    User updatePersonalData(UUID userId, String firstName, String lastName, String dni, String phoneNumber);
+
     User updateUser(UUID userId, UpdateUserRequest request);
 
     User findUserByEmailOrThrowException(String email);
