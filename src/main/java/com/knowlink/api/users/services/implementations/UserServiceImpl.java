@@ -6,7 +6,6 @@ import com.knowlink.api.users.data.models.Token;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.auth.controllers.requests.StudentRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
-import com.knowlink.api.users.controllers.requests.UpdateUserRequest;
 import com.knowlink.api.exceptions.custom_exceptions.*;
 import com.knowlink.api.users.events.PasswordResetRequestedEvent;
 import com.knowlink.api.users.events.ResendConfirmationEvent;
@@ -107,19 +106,6 @@ public class UserServiceImpl implements IUserService {
         user.setDni(newDni);
         user.setPhoneNumber(phoneNumber.trim());
         // The email is NEVER modified here.
-        return userRepository.save(user);
-    }
-
-    @Override
-    @Transactional
-    public User updateUser(UUID userId, UpdateUserRequest request) {
-        User user = findByIdOrThrowException(userId);
-        user.setFullName(request.firstName() + " " + request.lastName());
-
-        if (request.profilePicture() != null) {
-            user.setProfilePictureUrl(request.profilePicture());
-        }
-
         return userRepository.save(user);
     }
 

@@ -2,7 +2,6 @@ package com.knowlink.api.users.services.interfaces;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.auth.controllers.requests.StudentRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
-import com.knowlink.api.users.controllers.requests.UpdateUserRequest;
 import com.knowlink.api.users.data.models.User;
 
 import java.util.UUID;
@@ -18,8 +17,6 @@ public interface IUserService {
     User findByIdOrThrowException(UUID userId);
 
     User updatePersonalData(UUID userId, String firstName, String lastName, String dni, String phoneNumber);
-
-    User updateUser(UUID userId, UpdateUserRequest request);
 
     User findUserByEmailOrThrowException(String email);
 
