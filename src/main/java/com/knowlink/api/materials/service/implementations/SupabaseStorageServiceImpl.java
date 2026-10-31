@@ -12,6 +12,7 @@ import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -126,6 +127,11 @@ public class SupabaseStorageServiceImpl implements ISupabaseStorageService {
                     .retrieve()
                     .toBodilessEntity();
         } catch (RestClientResponseException e) {
+            if (isObjectNotFound(e)) {
+                log.warn("Supabase delete skipped, object already absent - bucket: {}, path: {}",
+                        bucket, path);
+                return;
+            }
             log.error("Supabase delete failed - bucket: {}, path: {}, status: {}, body: {}",
                     bucket, path, e.getStatusCode(), e.getResponseBodyAsString(), e);
             throw new StorageServiceException(STORAGE_ERROR_MESSAGE, e);
@@ -135,6 +141,26 @@ public class SupabaseStorageServiceImpl implements ISupabaseStorageService {
         }
 
         log.info("File deleted from Supabase Storage: {}/{}", bucket, path);
+    }
+
+    /**
+     * Supabase Storage returns 404 (or a 400 with a "not found" body depending on the
+     * version) when the object is already absent. Deleting is idempotent, so both cases
+     * are treated as success.
+     */
+    private boolean isObjectNotFound(RestClientResponseException exception) {
+        if (exception.getStatusCode().value() == 404) {
+            return true;
+        }
+        if (exception.getStatusCode().value() != 400) {
+            return false;
+        }
+        String body = exception.getResponseBodyAsString();
+        if (body == null) {
+            return false;
+        }
+        String normalized = body.toLowerCase(Locale.ROOT);
+        return normalized.contains("not found") || normalized.contains("not_found");
     }
 
     private record SignedUrlResponse(String signedURL) {}

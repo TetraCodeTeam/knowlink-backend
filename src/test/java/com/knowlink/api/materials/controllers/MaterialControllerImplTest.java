@@ -12,6 +12,9 @@ import com.knowlink.api.tutors.data.enums.CompensationType;
 import com.knowlink.api.materials.data.enums.MaterialType;
 import com.knowlink.api.tutors.data.enums.Modality;
 import com.knowlink.api.tutors.data.enums.TutorSubjectStatus;
+import com.knowlink.api.materials.data.enums.MaterialReportReason;
+import com.knowlink.api.materials.data.models.AcademicMaterialReport;
+import com.knowlink.api.materials.repositories.IAcademicMaterialReportRepository;
 import com.knowlink.api.materials.data.models.AcademicMaterial;
 import com.knowlink.api.tutors.data.models.Career;
 import com.knowlink.api.tutors.data.models.Subject;
@@ -42,6 +45,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.never;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -80,6 +87,9 @@ class MaterialControllerImplTest {
     @Autowired
     private IAcademicMaterialRepository materialRepository;
 
+    @Autowired
+    private IAcademicMaterialReportRepository materialReportRepository;
+
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     private IMaterialAccessService materialAccessService;
 
@@ -92,6 +102,7 @@ class MaterialControllerImplTest {
     private User tutorUser;
     private User studentUser;
         private User adminUser;
+    private Career career;
     private Subject subject;
     private AcademicMaterial existingMaterial;
 
@@ -102,7 +113,7 @@ class MaterialControllerImplTest {
         when(supabaseStorageService.generateSignedUrl(any(), any(int.class)))
                 .thenReturn("https://test.supabase.co/signed-url");
 
-        Career career = careerRepository.save(Career.builder()
+        career = careerRepository.save(Career.builder()
                 .name("Ingenieria en Sistemas " + UUID.randomUUID())
                 .build());
 
@@ -354,6 +365,113 @@ class MaterialControllerImplTest {
                         .param("subjectId", subject.getSubjectId().toString())
                         .with(studentAuth()))
                 .andExpect(status().isForbidden());
+    }
+
+
+    @Test
+    @DisplayName("US-17: tutor deletes own material returns 204 and removes the stored file")
+    void tutorDeletesOwnMaterial_returns204() throws Exception {
+        UUID materialId = existingMaterial.getAcademicMaterialId();
+        String storagePath = existingMaterial.getStoragePath();
+
+        mockMvc.perform(delete("/api/v1/materials/{id}", materialId).with(tutorAuth()))
+                .andExpect(status().isNoContent());
+
+        assertThat(materialRepository.findById(materialId)).isEmpty();
+        verify(supabaseStorageService).delete(storagePath);
+    }
+
+    @Test
+    @DisplayName("US-17: tutor cannot delete material owned by another tutor")
+    void tutorCannotDeleteAnotherTutorsMaterial_returns403() throws Exception {
+        User otherTutor = userRepository.save(User.builder()
+                .fullName("Other Tutor")
+                .email("other-tutor-" + UUID.randomUUID() + "@test.com")
+                .password("password123")
+                .role(Role.TUTOR)
+                .accountStatus(AccountStatus.ACTIVE)
+                .build());
+
+        tutorProfileRepository.save(TutorProfile.builder()
+                .user(otherTutor)
+                .career(career)
+                .build());
+
+        UserPrincipal principal = new UserPrincipal(otherTutor);
+        RequestPostProcessor otherTutorAuth = SecurityMockMvcRequestPostProcessors.authentication(
+                new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
+
+        mockMvc.perform(delete("/api/v1/materials/{id}", existingMaterial.getAcademicMaterialId())
+                        .with(otherTutorAuth))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.detail").value("ACCESS_DENIED"));
+
+        assertThat(materialRepository.findById(existingMaterial.getAcademicMaterialId())).isPresent();
+        verify(supabaseStorageService, never()).delete(anyString());
+    }
+
+    @Test
+    @DisplayName("US-17: student cannot delete material")
+    void studentCannotDeleteMaterial_returns403() throws Exception {
+        mockMvc.perform(delete("/api/v1/materials/{id}", existingMaterial.getAcademicMaterialId())
+                        .with(studentAuth()))
+                .andExpect(status().isForbidden());
+
+        assertThat(materialRepository.findById(existingMaterial.getAcademicMaterialId())).isPresent();
+        verify(supabaseStorageService, never()).delete(anyString());
+    }
+
+    @Test
+    @DisplayName("US-17: deleting a missing material returns 404")
+    void deleteMissingMaterial_returns404() throws Exception {
+        mockMvc.perform(delete("/api/v1/materials/{id}", UUID.randomUUID()).with(tutorAuth()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("MATERIAL_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("US-17: deleting a reported material returns 409 and keeps it")
+    void deleteMaterialWithReports_returns409() throws Exception {
+        UUID materialId = existingMaterial.getAcademicMaterialId();
+
+        materialReportRepository.save(AcademicMaterialReport.builder()
+                .material(existingMaterial)
+                .reporter(studentUser)
+                .reason(MaterialReportReason.PLAGIARISM)
+                .build());
+
+        mockMvc.perform(delete("/api/v1/materials/{id}", materialId).with(tutorAuth()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.detail").value("MATERIAL_HAS_REPORTS"));
+
+        assertThat(materialRepository.findById(materialId)).isPresent();
+        verify(supabaseStorageService, never()).delete(anyString());
+    }
+
+    @Test
+    @DisplayName("US-17: deleted material is no longer downloadable nor listed")
+    void deletedMaterial_disappearsFromDownloadAndLists() throws Exception {
+        UUID materialId = existingMaterial.getAcademicMaterialId();
+
+        mockMvc.perform(delete("/api/v1/materials/{id}", materialId).with(tutorAuth()))
+                .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/v1/materials/{id}/download", materialId).with(tutorAuth()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("MATERIAL_NOT_FOUND"));
+
+        mockMvc.perform(get("/api/v1/materials")
+                        .param("subjectId", subject.getSubjectId().toString())
+                        .with(tutorAuth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isEmpty());
+    }
+
+    @Test
+    @DisplayName("US-17: unauthenticated delete returns 401")
+    void unauthenticatedDelete_returns401() throws Exception {
+        mockMvc.perform(delete("/api/v1/materials/{id}", existingMaterial.getAcademicMaterialId()))
+                .andExpect(status().isUnauthorized());
     }
 
     private RequestPostProcessor tutorAuth() {

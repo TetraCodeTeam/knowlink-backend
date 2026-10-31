@@ -196,7 +196,10 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(StorageServiceException.class)
     public ResponseEntity<ApiError> handleStorageService(StorageServiceException ex) {
         logger.error("Storage service error: {}", ex.getMessage(), ex);
-        ApiError error = new ApiError(HttpStatus.BAD_GATEWAY.value(), "Storage service error", ex.getMessage());
+        ApiError error = new ApiError(
+                HttpStatus.BAD_GATEWAY.value(),
+                ex.getMessage(),
+                "STORAGE_ERROR");
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(error);
     }
 

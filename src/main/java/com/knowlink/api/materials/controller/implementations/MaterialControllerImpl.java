@@ -109,4 +109,12 @@ public class MaterialControllerImpl implements IMaterialController {
                 .listAccessibleMaterials(studentId, tutorId, subjectId);
         return ResponseEntity.ok(materials);
     }
+
+    @Override
+    @PreAuthorize("hasRole('TUTOR')")
+    public ResponseEntity<Void> delete(UUID id, UserDetails userDetails) {
+        UserPrincipal principal = (UserPrincipal) userDetails;
+        materialService.delete(id, principal.getUser().getUserId());
+        return ResponseEntity.noContent().build();
+    }
 }

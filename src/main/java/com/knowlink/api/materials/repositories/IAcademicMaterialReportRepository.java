@@ -21,6 +21,8 @@ public interface IAcademicMaterialReportRepository extends JpaRepository<Academi
 
     boolean existsByMaterialAcademicMaterialIdAndReporterUserId(UUID materialId, UUID reporterUserId);
 
+    boolean existsByMaterialAcademicMaterialId(UUID materialId);
+
     @Query("""
             SELECT report FROM AcademicMaterialReport report
             JOIN FETCH report.material material
