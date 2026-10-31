@@ -6,7 +6,6 @@ import com.knowlink.api.users.data.models.Token;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.auth.controllers.requests.StudentRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
-import com.knowlink.api.users.controllers.requests.UpdateUserRequest;
 import com.knowlink.api.exceptions.custom_exceptions.*;
 import com.knowlink.api.users.events.PasswordResetRequestedEvent;
 import com.knowlink.api.users.events.ResendConfirmationEvent;
@@ -15,6 +14,7 @@ import com.knowlink.api.users.validation.IUserValidationService;
 import com.knowlink.api.users.repositories.IUserRepository;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.users.services.interfaces.ITokenService;
+import com.knowlink.api.users.utils.UserNameUtils;
 import com.knowlink.api.users.services.interfaces.IUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -91,14 +91,21 @@ public class UserServiceImpl implements IUserService {
 
     @Override
     @Transactional
-    public User updateUser(UUID userId, UpdateUserRequest request) {
+    public User updatePersonalData(UUID userId, String firstName, String lastName, String dni,
+            String phoneNumber) {
         User user = findByIdOrThrowException(userId);
-        user.setFullName(request.firstName() + " " + request.lastName());
 
-        if (request.profilePicture() != null) {
-            user.setProfilePictureUrl(request.profilePicture());
+        String newDni = dni.trim();
+        if (!newDni.equals(user.getDni())) {
+            userValidationService.ifDniBelongsToAnotherUserThrowException(newDni, userId);
         }
 
+        user.setFirstName(firstName.trim());
+        user.setLastName(lastName.trim());
+        user.setFullName(UserNameUtils.buildFullName(firstName, lastName));
+        user.setDni(newDni);
+        user.setPhoneNumber(phoneNumber.trim());
+        // The email is NEVER modified here.
         return userRepository.save(user);
     }
 

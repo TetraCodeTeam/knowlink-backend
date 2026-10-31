@@ -2,6 +2,7 @@ package com.knowlink.api.students.services.interfaces;
 
 import com.knowlink.api.auth.controllers.requests.StudentRegistrationRequest;
 import com.knowlink.api.students.controllers.requests.ActivateTutorRoleRequest;
+import com.knowlink.api.students.controllers.requests.UpdateStudentProfileRequest;
 import com.knowlink.api.students.controllers.responses.ActivateTutorRoleResponse;
 import com.knowlink.api.students.controllers.responses.StudentSelfProfileResponse;
 import com.knowlink.api.students.data.models.StudentProfile;
@@ -15,6 +16,8 @@ public interface IStudentProfileService {
     StudentProfile createProfile(User user, StudentRegistrationRequest request);
 
     StudentSelfProfileResponse getSelfProfile(UUID userId);
+
+    StudentSelfProfileResponse updateProfile(UUID userId, UpdateStudentProfileRequest request);
 
     StudentSelfProfileResponse uploadProfilePicture(UUID userId, MultipartFile file);
 

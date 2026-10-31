@@ -8,6 +8,7 @@ import com.knowlink.api.users.repositories.IUserRepository;
 import com.knowlink.api.users.services.interfaces.IUserService;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
+import com.knowlink.api.tutors.controllers.requests.UpdateTutorProfileRequest;
 import com.knowlink.api.tutors.controllers.requests.UpdateTutorSubjectRequest;
 import com.knowlink.api.tutors.data.enums.CompensationType;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
@@ -115,6 +116,33 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                 TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
                 boolean hasStudentProfile = userProfileLookupService.hasStudentProfile(tutorUserId);
                 return tutorProfileMapper.toSelfProfileResponse(tutorProfile, hasStudentProfile);
+        }
+
+        @Override
+        @Transactional
+        public TutorSelfProfileResponse updateProfile(UUID tutorUserId, UpdateTutorProfileRequest request) {
+                TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
+                Career career = careerService.findByNameOrThrowException(request.career().trim());
+
+                tutorProfileValidationService.ifCareerChangeBlockedBySubjectsThrowException(tutorProfile, career);
+                tutorProfileValidationService.ifAddressRequiredForInPersonSubjectsThrowException(
+                                tutorProfile, request.address());
+
+                userService.updatePersonalData(tutorUserId, request.firstName(), request.lastName(),
+                                request.dni(), request.phoneNumber());
+
+                tutorProfile.setCareer(career);
+                tutorProfile.setInstitutionalId(blankToNull(request.institutionalId()));
+                tutorProfile.setBiography(blankToNull(request.biography()));
+                tutorProfile.setAddress(blankToNull(request.address()));
+                tutorProfile = tutorProfileRepository.save(tutorProfile);
+
+                boolean hasStudentProfile = userProfileLookupService.hasStudentProfile(tutorUserId);
+                return tutorProfileMapper.toSelfProfileResponse(tutorProfile, hasStudentProfile);
+        }
+
+        private String blankToNull(String value) {
+                return value == null || value.isBlank() ? null : value.trim();
         }
 
         @Override

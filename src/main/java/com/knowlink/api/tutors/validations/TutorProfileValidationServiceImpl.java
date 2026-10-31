@@ -1,11 +1,13 @@
 package com.knowlink.api.tutors.validations;
 
 import com.knowlink.api.tutors.data.enums.CompensationType;
+import com.knowlink.api.tutors.data.enums.Modality;
 import com.knowlink.api.tutors.data.models.Subject;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
 import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
+import com.knowlink.api.tutors.data.models.Career;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.data.models.TutorSubject;
 import com.knowlink.api.tutors.repositories.ITutorProfileRepository;
@@ -88,6 +90,27 @@ public class TutorProfileValidationServiceImpl implements ITutorProfileValidatio
 
         if (isPaidWithInvalidPrice) {
             throw new ValidationException("El precio por hora debe ser mayor a cero.");
+        }
+    }
+
+    @Override
+    public void ifCareerChangeBlockedBySubjectsThrowException(TutorProfile tutorProfile, Career newCareer) {
+        boolean careerChanged = !tutorProfile.getCareer().getCareerId().equals(newCareer.getCareerId());
+
+        if (careerChanged && !tutorProfile.getSubjects().isEmpty()) {
+            throw new ValidationException(
+                    "No podés cambiar tu carrera mientras tengas materias registradas. Eliminá tus materias primero.");
+        }
+    }
+
+    @Override
+    public void ifAddressRequiredForInPersonSubjectsThrowException(TutorProfile tutorProfile, String address) {
+        boolean hasInPersonSubject = tutorProfile.getSubjects().stream()
+                .anyMatch(tutorSubject -> tutorSubject.getModality() == Modality.IN_PERSON
+                        || tutorSubject.getModality() == Modality.BOTH);
+
+        if (hasInPersonSubject && (address == null || address.isBlank())) {
+            throw new ValidationException("La dirección es obligatoria para clases presenciales.");
         }
     }
 }

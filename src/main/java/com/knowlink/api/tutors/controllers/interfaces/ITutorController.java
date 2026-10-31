@@ -3,6 +3,7 @@ package com.knowlink.api.tutors.controllers.interfaces;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.tutors.controllers.requests.UpdateMinNoticeMinutesRequest;
+import com.knowlink.api.tutors.controllers.requests.UpdateTutorProfileRequest;
 import com.knowlink.api.tutors.controllers.requests.UpdateTutorSubjectRequest;
 import com.knowlink.api.tutors.controllers.responses.ActivateStudentRoleResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
@@ -69,6 +70,24 @@ public interface ITutorController {
         @ResponseStatus(OK)
         @PreAuthorize("hasRole('TUTOR')")
         TutorSelfProfileResponse getMyProfile(@AuthenticationPrincipal UserPrincipal principal);
+
+        @PutMapping("/me/profile")
+        @Operation(summary = "Editar mis datos personales (tutor)",
+                description = "Modifica nombre, apellido, DNI, celular, carrera, legajo, biografía y dirección del tutor autenticado. "
+                        + "El correo electrónico y las materias no se modifican aquí. Devuelve el perfil actualizado.")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Perfil actualizado"),
+                        @ApiResponse(responseCode = "400", description = "Datos inválidos (campo obligatorio, DNI, biografía > 300, dirección requerida con clases presenciales o cambio de carrera con materias)"),
+                        @ApiResponse(responseCode = "401", description = "No autenticado"),
+                        @ApiResponse(responseCode = "403", description = "Acceso denegado"),
+                        @ApiResponse(responseCode = "404", description = "Perfil o carrera no encontrados"),
+                        @ApiResponse(responseCode = "409", description = "El DNI ya pertenece a otro usuario")
+        })
+        @ResponseStatus(OK)
+        @PreAuthorize("hasRole('TUTOR')")
+        TutorSelfProfileResponse updateMyProfile(
+                @Valid @RequestBody UpdateTutorProfileRequest request,
+                @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal);
 
         @GetMapping("/search/{query}")
         @Operation(summary = "Buscar tutores", description = "Busca tutores por nombre de materia o nombre completo del tutor. "

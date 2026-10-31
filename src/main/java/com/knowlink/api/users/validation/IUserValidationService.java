@@ -9,6 +9,8 @@ public interface IUserValidationService {
 
     void ifDniAlreadyExistsThrowException(String dni);
 
+    void ifDniBelongsToAnotherUserThrowException(String dni, UUID userId);
+
     void verifyIfPasswordsMatch(String password, String confirmPassword);
 
     void ifUserIsAlreadyActiveThrowException(User user);

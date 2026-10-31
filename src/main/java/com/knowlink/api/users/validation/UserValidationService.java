@@ -40,6 +40,16 @@ public class UserValidationService implements IUserValidationService {
     }
 
     @Override
+    public void ifDniBelongsToAnotherUserThrowException(String dni, UUID userId) {
+        if (userRepository.existsByDniAndUserIdNot(dni, userId)) {
+            throw new DuplicateResourceException(
+                    "DUPLICATE_DNI",
+                    "Este DNI ya está registrado.",
+                    String.format("user con dni '%s' ya pertenece a otro usuario (editor userId '%s')", dni, userId));
+        }
+    }
+
+    @Override
     public void verifyIfPasswordsMatch(String password, String confirmPassword) {
         if (!password.equals(confirmPassword)) {
             throw new PasswordsDoNotMatchException();
