@@ -4,6 +4,7 @@ import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
 import com.knowlink.api.bookings.validations.IBookingValidationService;
+import com.knowlink.api.notifications.services.interfaces.INotificationService;
 import com.knowlink.api.ratings.controllers.requests.CreateRatingRequest;
 import com.knowlink.api.ratings.controllers.responses.RatingResponse;
 import com.knowlink.api.ratings.data.models.Rating;
@@ -78,6 +79,11 @@ class RatingServiceConcurrencyTest {
     private Clock clock;
     @MockitoBean
     private IBookingValidationService bookingValidationService;
+    // The rating event is consumed asynchronously after commit; mocking the notification
+    // service keeps this test focused on the booking lock and avoids user_notification rows
+    // racing with cleanUp.
+    @MockitoBean
+    private INotificationService notificationService;
 
     private User student;
     private User tutor;
