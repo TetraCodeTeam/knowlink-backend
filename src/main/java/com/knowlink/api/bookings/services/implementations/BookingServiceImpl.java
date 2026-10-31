@@ -3,6 +3,7 @@ package com.knowlink.api.bookings.services.implementations;
 import com.knowlink.api.claims.controllers.responses.ClaimEligibilityResponse;
 import com.knowlink.api.claims.services.interfaces.ISessionClaimService;
 import com.knowlink.api.events.services.BookingEventPublisher;
+import com.knowlink.api.exceptions.custom_exceptions.BusinessConflictException;
 import com.knowlink.api.exceptions.custom_exceptions.ConfirmationBlockedByClaimException;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
@@ -119,11 +120,18 @@ public class BookingServiceImpl implements IBookingService {
                 bookingValidationService.validateNoStudentTimeConflict(
                                 student, hold.getTimeSlot().getDate(), startTime, endTime);
 
-                TutorSubject tutorSubject = tutorSubjectRepository.findById(request.tutorSubjectId())
+                TutorSubject tutorSubject = tutorSubjectRepository.findByIdForUpdate(request.tutorSubjectId())
                                 .orElseThrow(() -> new ResourceNotFoundException(
                                                 "TUTOR_SUBJECT_NOT_FOUND",
                                                 "La materia seleccionada no existe.",
                                                 "TutorSubject not found for id: " + request.tutorSubjectId()));
+
+                if (!tutorSubject.isActive()) {
+                        throw new BusinessConflictException(
+                                        "TUTOR_SUBJECT_INACTIVE",
+                                        "Esta materia ya no está disponible para reservas.",
+                                        "TutorSubject " + tutorSubject.getTutorSubjectId() + " is inactive");
+                }
 
                 bookingValidationService.validateModality(request.modality(), tutorSubject.getModality());
                 bookingValidationService.validateDailySubjectCap(

@@ -20,4 +20,5 @@ public interface ITutorProfileValidationService {
     void ifPaidPriceIsInvalidThrowException(CompensationType compensationType, BigDecimal pricePerHour);
     void ifCareerChangeBlockedBySubjectsThrowException(TutorProfile tutorProfile, Career newCareer);
     void ifAddressRequiredForInPersonSubjectsThrowException(TutorProfile tutorProfile, String address);
+    void ifSubjectHasActiveBookingsThrowException(TutorSubject tutorSubject);
 }

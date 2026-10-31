@@ -24,6 +24,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -124,6 +125,38 @@ public interface ITutorController {
         @PreAuthorize("hasRole('TUTOR')")
         TutorSubjectResponse createTutorSubject(
                 @Valid @RequestBody TutorSubjectRequest request,
+                @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal);
+
+        @PatchMapping("/subjects/{tutorSubjectId}/deactivate")
+        @Operation(summary = "Desactivar una materia ofrecida",
+                description = "Marca la materia como inactiva: deja de aparecer en el buscador y en el perfil público y no admite nuevas reservas. "
+                        + "Conserva calificaciones, materiales y estado de validación. Falla con 409 si tiene reservas activas. Idempotente.")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Materia desactivada (o ya lo estaba)"),
+                        @ApiResponse(responseCode = "401", description = "No autenticado"),
+                        @ApiResponse(responseCode = "403", description = "Acceso denegado"),
+                        @ApiResponse(responseCode = "404", description = "La materia no existe o no pertenece al tutor"),
+                        @ApiResponse(responseCode = "409", description = "La materia tiene reservas activas (SUBJECT_HAS_ACTIVE_BOOKINGS)")
+        })
+        @ResponseStatus(OK)
+        @PreAuthorize("hasRole('TUTOR')")
+        TutorSubjectResponse deactivateTutorSubject(
+                @Parameter(description = "ID de la materia del tutor (tutorSubjectId)") @PathVariable UUID tutorSubjectId,
+                @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal);
+
+        @PatchMapping("/subjects/{tutorSubjectId}/reactivate")
+        @Operation(summary = "Reactivar una materia desactivada",
+                description = "Vuelve a ofrecer la materia: reaparece en el buscador y en el perfil público. Idempotente.")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Materia reactivada (o ya estaba activa)"),
+                        @ApiResponse(responseCode = "401", description = "No autenticado"),
+                        @ApiResponse(responseCode = "403", description = "Acceso denegado"),
+                        @ApiResponse(responseCode = "404", description = "La materia no existe o no pertenece al tutor")
+        })
+        @ResponseStatus(OK)
+        @PreAuthorize("hasRole('TUTOR')")
+        TutorSubjectResponse reactivateTutorSubject(
+                @Parameter(description = "ID de la materia del tutor (tutorSubjectId)") @PathVariable UUID tutorSubjectId,
                 @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal);
 
         @PutMapping("/subjects/{tutorSubjectId}")

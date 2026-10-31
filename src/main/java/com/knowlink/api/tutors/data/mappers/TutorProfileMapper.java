@@ -58,7 +58,8 @@ public class TutorProfileMapper {
                 tutorSubject.getPricePerHour(),
                 tutorSubject.getTutorSubjectStatus().name(),
                 null, // averageRating por materia - pendiente
-                null // reviewCount por materia - pendiente
+                null, // reviewCount por materia - pendiente
+                tutorSubject.isActive()
         );
     }
 

@@ -4,6 +4,9 @@ import com.knowlink.api.tutors.data.enums.CompensationType;
 import com.knowlink.api.tutors.data.enums.Modality;
 import com.knowlink.api.tutors.data.models.Subject;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
+import com.knowlink.api.bookings.repositories.IBookingRepository;
+import com.knowlink.api.bookings.utils.BookingConstants;
+import com.knowlink.api.exceptions.custom_exceptions.BusinessConflictException;
 import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
@@ -25,6 +28,7 @@ public class TutorProfileValidationServiceImpl implements ITutorProfileValidatio
 
     private final ITutorProfileRepository tutorProfileRepository;
     private final ITutorSubjectRepository tutorSubjectRepository;
+    private final IBookingRepository bookingRepository;
 
     @Override
     public void ifTutorProfileAlreadyExistsThrowException(User user) {
@@ -111,6 +115,22 @@ public class TutorProfileValidationServiceImpl implements ITutorProfileValidatio
 
         if (hasInPersonSubject && (address == null || address.isBlank())) {
             throw new ValidationException("La dirección es obligatoria para clases presenciales.");
+        }
+    }
+
+    @Override
+    public void ifSubjectHasActiveBookingsThrowException(TutorSubject tutorSubject) {
+        boolean hasActiveBookings = bookingRepository
+                .existsByTutorSubject_TutorSubjectIdAndBookingStatusIn(
+                        tutorSubject.getTutorSubjectId(), BookingConstants.ACTIVE_STATUSES);
+
+        if (hasActiveBookings) {
+            throw new BusinessConflictException(
+                    "SUBJECT_HAS_ACTIVE_BOOKINGS",
+                    "No podés desactivar esta materia porque tiene reservas activas. "
+                            + "Cancelalas o esperá a que se completen.",
+                    String.format("TutorSubject '%s' has active bookings",
+                            tutorSubject.getTutorSubjectId()));
         }
     }
 }

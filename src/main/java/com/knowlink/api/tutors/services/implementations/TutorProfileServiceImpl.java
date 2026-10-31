@@ -31,6 +31,7 @@ import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
 import com.knowlink.api.ratings.repositories.*;
 import com.knowlink.api.users.data.models.User;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +47,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TutorProfileServiceImpl implements ITutorProfileService {
 
         private final ITutorSubjectRepository tutorSubjectRepository;
@@ -71,7 +73,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                 TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
 
                 List<TutorSubjectResponse> subjectResponses = tutorSubjectRepository
-                                .findByTutorProfileId(tutorProfile.getTutorProfileId())
+                                .findActiveByTutorProfileId(tutorProfile.getTutorProfileId())
                                 .stream()
                                 .map(tutorProfileMapper::toSubjectResponse)
                                 .collect(Collectors.toList());
@@ -191,7 +193,8 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         public List<TutorSearchResponse> searchTutor(String query, UUID studentUserId, TutorSearchFilters filters) {
                 validateMinRating(filters.minRating());
 
-                Specification<TutorSubject> subjectSpec = TutorSearchSpecifications.subjectNameContains(query);
+                Specification<TutorSubject> subjectSpec = TutorSearchSpecifications.subjectNameContains(query)
+                                .and(TutorSearchSpecifications.subjectActive());
                 if (filters.hasModality()) {
                         subjectSpec = subjectSpec.and(TutorSearchSpecifications.modalityIn(filters.modality()));
                 }
@@ -226,7 +229,10 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 .findByUser_FullNameContainingIgnoreCase(query);
 
                 for (TutorProfile tutorProfile : nameMatches) {
-                        if (tutorProfile.getSubjects().isEmpty()) {
+                        List<TutorSubject> activeSubjects = tutorProfile.getSubjects().stream()
+                                        .filter(TutorSubject::isActive)
+                                        .toList();
+                        if (activeSubjects.isEmpty()) {
                                 continue;
                         }
                         if (Boolean.TRUE.equals(filters.verifiedOnly()) && !tutorProfile.isVerified()) {
@@ -242,7 +248,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 continue;
                         }
 
-                        List<TutorSubject> subjects = tutorProfile.getSubjects();
+                        List<TutorSubject> subjects = activeSubjects;
                         if (filters.hasModality() || filters.hasCompensation()) {
                                 subjects = subjects.stream()
                                                 .filter(ts -> TutorSearchSpecifications.matchesModality(
@@ -325,6 +331,49 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
 
                 TutorSubject saved = tutorSubjectRepository.save(tutorSubject);
                 return tutorProfileMapper.toSubjectResponse(saved);
+        }
+
+        @Override
+        @Transactional
+        public TutorSubjectResponse deactivateTutorSubject(UUID tutorUserId, UUID tutorSubjectId) {
+                TutorSubject tutorSubject = findOwnedTutorSubjectForUpdateOrThrow(tutorUserId, tutorSubjectId);
+
+                if (!tutorSubject.isActive()) {
+                        return tutorProfileMapper.toSubjectResponse(tutorSubject); // idempotent
+                }
+
+                tutorProfileValidationService.ifSubjectHasActiveBookingsThrowException(tutorSubject);
+
+                tutorSubject.setActive(false);
+                TutorSubject saved = tutorSubjectRepository.save(tutorSubject);
+                log.info("TutorSubject {} deactivated by tutor user {}", tutorSubjectId, tutorUserId);
+                return tutorProfileMapper.toSubjectResponse(saved);
+        }
+
+        @Override
+        @Transactional
+        public TutorSubjectResponse reactivateTutorSubject(UUID tutorUserId, UUID tutorSubjectId) {
+                TutorSubject tutorSubject = findOwnedTutorSubjectForUpdateOrThrow(tutorUserId, tutorSubjectId);
+
+                if (tutorSubject.isActive()) {
+                        return tutorProfileMapper.toSubjectResponse(tutorSubject); // idempotent
+                }
+
+                tutorSubject.setActive(true);
+                TutorSubject saved = tutorSubjectRepository.save(tutorSubject);
+                log.info("TutorSubject {} reactivated by tutor user {}", tutorSubjectId, tutorUserId);
+                return tutorProfileMapper.toSubjectResponse(saved);
+        }
+
+        private TutorSubject findOwnedTutorSubjectForUpdateOrThrow(UUID tutorUserId, UUID tutorSubjectId) {
+                TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
+                return tutorSubjectRepository
+                                .findOwnedByIdForUpdate(tutorSubjectId, tutorProfile.getTutorProfileId())
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "TUTOR_SUBJECT_NOT_FOUND",
+                                                "La materia no existe o no te pertenece.",
+                                                String.format("TutorSubject '%s' not found for tutor user '%s'",
+                                                                tutorSubjectId, tutorUserId)));
         }
 
         @Override

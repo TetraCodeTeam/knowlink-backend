@@ -48,6 +48,10 @@ public final class TutorSearchSpecifications {
         };
     }
 
+    public static Specification<TutorSubject> subjectActive() {
+        return (root, cq, cb) -> cb.isTrue(root.get("active"));
+    }
+
     public static Specification<TutorSubject> modalityIn(Modality modality) {
         if (modality == null) {
             return Specification.where(null);

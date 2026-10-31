@@ -229,4 +229,20 @@ class TutorSearchSpecificationsTest {
         assertThat(tutorNames(TutorSearchSpecifications.subjectNameContains(null)))
                 .hasSize(4);
     }
+
+    @Test
+    @DisplayName("subjectActive excluye las materias desactivadas")
+    void subjectActive_excludesInactiveSubjects() {
+        Career career = careerRepository.findAll().get(0);
+        Subject inactiveSubject = subjectRepository.save(Subject.builder()
+                .name("Materia inactiva").isBasic(true).career(career).build());
+        TutorProfile inactiveTutor = tutor(career, "Inactivo Test", false, 4.0);
+        TutorSubject inactive = tutorSubject(inactiveTutor, inactiveSubject, Modality.VIRTUAL,
+                CompensationType.PAID);
+        inactive.setActive(false);
+        tutorSubjectRepository.saveAndFlush(inactive);
+
+        assertThat(tutorNames(TutorSearchSpecifications.subjectActive()))
+                .containsExactlyInAnyOrder("Ana Test", "Marta Test", "Carlos Test", "Luis Test");
+    }
 }
