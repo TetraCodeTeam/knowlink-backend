@@ -39,5 +39,9 @@ public interface ITutorProfileService {
 
     TutorSubjectResponse updateTutorSubject(UUID tutorUserId, UUID tutorSubjectId, UpdateTutorSubjectRequest request);
 
+    TutorSubjectResponse deactivateTutorSubject(UUID tutorUserId, UUID tutorSubjectId);
+
+    TutorSubjectResponse reactivateTutorSubject(UUID tutorUserId, UUID tutorSubjectId);
+
     ActivateStudentRoleResponse activateStudentRole(UUID tutorUserId);
 }

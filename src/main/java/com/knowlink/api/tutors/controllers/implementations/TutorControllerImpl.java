@@ -77,6 +77,16 @@ public class TutorControllerImpl implements ITutorController {
     }
 
     @Override
+    public TutorSubjectResponse deactivateTutorSubject(UUID tutorSubjectId, UserPrincipal principal) {
+        return this.tutorProfileService.deactivateTutorSubject(principal.getUser().getUserId(), tutorSubjectId);
+    }
+
+    @Override
+    public TutorSubjectResponse reactivateTutorSubject(UUID tutorSubjectId, UserPrincipal principal) {
+        return this.tutorProfileService.reactivateTutorSubject(principal.getUser().getUserId(), tutorSubjectId);
+    }
+
+    @Override
     public ActivateStudentRoleResponse activateStudentRole(UserPrincipal principal) {
         return tutorProfileService.activateStudentRole(principal.getUser().getUserId());
     }
