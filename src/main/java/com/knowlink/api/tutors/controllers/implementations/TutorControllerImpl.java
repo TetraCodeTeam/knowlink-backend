@@ -4,6 +4,7 @@ import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.tutors.controllers.interfaces.ITutorController;
 import com.knowlink.api.tutors.controllers.requests.UpdateMinNoticeMinutesRequest;
+import com.knowlink.api.tutors.controllers.requests.UpdateTutorSubjectRequest;
 import com.knowlink.api.tutors.controllers.responses.ActivateStudentRoleResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
@@ -61,6 +62,12 @@ public class TutorControllerImpl implements ITutorController {
     @Override
     public TutorSubjectResponse createTutorSubject(TutorSubjectRequest request, UserPrincipal principal) {
         return this.tutorProfileService.createTutorSubject(principal.getUser().getUserId(), request);
+    }
+
+    @Override
+    public TutorSubjectResponse updateTutorSubject(UUID tutorSubjectId, UpdateTutorSubjectRequest request,
+            UserPrincipal principal) {
+        return this.tutorProfileService.updateTutorSubject(principal.getUser().getUserId(), tutorSubjectId, request);
     }
 
     @Override

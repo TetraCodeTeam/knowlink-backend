@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 
@@ -18,4 +19,6 @@ public interface ITutorSubjectRepository extends JpaRepository<TutorSubject, UUI
     List<TutorSubject> findByTutorProfileId(@Param("tutorProfileId") UUID tutorProfileId);
 
     List<TutorSubject> findBySubject_NameContainingIgnoreCase(String query);
+
+    Optional<TutorSubject> findByTutorSubjectIdAndTutorProfile_TutorProfileId(UUID tutorSubjectId, UUID tutorProfileId);
 }

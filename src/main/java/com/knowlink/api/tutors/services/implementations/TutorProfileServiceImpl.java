@@ -8,6 +8,8 @@ import com.knowlink.api.users.repositories.IUserRepository;
 import com.knowlink.api.users.services.interfaces.IUserService;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
+import com.knowlink.api.tutors.controllers.requests.UpdateTutorSubjectRequest;
+import com.knowlink.api.tutors.data.enums.CompensationType;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.materials.service.interfaces.IProfileImageService;
@@ -273,6 +275,27 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                 TutorSubject tutorSubject = tutorSubjectMapper.toEntity(request, tutorProfile, subject);
                 TutorSubject saved = tutorSubjectRepository.save(tutorSubject);
 
+                return tutorProfileMapper.toSubjectResponse(saved);
+        }
+
+        @Override
+        @Transactional
+        public TutorSubjectResponse updateTutorSubject(UUID tutorUserId, UUID tutorSubjectId,
+                        UpdateTutorSubjectRequest request) {
+                TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
+
+                TutorSubject tutorSubject = tutorProfileValidationService
+                                .findTutorSubjectOfTutorOrThrowException(tutorProfile, tutorSubjectId);
+
+                tutorProfileValidationService.ifPaidPriceIsInvalidThrowException(
+                                request.compensationType(), request.pricePerHour());
+
+                tutorSubject.setModality(request.modality());
+                tutorSubject.setCompensationType(request.compensationType());
+                tutorSubject.setPricePerHour(
+                                request.compensationType() == CompensationType.FREE ? null : request.pricePerHour());
+
+                TutorSubject saved = tutorSubjectRepository.save(tutorSubject);
                 return tutorProfileMapper.toSubjectResponse(saved);
         }
 

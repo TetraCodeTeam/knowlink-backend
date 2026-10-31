@@ -3,6 +3,7 @@ package com.knowlink.api.tutors.controllers.interfaces;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.tutors.controllers.requests.UpdateMinNoticeMinutesRequest;
+import com.knowlink.api.tutors.controllers.requests.UpdateTutorSubjectRequest;
 import com.knowlink.api.tutors.controllers.responses.ActivateStudentRoleResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
@@ -105,6 +106,24 @@ public interface ITutorController {
         TutorSubjectResponse createTutorSubject(
                 @Valid @RequestBody TutorSubjectRequest request,
                 @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal);
+
+        @PutMapping("/subjects/{tutorSubjectId}")
+        @Operation(summary = "Editar una materia dictada por el tutor",
+                        description = "Modifica modalidad, tipo de compensación y precio de una materia ya registrada del tutor autenticado. "
+                                        + "El nombre de la materia y el estado de validación no se modifican. "
+                                        + "Las reservas ya confirmadas conservan las condiciones con las que se reservaron.")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Materia actualizada"),
+                        @ApiResponse(responseCode = "400", description = "Datos inválidos (modalidad ausente o precio inválido en materia paga)"),
+                        @ApiResponse(responseCode = "403", description = "Acceso denegado"),
+                        @ApiResponse(responseCode = "404", description = "La materia no existe o no pertenece al tutor")
+        })
+        @ResponseStatus(OK)
+        @PreAuthorize("hasRole('TUTOR')")
+        TutorSubjectResponse updateTutorSubject(
+                        @Parameter(description = "Id de la materia del tutor (tutorSubjectId)") @PathVariable UUID tutorSubjectId,
+                        @Valid @RequestBody UpdateTutorSubjectRequest request,
+                        @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal);
 
         @PutMapping("/me/min-notice-minutes")
         @Operation(summary = "Actualizar la antelación mínima (en minutos) para reservar clases del tutor autenticado")
