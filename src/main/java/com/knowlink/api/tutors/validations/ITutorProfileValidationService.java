@@ -1,6 +1,7 @@
 package com.knowlink.api.tutors.validations;
 
 import com.knowlink.api.tutors.data.enums.CompensationType;
+import com.knowlink.api.tutors.data.models.Career;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.data.models.TutorSubject;
 import com.knowlink.api.users.data.models.User;
@@ -17,4 +18,6 @@ public interface ITutorProfileValidationService {
     void ifPaidSubjectHasInvalidPriceThrowException(TutorSubjectRequest request);
     TutorSubject findTutorSubjectOfTutorOrThrowException(TutorProfile tutorProfile, UUID tutorSubjectId);
     void ifPaidPriceIsInvalidThrowException(CompensationType compensationType, BigDecimal pricePerHour);
+    void ifCareerChangeBlockedBySubjectsThrowException(TutorProfile tutorProfile, Career newCareer);
+    void ifAddressRequiredForInPersonSubjectsThrowException(TutorProfile tutorProfile, String address);
 }

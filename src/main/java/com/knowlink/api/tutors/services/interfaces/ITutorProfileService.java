@@ -6,6 +6,7 @@ import java.util.UUID;
 import com.knowlink.api.tutors.controllers.responses.ActivateStudentRoleResponse;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
+import com.knowlink.api.tutors.controllers.requests.UpdateTutorProfileRequest;
 import com.knowlink.api.tutors.controllers.requests.UpdateTutorSubjectRequest;
 import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
@@ -23,6 +24,8 @@ public interface ITutorProfileService {
     TutorProfileResponse getTutorProfile(UUID tutorUserId, UUID studentUserId);
 
     TutorSelfProfileResponse getSelfProfile(UUID tutorUserId);
+
+    TutorSelfProfileResponse updateProfile(UUID tutorUserId, UpdateTutorProfileRequest request);
 
     TutorSelfProfileResponse uploadProfilePicture(UUID tutorUserId, MultipartFile file);
 
