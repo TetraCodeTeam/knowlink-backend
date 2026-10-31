@@ -7,6 +7,7 @@ import com.knowlink.api.claims.controllers.responses.ClaimAttachmentResponse;
 import com.knowlink.api.claims.controllers.responses.ClaimAttachmentUrlResponse;
 import com.knowlink.api.claims.controllers.responses.ClaimEligibilityResponse;
 import com.knowlink.api.claims.controllers.responses.ClaimResponse;
+import com.knowlink.api.claims.data.enums.AutomaticOutcome;
 import com.knowlink.api.claims.data.enums.ClaimBlockReason;
 import com.knowlink.api.claims.data.enums.ClaimReason;
 import com.knowlink.api.claims.data.enums.ClaimStatus;
@@ -123,11 +124,18 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
                 .comment(normalizeComment(request.comment()))
                 .status(ClaimStatus.OPEN)
                 .activeKey(activeKey)
+                .disputeId(existingDisputeId(bookingId))
+                .automaticOutcome(deriveAutomaticOutcome(claimantRole, request.reason()))
                 .build();
 
         SessionClaim savedClaim;
         try {
             savedClaim = sessionClaimRepository.saveAndFlush(claim);
+            if (savedClaim.getDisputeId() == null) {
+                // The first claim of the booking opens the dispute and becomes its representative.
+                // The entity is managed, so the change is flushed with the transaction.
+                savedClaim.setDisputeId(savedClaim.getClaimId());
+            }
         } catch (DataIntegrityViolationException ex) {
             log.warn("Active claim already exists for booking {} and user {}", bookingId, userId);
             throw activeClaimExists(bookingId, userId, ex);
@@ -430,6 +438,32 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
                 log.warn("Failed to clean up uploaded attachment {}: {}", path, ex.getMessage());
             }
         }
+    }
+
+    /**
+     * Claims of the same booking are grouped into a single dispute. When the counterparty already
+     * opened one, the new claim inherits its dispute id; otherwise the new claim opens the dispute.
+     */
+    private UUID existingDisputeId(UUID bookingId) {
+        return sessionClaimRepository
+                .findFirstByBooking_BookingIdAndStatusInOrderByCreatedAtAsc(bookingId, ClaimStatus.ACTIVE_STATUSES)
+                .map(existing -> existing.getDisputeId() != null ? existing.getDisputeId() : existing.getClaimId())
+                .orElse(null);
+    }
+
+    /**
+     * Same decision {@code FundsResolutionService} would have taken automatically, persisted so the
+     * administrator can compare it with the final resolution.
+     */
+    private AutomaticOutcome deriveAutomaticOutcome(Role claimantRole, ClaimReason reason) {
+        if (claimantRole == Role.STUDENT) {
+            return reason == ClaimReason.TUTOR_COULD_NOT_ATTEND
+                    ? AutomaticOutcome.TUTOR_ABSENT_REFUND_TO_STUDENT
+                    : AutomaticOutcome.SESSION_COMPLETED_RELEASE_TO_TUTOR;
+        }
+        return reason == ClaimReason.STUDENT_COULD_NOT_ATTEND
+                ? AutomaticOutcome.SESSION_COMPLETED_RELEASE_TO_TUTOR
+                : AutomaticOutcome.TUTOR_ABSENT_REFUND_TO_STUDENT;
     }
 
     private ClaimResponse toResponse(SessionClaim claim, List<ClaimAttachment> attachments) {

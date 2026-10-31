@@ -158,7 +158,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiError> handleAccessDenied(AccessDeniedException ex) {
-        ApiError error = new ApiError(HttpStatus.FORBIDDEN.value(), "Access denied", ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.FORBIDDEN.value(), "Acceso denegado", "ACCESS_DENIED");
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
     }
 
@@ -167,7 +167,7 @@ public class GlobalExceptionHandler {
         String detail = ex.getBindingResult().getFieldErrors().stream()
                 .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
                 .collect(Collectors.joining(", "));
-        ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(), "Invalid parameters", detail);
+        ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(), detail, "VALIDATION_ERROR");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
@@ -181,7 +181,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
     public ResponseEntity<ApiError> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
         ApiError error = new ApiError(HttpStatus.BAD_REQUEST.value(),
-                "El parámetro '" + ex.getName() + "' no tiene un valor válido.", "INVALID_PARAMETER");
+                "El parámetro '" + ex.getName() + "' no tiene un valor válido.", "VALIDATION_ERROR");
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
@@ -198,6 +198,34 @@ public class GlobalExceptionHandler {
         logger.error("Storage service error: {}", ex.getMessage(), ex);
         ApiError error = new ApiError(HttpStatus.BAD_GATEWAY.value(), "Storage service error", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(error);
+    }
+
+    @ExceptionHandler(BusinessConflictException.class)
+    public ResponseEntity<ApiError> handleBusinessConflict(BusinessConflictException ex) {
+        logger.warn(ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.CONFLICT.value(), ex.getUserMessage(), ex.getErrorCode());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+
+    @ExceptionHandler(NotAssignedToAdminException.class)
+    public ResponseEntity<ApiError> handleNotAssignedToAdmin(NotAssignedToAdminException ex) {
+        logger.warn(ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.FORBIDDEN.value(), ex.getUserMessage(), ex.getErrorCode());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+    }
+
+    @ExceptionHandler(FundsExecutionException.class)
+    public ResponseEntity<ApiError> handleFundsExecution(FundsExecutionException ex) {
+        logger.error("Funds execution failed: {}", ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.BAD_GATEWAY.value(), ex.getUserMessage(), ex.getErrorCode());
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY).body(error);
+    }
+
+    @ExceptionHandler(ImmutableBookingException.class)
+    public ResponseEntity<ApiError> handleImmutableBooking(ImmutableBookingException ex) {
+        logger.warn(ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.CONFLICT.value(), ex.getUserMessage(), ex.getErrorCode());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
 
     @ExceptionHandler({ RuntimeException.class, Exception.class })

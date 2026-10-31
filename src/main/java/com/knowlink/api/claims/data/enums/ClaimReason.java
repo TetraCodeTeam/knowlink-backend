@@ -5,9 +5,19 @@ import com.knowlink.api.security.enums.Role;
 import java.util.List;
 
 public enum ClaimReason {
-    STUDENT_COULD_NOT_ATTEND,
-    TUTOR_COULD_NOT_ATTEND,
-    I_COULD_NOT_ATTEND;
+    STUDENT_COULD_NOT_ATTEND("El alumno no pudo asistir"),
+    TUTOR_COULD_NOT_ATTEND("El tutor no pudo asistir"),
+    I_COULD_NOT_ATTEND("Yo no pude asistir");
+
+    private final String displayLabel;
+
+    ClaimReason(String displayLabel) {
+        this.displayLabel = displayLabel;
+    }
+
+    public String displayLabel() {
+        return displayLabel;
+    }
 
     /**
      * Motivos que puede elegir cada rol: el alumno puede reportar al tutor y el tutor al alumno,

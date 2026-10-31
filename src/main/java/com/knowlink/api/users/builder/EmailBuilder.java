@@ -51,6 +51,26 @@ public class EmailBuilder {
                 "Si no solicitaste esto, podés ignorar este correo sin ningún problema.");
     }
 
+    public String buildAdminNotification(User user, String heading, String bodyText) {
+        String safeRecipientName = HtmlUtils.htmlEscape(user.getFullName() == null ? "" : user.getFullName());
+        String safeHeading = HtmlUtils.htmlEscape(heading);
+        String safeBody = HtmlUtils.htmlEscape(bodyText);
+
+        return """
+                    <html>
+                        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f0e17; padding: 40px; text-align: center;">
+                            <div style="max-width: 600px; margin: auto; background: #1a1a2e; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                                <h2 style="color: #4361ee; margin-bottom: 20px;">%s</h2>
+                                <p style="font-size: 16px; color: #ffffff;"><strong>¡Hola %s!</strong></p>
+                                <p style="font-size: 16px; color: #cccccc;">%s</p>
+                                <p style="margin-top: 25px; font-size: 14px; color: #888888;">Equipo KnowLink</p>
+                            </div>
+                        </body>
+                    </html>
+                """
+                .formatted(safeHeading, safeRecipientName, safeBody);
+    }
+
     private String wrapTemplate(String heading, String recipientName, String bodyText,
                                  String actionUrl, String actionLabel, String footerText) {
         String safeRecipientName = HtmlUtils.htmlEscape(recipientName);

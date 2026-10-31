@@ -39,6 +39,12 @@ import java.util.*;
 @Slf4j
 public class MaterialServiceImpl implements IMaterialService {
 
+    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("png", "pdf", "xlsx");
+    private static final Map<String, String> ALLOWED_CONTENT_TYPES = Map.of(
+            "png", "image/png",
+            "pdf", "application/pdf",
+            "xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+
     private final IAcademicMaterialRepository materialRepository;
     private final IAcademicMaterialReportRepository reportRepository;
     private final ISubjectRepository subjectRepository;
@@ -175,13 +181,13 @@ public class MaterialServiceImpl implements IMaterialService {
         }
 
         String extension = getFileExtension(originalFilename).toLowerCase(Locale.ROOT);
-        if (!FileFormatConstants.ALLOWED_EXTENSIONS.contains(extension)) {
+        if (!ALLOWED_EXTENSIONS.contains(extension)) {
             throw new FormatNotAllowedException("El formato del archivo no está permitido");
         }
 
         String contentType = file.getContentType();
         if (contentType == null
-                || !FileFormatConstants.ALLOWED_CONTENT_TYPES.get(extension).equals(contentType)) {
+                || !ALLOWED_CONTENT_TYPES.get(extension).equals(contentType)) {
             throw new FormatNotAllowedException("El formato del archivo no está permitido");
         }
     }
