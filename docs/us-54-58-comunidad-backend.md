@@ -8,17 +8,19 @@ Módulo `com.knowlink.api.community`. Todos los endpoints requieren Bearer JWT y
 
 | Método | Ruta | US | Descripción |
 |---|---|---|---|
-| GET | `/posts?page&size` | 56 | Feed, de más reciente a más antigua. |
+| GET | `/posts?page&size&type&period&careerId&subjectIds&status` | 56 / 59 | Feed, de más reciente a más antigua. Los filtros son opcionales (ver [Filtros del feed](#filtros-del-feed-us-59)). |
+| GET | `/posts/counts?period&careerId&subjectIds&status` | 59 | `{ total, helpRequests, sharedContents }` con los mismos filtros, salvo el tipo. |
 | GET | `/posts/mine?date&page&size` | 57 | Solo las del usuario; `date` (yyyy-MM-dd) filtra por día de creación. |
 | GET | `/posts/{postId}` | 56 / 55 | Hilo: publicación + respuestas (destacada primero, luego por antigüedad). |
-| POST | `/posts` (multipart `request` + `file?`) | 54 | Crea. No se puede editar, solo eliminar. |
+| POST | `/posts` (multipart `request` + `file?`) | 54 | Crea. |
+| PUT | `/posts/{postId}` (multipart `request` + `file?`) | 54 | Edita título, descripción y adjunto (`removeAttachment`); solo el autor y mientras esté abierta. |
 | DELETE | `/posts/{postId}` | 57 | Baja lógica; solo el autor. |
 | POST | `/posts/{postId}/resolve` | 55 / 57 | Solo el autor de un `HELP_REQUEST` abierto. |
 | POST | `/posts/{postId}/replies` (multipart) | 55 | Responde. 422 `POST_CLOSED` si el hilo está resuelto. |
 | PUT | `/posts/{postId}/replies/{replyId}` | 55 | Edita el texto; solo el autor. |
 | DELETE | `/posts/{postId}/replies/{replyId}` | 55 | Baja lógica; solo el autor. |
 | PUT / DELETE | `/posts/{postId}/replies/{replyId}/helpful` | 55 | Marca / quita "Esto me sirvió" (idempotente). 422 `OWN_REPLY_NOT_MARKABLE` si es propia. |
-| GET | `/subjects` | 54 | Materias del catálogo, por nombre. |
+| GET | `/subjects?careerId` | 54 / 59 | Materias del catálogo, por nombre. Con `careerId`: las de esa carrera más las básicas. |
 | GET | `/podium` | 58 | `{ periodStart, podium (1-3), ranking (4-10) }`. |
 | GET | `/podium/me` | 58 | `{ eligible, position, positionsToTopTen, progressPercent, … }`. |
 
@@ -36,6 +38,25 @@ Módulo `com.knowlink.api.community`. Todos los endpoints requieren Bearer JWT y
   (`author.canBookClass`).
 - **Notificación:** al responder se publica `CommunityReplyCreatedEvent`; `CommunityNotificationListener` crea una
   `COMMUNITY_REPLY` para el autor de la publicación (no si se responde a sí mismo). `referenceId` = `postId`.
+
+## Filtros del feed (US-59)
+
+Todos los parámetros son opcionales y se combinan con AND. Sin ninguno, `GET /posts` devuelve todo el histórico
+(el frontend es quien arranca en `period=TODAY`, que es el período por defecto de la historia).
+
+| Parámetro | Valores | Semántica |
+|---|---|---|
+| `type` | `HELP_REQUEST` (dudas), `SHARED_CONTENT` (aportes) | Tipo de consulta. No aplica a `/posts/counts`. |
+| `period` | `TODAY`, `WEEK`, `MONTH`, `ALL` | Sobre la fecha de creación, en la zona de la app (Córdoba): hoy, semana en curso desde el lunes, mes en curso. |
+| `careerId` | UUID | Materias de esa carrera **más las básicas**: las básicas se guardan bajo una carrera "placeholder" (`SubjectSeeder`), así que filtrar solo por `subject.career` las dejaría fuera de las demás carreras. |
+| `subjectIds` | UUIDs separados por coma | Una o más materias. Se combina con AND con `careerId`. |
+| `status` | `OPEN`, `RESOLVED` | `OPEN` = solo **preguntas** abiertas (pedidos de ayuda): los aportes quedan siempre `OPEN` y no cuentan. `RESOLVED` = resueltas. |
+
+- Los conteos de `/posts/counts` respetan todos los filtros menos `type`, así que "Todas / Dudas / Aportes" siempre suman
+  lo mismo que mostraría cada pestaña. Con `status=OPEN` los aportes dan 0.
+- Valores inválidos de enum o UUID responden 400 (`GlobalExceptionHandler`).
+- Implementación: `CommunityPostSpecifications` (`JpaSpecificationExecutor`, como la búsqueda de tutores) y
+  `CommunityFeedFilter`; el rango temporal lo resuelve `CommunityPostServiceImpl` con el `Clock` de la app.
 
 ## Ranking mensual (US-58)
 

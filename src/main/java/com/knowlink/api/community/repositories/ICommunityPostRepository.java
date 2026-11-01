@@ -4,7 +4,9 @@ import com.knowlink.api.community.data.models.CommunityPost;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -14,10 +16,12 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public interface ICommunityPostRepository extends JpaRepository<CommunityPost, UUID> {
+public interface ICommunityPostRepository extends JpaRepository<CommunityPost, UUID>,
+        JpaSpecificationExecutor<CommunityPost> {
 
+    @Override
     @EntityGraph(attributePaths = {"author", "subject"})
-    Page<CommunityPost> findByDeletedAtIsNull(Pageable pageable);
+    Page<CommunityPost> findAll(Specification<CommunityPost> spec, Pageable pageable);
 
     @EntityGraph(attributePaths = {"author", "subject"})
     Page<CommunityPost> findByAuthor_UserIdAndDeletedAtIsNull(UUID authorId, Pageable pageable);

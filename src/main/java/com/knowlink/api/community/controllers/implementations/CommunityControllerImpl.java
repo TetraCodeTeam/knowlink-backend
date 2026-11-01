@@ -5,11 +5,16 @@ import com.knowlink.api.community.controllers.requests.CreatePostRequest;
 import com.knowlink.api.community.controllers.requests.CreateReplyRequest;
 import com.knowlink.api.community.controllers.requests.UpdatePostRequest;
 import com.knowlink.api.community.controllers.requests.UpdateReplyRequest;
+import com.knowlink.api.community.controllers.responses.CommunityFeedCountsResponse;
 import com.knowlink.api.community.controllers.responses.CommunityPostDetailResponse;
 import com.knowlink.api.community.controllers.responses.CommunityPostResponse;
 import com.knowlink.api.community.controllers.responses.CommunityReplyResponse;
 import com.knowlink.api.community.controllers.responses.CommunitySubjectResponse;
 import com.knowlink.api.community.controllers.responses.HelpfulMarkResponse;
+import com.knowlink.api.community.data.enums.FeedPeriod;
+import com.knowlink.api.community.data.enums.PostStatus;
+import com.knowlink.api.community.data.enums.PostType;
+import com.knowlink.api.community.data.filters.CommunityFeedFilter;
 import com.knowlink.api.community.services.interfaces.ICommunityPostService;
 import com.knowlink.api.community.services.interfaces.ICommunityReplyService;
 import com.knowlink.api.security.models.UserPrincipal;
@@ -30,8 +35,16 @@ public class CommunityControllerImpl implements ICommunityController {
     private final ICommunityReplyService replyService;
 
     @Override
-    public PagedResponse<CommunityPostResponse> getFeed(UserPrincipal principal, int page, int size) {
-        return postService.getFeed(userId(principal), page, size);
+    public PagedResponse<CommunityPostResponse> getFeed(UserPrincipal principal, PostType type, FeedPeriod period,
+            UUID careerId, List<UUID> subjectIds, PostStatus status, int page, int size) {
+        return postService.getFeed(userId(principal),
+                new CommunityFeedFilter(type, period, careerId, subjectIds, status), page, size);
+    }
+
+    @Override
+    public CommunityFeedCountsResponse getFeedCounts(FeedPeriod period, UUID careerId, List<UUID> subjectIds,
+            PostStatus status) {
+        return postService.getFeedCounts(new CommunityFeedFilter(null, period, careerId, subjectIds, status));
     }
 
     @Override
@@ -94,8 +107,8 @@ public class CommunityControllerImpl implements ICommunityController {
     }
 
     @Override
-    public List<CommunitySubjectResponse> getSubjects() {
-        return postService.getSubjects();
+    public List<CommunitySubjectResponse> getSubjects(UUID careerId) {
+        return postService.getSubjects(careerId);
     }
 
     private static UUID userId(UserPrincipal principal) {

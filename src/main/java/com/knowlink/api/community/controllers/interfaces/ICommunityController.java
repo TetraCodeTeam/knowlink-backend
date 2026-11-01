@@ -4,11 +4,15 @@ import com.knowlink.api.community.controllers.requests.CreatePostRequest;
 import com.knowlink.api.community.controllers.requests.CreateReplyRequest;
 import com.knowlink.api.community.controllers.requests.UpdatePostRequest;
 import com.knowlink.api.community.controllers.requests.UpdateReplyRequest;
+import com.knowlink.api.community.controllers.responses.CommunityFeedCountsResponse;
 import com.knowlink.api.community.controllers.responses.CommunityPostDetailResponse;
 import com.knowlink.api.community.controllers.responses.CommunityPostResponse;
 import com.knowlink.api.community.controllers.responses.CommunityReplyResponse;
 import com.knowlink.api.community.controllers.responses.CommunitySubjectResponse;
 import com.knowlink.api.community.controllers.responses.HelpfulMarkResponse;
+import com.knowlink.api.community.data.enums.FeedPeriod;
+import com.knowlink.api.community.data.enums.PostStatus;
+import com.knowlink.api.community.data.enums.PostType;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.shared.responses.PagedResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -44,16 +48,47 @@ import static org.springframework.http.HttpStatus.OK;
 public interface ICommunityController {
 
     @GetMapping("/posts")
-    @Operation(summary = "Ver el feed de la comunidad",
+    @Operation(summary = "Ver el feed de la comunidad, con filtros opcionales",
             description = "Publicaciones de la comunidad ordenadas de la más reciente a la más antigua, con tipo, materia, "
-                    + "autor, estado, cantidad de respuestas y marcas \"Esto me sirvió\" de su mejor respuesta.")
-    @ApiResponse(responseCode = "200", description = "Página de publicaciones")
+                    + "autor, estado, cantidad de respuestas y marcas \"Esto me sirvió\" de su mejor respuesta. "
+                    + "Los filtros son opcionales y se combinan entre sí: solo se devuelven las publicaciones que cumplen todos. "
+                    + "Sin filtros devuelve todo el histórico.")
+    @ApiResponse(responseCode = "200", description = "Página de publicaciones (vacía si ninguna cumple los filtros)")
+    @ApiResponse(responseCode = "400", description = "Valor de filtro inválido")
     @ApiResponse(responseCode = "401", description = "Sin autenticar")
     @ResponseStatus(OK)
     PagedResponse<CommunityPostResponse> getFeed(
             @AuthenticationPrincipal UserPrincipal principal,
+            @Parameter(description = "Tipo de consulta: HELP_REQUEST (dudas) o SHARED_CONTENT (aportes)")
+            @RequestParam(required = false) PostType type,
+            @Parameter(description = "Período sobre la fecha de publicación: TODAY, WEEK (desde el lunes), MONTH o ALL")
+            @RequestParam(required = false) FeedPeriod period,
+            @Parameter(description = "Carrera del catálogo; incluye también las materias básicas")
+            @RequestParam(required = false) UUID careerId,
+            @Parameter(description = "Una o más materias, separadas por coma")
+            @RequestParam(required = false) List<UUID> subjectIds,
+            @Parameter(description = "OPEN: solo preguntas abiertas (pedidos de ayuda); RESOLVED: resueltas")
+            @RequestParam(required = false) PostStatus status,
             @Parameter(description = "Página (desde 0)") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Tamaño de página (máximo 50)") @RequestParam(defaultValue = "10") int size);
+
+    @GetMapping("/posts/counts")
+    @Operation(summary = "Contar las publicaciones del feed por tipo de consulta",
+            description = "Acepta los mismos filtros que el feed, salvo el tipo: devuelve el total y la cantidad de dudas y de aportes "
+                    + "que cumplen los demás filtros.")
+    @ApiResponse(responseCode = "200", description = "Cantidades por tipo de consulta")
+    @ApiResponse(responseCode = "400", description = "Valor de filtro inválido")
+    @ApiResponse(responseCode = "401", description = "Sin autenticar")
+    @ResponseStatus(OK)
+    CommunityFeedCountsResponse getFeedCounts(
+            @Parameter(description = "Período sobre la fecha de publicación: TODAY, WEEK (desde el lunes), MONTH o ALL")
+            @RequestParam(required = false) FeedPeriod period,
+            @Parameter(description = "Carrera del catálogo; incluye también las materias básicas")
+            @RequestParam(required = false) UUID careerId,
+            @Parameter(description = "Una o más materias, separadas por coma")
+            @RequestParam(required = false) List<UUID> subjectIds,
+            @Parameter(description = "OPEN: solo preguntas abiertas (pedidos de ayuda); RESOLVED: resueltas")
+            @RequestParam(required = false) PostStatus status);
 
     @GetMapping("/posts/mine")
     @Operation(summary = "Ver mis publicaciones",
@@ -198,8 +233,10 @@ public interface ICommunityController {
             @PathVariable UUID replyId);
 
     @GetMapping("/subjects")
-    @Operation(summary = "Listar las materias del catálogo disponibles para publicar")
+    @Operation(summary = "Listar las materias del catálogo",
+            description = "Sirve para publicar y para filtrar el feed. Con careerId devuelve las materias de esa carrera más las básicas.")
     @ApiResponse(responseCode = "200", description = "Materias ordenadas por nombre")
     @ResponseStatus(OK)
-    List<CommunitySubjectResponse> getSubjects();
+    List<CommunitySubjectResponse> getSubjects(
+            @Parameter(description = "Carrera del catálogo") @RequestParam(required = false) UUID careerId);
 }

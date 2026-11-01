@@ -2,17 +2,21 @@ package com.knowlink.api.community.services.implementations;
 
 import com.knowlink.api.community.controllers.requests.CreatePostRequest;
 import com.knowlink.api.community.controllers.requests.UpdatePostRequest;
+import com.knowlink.api.community.controllers.responses.CommunityFeedCountsResponse;
 import com.knowlink.api.community.controllers.responses.CommunityPostDetailResponse;
 import com.knowlink.api.community.controllers.responses.CommunityPostResponse;
 import com.knowlink.api.community.controllers.responses.CommunityReplyResponse;
 import com.knowlink.api.community.controllers.responses.CommunitySubjectResponse;
+import com.knowlink.api.community.data.enums.FeedPeriod;
 import com.knowlink.api.community.data.enums.PostStatus;
 import com.knowlink.api.community.data.enums.PostType;
+import com.knowlink.api.community.data.filters.CommunityFeedFilter;
 import com.knowlink.api.community.data.mappers.CommunityMapper;
 import com.knowlink.api.community.data.models.CommunityAttachment;
 import com.knowlink.api.community.data.models.CommunityPost;
 import com.knowlink.api.community.data.models.CommunityReply;
 import com.knowlink.api.community.data.projections.ReplyHelpfulCount;
+import com.knowlink.api.community.data.specifications.CommunityPostSpecifications;
 import com.knowlink.api.community.repositories.ICommunityPostRepository;
 import com.knowlink.api.community.repositories.ICommunityReplyRepository;
 import com.knowlink.api.community.services.interfaces.ICommunityAttachmentService;
@@ -41,8 +45,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.TemporalAdjusters;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -111,9 +117,23 @@ public class CommunityPostServiceImpl implements ICommunityPostService {
 
     @Override
     @Transactional(readOnly = true)
-    public PagedResponse<CommunityPostResponse> getFeed(UUID userId, int page, int size) {
+    public PagedResponse<CommunityPostResponse> getFeed(UUID userId, CommunityFeedFilter filter, int page,
+            int size) {
         Pageable pageable = pageable(page, size);
-        return toPagedResponse(postRepository.findByDeletedAtIsNull(pageable), pageable, userId);
+        Page<CommunityPost> posts = postRepository.findAll(
+                CommunityPostSpecifications.fromFilter(filter, periodStart(filter.periodOrAll())), pageable);
+        return toPagedResponse(posts, pageable, userId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CommunityFeedCountsResponse getFeedCounts(CommunityFeedFilter filter) {
+        LocalDateTime from = periodStart(filter.periodOrAll());
+        long helpRequests = postRepository.count(
+                CommunityPostSpecifications.fromFilter(filter.withType(PostType.HELP_REQUEST), from));
+        long sharedContents = postRepository.count(
+                CommunityPostSpecifications.fromFilter(filter.withType(PostType.SHARED_CONTENT), from));
+        return new CommunityFeedCountsResponse(helpRequests + sharedContents, helpRequests, sharedContents);
     }
 
     @Override
@@ -228,8 +248,11 @@ public class CommunityPostServiceImpl implements ICommunityPostService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<CommunitySubjectResponse> getSubjects() {
-        return subjectRepository.findAll(Sort.by("name")).stream()
+    public List<CommunitySubjectResponse> getSubjects(UUID careerId) {
+        List<Subject> subjects = careerId == null
+                ? subjectRepository.findAll(Sort.by("name"))
+                : subjectRepository.findBasicAndByCareerId(careerId);
+        return subjects.stream()
                 .map(subject -> new CommunitySubjectResponse(subject.getSubjectId(), subject.getName()))
                 .toList();
     }
@@ -284,6 +307,17 @@ public class CommunityPostServiceImpl implements ICommunityPostService {
         if (!post.getAuthor().getUserId().equals(userId)) {
             throw new ResourceAccessDeniedException(message);
         }
+    }
+
+    /** Inicio de la ventana en la zona de la app: hoy, la semana en curso (desde el lunes) o el mes en curso. */
+    private LocalDateTime periodStart(FeedPeriod period) {
+        LocalDate today = LocalDate.now(clock);
+        return switch (period) {
+            case TODAY -> today.atStartOfDay();
+            case WEEK -> today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).atStartOfDay();
+            case MONTH -> today.withDayOfMonth(1).atStartOfDay();
+            case ALL -> null;
+        };
     }
 
     private Pageable pageable(int page, int size) {
