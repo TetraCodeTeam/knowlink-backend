@@ -18,6 +18,14 @@ public interface ISubjectRepository extends JpaRepository<Subject, UUID> {
     @Query("SELECT s FROM Subject s WHERE s.isBasic = true")
     List<Subject> findBasicSubjects();
 
+    /** Materias que cursa una carrera: las propias más las básicas, comunes a todas. */
+    @Query("""
+            SELECT s FROM Subject s
+            WHERE s.isBasic = true OR s.career.careerId = :careerId
+            ORDER BY s.name
+            """)
+    List<Subject> findBasicAndByCareerId(@Param("careerId") UUID careerId);
+
     @Query("""
             SELECT s FROM Subject s
             WHERE s.career.careerId = :careerId

@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -17,4 +18,12 @@ public interface ITutorProfileRepository extends JpaRepository<TutorProfile, UUI
     Optional<TutorProfile> findByUserId(@Param("userId") UUID userId);
  
     List<TutorProfile> findByUser_FullNameContainingIgnoreCase(String fullName);
+
+    @Query("""
+            SELECT tp FROM TutorProfile tp
+            JOIN FETCH tp.career
+            JOIN FETCH tp.user
+            WHERE tp.user.userId IN :userIds
+            """)
+    List<TutorProfile> findWithCareerByUserIdIn(@Param("userIds") Collection<UUID> userIds);
 }

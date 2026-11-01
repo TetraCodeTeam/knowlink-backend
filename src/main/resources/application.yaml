@@ -70,6 +70,8 @@ knowlink:
     deadline-hours: 24
     max-attachments: 3
     max-attachment-mb: 5
+  community:
+    max-attachment-mb: 5
   funds:
     retention-percentage: "3.00"
 
