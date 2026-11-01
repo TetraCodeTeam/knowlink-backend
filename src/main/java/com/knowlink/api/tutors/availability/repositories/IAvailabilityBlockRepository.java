@@ -9,6 +9,7 @@ import com.knowlink.api.tutors.availability.data.models.AvailabilityBlock;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -57,6 +58,22 @@ public interface IAvailabilityBlockRepository extends JpaRepository<Availability
                         """)
         List<AvailabilityBlock> findAvailableByTutorProfileId(
                         @Param("tutorProfileId") UUID tutorProfileId);
+
+        /**
+         * Bloques futuros y libres de varios tutores en una sola consulta (US-49),
+         * para evitar N+1 al filtrar la búsqueda por disponibilidad. Usa el mismo
+         * criterio de "futuro" que {@link #findInRange}.
+         */
+        @Query("""
+                        SELECT ab FROM AvailabilityBlock ab
+                        WHERE ab.tutorProfile.tutorProfileId IN :tutorProfileIds
+                        AND ab.available = true
+                        AND (ab.date > :today OR (ab.date = :today AND ab.endTime > :nowTime))
+                        """)
+        List<AvailabilityBlock> findUpcomingAvailableByTutorProfileIds(
+                        @Param("tutorProfileIds") Collection<UUID> tutorProfileIds,
+                        @Param("today") LocalDate today,
+                        @Param("nowTime") LocalTime nowTime);
 
         @Modifying(clearAutomatically = true)
         @Query("""

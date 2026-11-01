@@ -12,6 +12,7 @@ import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSubjectResponse;
 import com.knowlink.api.tutors.data.enums.CompensationType;
 import com.knowlink.api.tutors.data.enums.Modality;
+import com.knowlink.api.tutors.data.enums.TimeFrame;
 import com.knowlink.api.tutors.data.models.TutorSearchFilters;
 import com.knowlink.api.tutors.data.models.TutorSearchResponse;
 import com.knowlink.api.tutors.services.interfaces.ITutorProfileService;
@@ -20,7 +21,9 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.DayOfWeek;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @RestController
@@ -57,12 +60,21 @@ public class TutorControllerImpl implements ITutorController {
 
     @Override
     public List<TutorSearchResponse> searchTutor(String query, Modality modality, CompensationType compensation,
-            DayOfWeek dayOfWeek, Boolean verifiedOnly, Double minRating,
+            List<DayOfWeek> daysOfWeek, TimeFrame timeFrame, Boolean verifiedOnly, Double minRating,
             UserPrincipal principal) {
         UUID studentId = principal != null ? principal.getUser().getUserId() : null;
         TutorSearchFilters filters = new TutorSearchFilters(
-                modality, compensation, dayOfWeek, verifiedOnly, minRating);
+                modality, compensation, toDayOfWeekSet(daysOfWeek), timeFrame, verifiedOnly, minRating);
         return this.tutorProfileService.searchTutor(query, studentId, filters);
+    }
+
+    private Set<DayOfWeek> toDayOfWeekSet(List<DayOfWeek> daysOfWeek) {
+        if (daysOfWeek == null || daysOfWeek.isEmpty()) {
+            return Set.of();
+        }
+        Set<DayOfWeek> days = EnumSet.noneOf(DayOfWeek.class);
+        days.addAll(daysOfWeek);
+        return days;
     }
 
     @Override

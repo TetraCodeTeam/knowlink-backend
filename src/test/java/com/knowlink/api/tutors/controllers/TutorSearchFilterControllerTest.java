@@ -30,8 +30,10 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.temporal.TemporalAdjusters;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
@@ -45,6 +47,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @Transactional
 class TutorSearchFilterControllerTest {
+
+    // Fechas relativas para que los bloques "futuros" sigan siéndolo en cualquier ejecución.
+    private static final LocalDate NEXT_MONDAY = upcoming(DayOfWeek.MONDAY);
+    private static final LocalDate NEXT_TUESDAY = upcoming(DayOfWeek.TUESDAY);
+    private static final LocalDate NEXT_WEDNESDAY = upcoming(DayOfWeek.WEDNESDAY);
+    private static final LocalDate NEXT_FRIDAY = upcoming(DayOfWeek.FRIDAY);
+    private static final LocalDate PAST_FRIDAY = nextFridayInThePast();
 
     @Autowired
     private MockMvc mockMvc;
@@ -67,6 +76,14 @@ class TutorSearchFilterControllerTest {
     @Autowired
     private IAvailabilityBlockRepository availabilityBlockRepository;
 
+    private static LocalDate upcoming(DayOfWeek day) {
+        return LocalDate.now().plusWeeks(1).with(TemporalAdjusters.nextOrSame(day));
+    }
+
+    private static LocalDate nextFridayInThePast() {
+        return LocalDate.now().minusWeeks(3).with(TemporalAdjusters.nextOrSame(DayOfWeek.FRIDAY));
+    }
+
     @BeforeEach
     void seedData() {
         Career career = careerRepository.findByName("Ingeniería en Sistemas")
@@ -76,14 +93,49 @@ class TutorSearchFilterControllerTest {
         Subject algebra = subject(career, "Algebra");
         Subject fisica = subject(career, "Fisica");
         Subject quimica = subject(career, "Quimica");
+        Subject sistemas = subject(career, "Sistemas Operativos");
+        Subject baseDeDatos = subject(career, "Base de Datos");
+        Subject historia = subject(career, "Historia");
 
-        tutor("Ana García", career, algebra, false, 4.5, Modality.VIRTUAL, CompensationType.PAID, null, null);
-        tutor("María Díaz", career, algebra, true, 4.8, Modality.VIRTUAL, CompensationType.FREE,
-                LocalDate.of(2026, 1, 5), LocalTime.of(9, 0));
-        tutor("Carlos López", career, fisica, false, 4.0, Modality.IN_PERSON, CompensationType.PAID, null, null);
-        tutor("Luis Pérez", career, fisica, true, 4.2, Modality.BOTH, CompensationType.PAID,
-                LocalDate.of(2026, 1, 7), LocalTime.of(19, 0));
-        tutor("Elena Ruiz", career, quimica, false, 3.5, Modality.VIRTUAL, CompensationType.PAID, null, null);
+        // Ana: materia PENDING (no verificada), con bloques lunes a la tarde y martes a la noche.
+        TutorProfile ana = tutor("Ana García", career, 4.5);
+        tutorSubject(ana, algebra, Modality.VIRTUAL, CompensationType.PAID, TutorSubjectStatus.PENDING);
+        availabilityBlock(ana, NEXT_MONDAY, LocalTime.of(14, 0), LocalTime.of(16, 0), true);
+        availabilityBlock(ana, NEXT_TUESDAY, LocalTime.of(19, 0), LocalTime.of(21, 0), true);
+
+        // María: materia ACTIVE, bloque martes a la mañana.
+        TutorProfile maria = tutor("María Díaz", career, 4.8);
+        tutorSubject(maria, algebra, Modality.VIRTUAL, CompensationType.FREE, TutorSubjectStatus.ACTIVE);
+        availabilityBlock(maria, NEXT_TUESDAY, LocalTime.of(9, 0), LocalTime.of(11, 0), true);
+
+        TutorProfile carlos = tutor("Carlos López", career, 4.0);
+        tutorSubject(carlos, fisica, Modality.IN_PERSON, CompensationType.PAID, TutorSubjectStatus.ACTIVE);
+
+        // Luis: bloque miércoles a la noche.
+        TutorProfile luis = tutor("Luis Pérez", career, 4.2);
+        tutorSubject(luis, fisica, Modality.BOTH, CompensationType.PAID, TutorSubjectStatus.ACTIVE);
+        availabilityBlock(luis, NEXT_WEDNESDAY, LocalTime.of(19, 0), LocalTime.of(21, 0), true);
+
+        TutorProfile elena = tutor("Elena Ruiz", career, 3.5);
+        tutorSubject(elena, quimica, Modality.VIRTUAL, CompensationType.PAID, TutorSubjectStatus.PENDING);
+
+        // Diego y Sofía: mismo tema, distinto estado de validación.
+        TutorProfile diego = tutor("Diego Sosa", career, 4.6);
+        tutorSubject(diego, sistemas, Modality.VIRTUAL, CompensationType.FREE, TutorSubjectStatus.ACTIVE);
+
+        TutorProfile sofia = tutor("Sofía Vargas", career, 4.0);
+        tutorSubject(sofia, sistemas, Modality.VIRTUAL, CompensationType.PAID, TutorSubjectStatus.PENDING);
+        // ACTIVE en otra materia: no la vuelve "verificada" para Sistemas Operativos.
+        tutorSubject(sofia, baseDeDatos, Modality.VIRTUAL, CompensationType.FREE, TutorSubjectStatus.ACTIVE);
+
+        // Historia: un bloque pasado y uno no disponible no deben contar como disponibilidad.
+        TutorProfile pablo = tutor("Pablo Antiguo", career, 4.0);
+        tutorSubject(pablo, historia, Modality.VIRTUAL, CompensationType.PAID, TutorSubjectStatus.ACTIVE);
+        availabilityBlock(pablo, PAST_FRIDAY, LocalTime.of(9, 0), LocalTime.of(11, 0), true);
+
+        TutorProfile raul = tutor("Raúl Oculto", career, 4.0);
+        tutorSubject(raul, historia, Modality.VIRTUAL, CompensationType.PAID, TutorSubjectStatus.ACTIVE);
+        availabilityBlock(raul, NEXT_FRIDAY, LocalTime.of(9, 0), LocalTime.of(11, 0), false);
 
         userRepository.save(User.builder()
                 .fullName("Estudiante")
@@ -102,8 +154,7 @@ class TutorSearchFilterControllerTest {
                         Subject.builder().name(name).isBasic(true).career(career).build()));
     }
 
-    private void tutor(String fullName, Career career, Subject subject, boolean verified, double rating,
-            Modality modality, CompensationType compensation, LocalDate availDate, LocalTime availTime) {
+    private TutorProfile tutor(String fullName, Career career, double rating) {
         User user = userRepository.save(User.builder()
                 .fullName(fullName)
                 .email(fullName.replace(" ", ".").toLowerCase() + "@test.com")
@@ -111,32 +162,36 @@ class TutorSearchFilterControllerTest {
                 .role(Role.TUTOR)
                 .accountStatus(AccountStatus.ACTIVE)
                 .build());
-        TutorProfile profile = tutorProfileRepository.save(TutorProfile.builder()
+        return tutorProfileRepository.save(TutorProfile.builder()
                 .user(user)
                 .career(career)
-                .verified(verified)
                 .averageRating(rating)
                 .build());
+    }
+
+    private void tutorSubject(TutorProfile profile, Subject subject, Modality modality,
+            CompensationType compensation, TutorSubjectStatus status) {
         TutorSubject ts = TutorSubject.builder()
                 .tutorProfile(profile)
                 .subject(subject)
                 .modality(modality)
                 .compensationType(compensation)
-                .tutorSubjectStatus(TutorSubjectStatus.ACTIVE)
+                .tutorSubjectStatus(status)
                 .build();
         profile.getSubjects().add(ts);
         tutorSubjectRepository.save(ts);
+    }
 
-        if (availDate != null && availTime != null) {
-            availabilityBlockRepository.save(AvailabilityBlock.builder()
-                    .date(availDate)
-                    .startTime(availTime)
-                    .endTime(availTime.plusHours(2))
-                    .available(true)
-                    .repeatWeekly(true)
-                    .tutorProfile(profile)
-                    .build());
-        }
+    private void availabilityBlock(TutorProfile profile, LocalDate date, LocalTime start, LocalTime end,
+            boolean available) {
+        availabilityBlockRepository.save(AvailabilityBlock.builder()
+                .date(date)
+                .startTime(start)
+                .endTime(end)
+                .available(available)
+                .repeatWeekly(true)
+                .tutorProfile(profile)
+                .build());
     }
 
     private RequestPostProcessor asStudent() {
@@ -189,12 +244,23 @@ class TutorSearchFilterControllerTest {
     }
 
     @Test
-    @DisplayName("Filtro soloVerificados devuelve solo tutores verificados")
-    void search_filterByVerifiedOnly() throws Exception {
+    @DisplayName("Filtro verifiedOnly filtra por el estado de validación de la materia buscada")
+    void search_filterByVerifiedOnly_usesSubjectStatus() throws Exception {
         mockMvc.perform(get("/api/v1/tutors/search/Algebra?verifiedOnly=true").with(asStudent()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].fullName").value("María Díaz"));
+
+        // Sofía tiene Base de Datos ACTIVE pero Sistemas Operativos PENDING.
+        mockMvc.perform(get("/api/v1/tutors/search/{query}", "Sistemas Operativos").with(asStudent()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[*].fullName", containsInAnyOrder("Diego Sosa", "Sofía Vargas")));
+
+        mockMvc.perform(get("/api/v1/tutors/search/{query}?verifiedOnly=true", "Sistemas Operativos").with(asStudent()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].fullName").value("Diego Sosa"));
     }
 
     @Test
@@ -212,23 +278,69 @@ class TutorSearchFilterControllerTest {
     }
 
     @Test
-    @DisplayName("Filtro por disponibilidad horaria (día y franja)")
+    @DisplayName("Filtro por días de la semana y franja horaria sobre el mismo bloque")
     void search_filterByAvailability() throws Exception {
-        mockMvc.perform(get("/api/v1/tutors/search/Algebra?dayOfWeek=MONDAY&timeFrame=MORNING").with(asStudent()))
+        mockMvc.perform(get("/api/v1/tutors/search/Algebra?daysOfWeek=TUESDAY&timeFrame=MORNING").with(asStudent()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].fullName").value("María Díaz"));
 
-        mockMvc.perform(get("/api/v1/tutors/search/Fisica?dayOfWeek=WEDNESDAY&timeFrame=EVENING").with(asStudent()))
+        mockMvc.perform(get("/api/v1/tutors/search/Fisica?daysOfWeek=WEDNESDAY&timeFrame=EVENING").with(asStudent()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].fullName").value("Luis Pérez"));
+
+        // Ana tiene bloque el lunes pero a la tarde: día + franja deben coincidir en el mismo bloque.
+        mockMvc.perform(get("/api/v1/tutors/search/Algebra?daysOfWeek=MONDAY&timeFrame=MORNING").with(asStudent()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
+
+        mockMvc.perform(get("/api/v1/tutors/search/Algebra?timeFrame=MORNING").with(asStudent()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].fullName").value("María Díaz"));
+    }
+
+    @Test
+    @DisplayName("Varios días se combinan con OR, repetidos o separados por coma")
+    void search_multipleDays_areOred() throws Exception {
+        mockMvc.perform(get("/api/v1/tutors/search/Algebra?daysOfWeek=MONDAY&daysOfWeek=TUESDAY").with(asStudent()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[*].fullName", containsInAnyOrder("Ana García", "María Díaz")));
+
+        mockMvc.perform(get("/api/v1/tutors/search/Algebra?daysOfWeek=MONDAY,TUESDAY").with(asStudent()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)))
+                .andExpect(jsonPath("$[*].fullName", containsInAnyOrder("Ana García", "María Díaz")));
+
+        mockMvc.perform(get("/api/v1/tutors/search/Algebra?daysOfWeek=WEDNESDAY").with(asStudent()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
+    }
+
+    @Test
+    @DisplayName("Bloques pasados o no disponibles no cuentan como disponibilidad")
+    void search_availability_ignoresPastAndUnavailableBlocks() throws Exception {
+        mockMvc.perform(get("/api/v1/tutors/search/Historia").with(asStudent()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(2)));
+
+        mockMvc.perform(get("/api/v1/tutors/search/Historia?daysOfWeek=FRIDAY&timeFrame=MORNING").with(asStudent()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(0)));
     }
 
     @Test
     @DisplayName("AC-2: múltiples filtros se combinan con AND (intersección)")
     void search_multipleFilters_areAnded() throws Exception {
         mockMvc.perform(get("/api/v1/tutors/search/Algebra?modality=VIRTUAL&verifiedOnly=true").with(asStudent()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].fullName").value("María Díaz"));
+
+        mockMvc.perform(get("/api/v1/tutors/search/Algebra?modality=VIRTUAL&compensation=FREE&verifiedOnly=true"
+                + "&minRating=4.5&daysOfWeek=TUESDAY&timeFrame=MORNING").with(asStudent()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].fullName").value("María Díaz"));
@@ -265,8 +377,12 @@ class TutorSearchFilterControllerTest {
 
     @Test
     @DisplayName("Edge: valor de enum no reconocido devuelve 400")
-    void search_invalidModalityValue_returns400() throws Exception {
+    void search_invalidEnumValues_return400() throws Exception {
         mockMvc.perform(get("/api/v1/tutors/search/Algebra?modality=PRESENCIAL").with(asStudent()))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/tutors/search/Algebra?daysOfWeek=FUNDAY").with(asStudent()))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/v1/tutors/search/Algebra?timeFrame=NIGHT").with(asStudent()))
                 .andExpect(status().isBadRequest());
     }
 
@@ -287,6 +403,7 @@ class TutorSearchFilterControllerTest {
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].fullName").value("María Díaz"));
 
+        // Ana no tiene ninguna materia en estado ACTIVE (verificado por materia).
         mockMvc.perform(get("/api/v1/tutors/search/Ana?verifiedOnly=true").with(asStudent()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(0)));
