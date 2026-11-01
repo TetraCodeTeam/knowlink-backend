@@ -6,6 +6,8 @@ import java.util.UUID;
 import com.knowlink.api.tutors.controllers.responses.ActivateStudentRoleResponse;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
+import com.knowlink.api.tutors.controllers.requests.UpdateTutorProfileRequest;
+import com.knowlink.api.tutors.controllers.requests.UpdateTutorSubjectRequest;
 import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSubjectResponse;
@@ -23,6 +25,8 @@ public interface ITutorProfileService {
 
     TutorSelfProfileResponse getSelfProfile(UUID tutorUserId);
 
+    TutorSelfProfileResponse updateProfile(UUID tutorUserId, UpdateTutorProfileRequest request);
+
     TutorSelfProfileResponse uploadProfilePicture(UUID tutorUserId, MultipartFile file);
 
     void updateMinNoticeMinutes(UUID tutorUserId, Integer minNoticeMinutes);
@@ -32,6 +36,12 @@ public interface ITutorProfileService {
     List<TutorSearchResponse> searchTutor(String query, UUID studentUserId, TutorSearchFilters filters);
 
     TutorSubjectResponse createTutorSubject(UUID tutorUserId, TutorSubjectRequest request);
+
+    TutorSubjectResponse updateTutorSubject(UUID tutorUserId, UUID tutorSubjectId, UpdateTutorSubjectRequest request);
+
+    TutorSubjectResponse deactivateTutorSubject(UUID tutorUserId, UUID tutorSubjectId);
+
+    TutorSubjectResponse reactivateTutorSubject(UUID tutorUserId, UUID tutorSubjectId);
 
     ActivateStudentRoleResponse activateStudentRole(UUID tutorUserId);
 }

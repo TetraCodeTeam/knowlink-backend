@@ -1,5 +1,6 @@
 package com.knowlink.api.materials.service.implementations;
 
+import com.knowlink.api.exceptions.custom_exceptions.BusinessConflictException;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.materials.data.enums.MaterialType;
@@ -10,6 +11,7 @@ import com.knowlink.api.materials.controller.responses.MaterialResponse;
 import com.knowlink.api.materials.controller.requests.MaterialUploadRequest;
 import com.knowlink.api.materials.exception.FormatNotAllowedException;
 import com.knowlink.api.materials.exception.NoActiveReservationException;
+import com.knowlink.api.materials.exception.ResourceAccessDeniedException;
 import com.knowlink.api.materials.exception.SubjectNotAssociatedException;
 import com.knowlink.api.materials.service.interfaces.IMaterialAccessService;
 import com.knowlink.api.materials.service.interfaces.IMaterialService;
@@ -38,6 +40,12 @@ import java.util.*;
 @RequiredArgsConstructor
 @Slf4j
 public class MaterialServiceImpl implements IMaterialService {
+
+    private static final Set<String> ALLOWED_EXTENSIONS = Set.of("png", "pdf", "xlsx");
+    private static final Map<String, String> ALLOWED_CONTENT_TYPES = Map.of(
+            "png", "image/png",
+            "pdf", "application/pdf",
+            "xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
 
     private final IAcademicMaterialRepository materialRepository;
     private final IAcademicMaterialReportRepository reportRepository;
@@ -156,6 +164,44 @@ public class MaterialServiceImpl implements IMaterialService {
         return supabaseStorageService.generateSignedUrl(material.getStoragePath(), 3600);
     }
 
+    @Override
+    @Transactional
+    public void delete(UUID materialId, UUID tutorUserId) {
+        AcademicMaterial material = materialRepository.findByIdForUpdate(materialId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "MATERIAL_NOT_FOUND",
+                        "El material no existe.",
+                        "Material not found with id: " + materialId));
+
+        UUID ownerId = material.getTutorSubject()
+                .getTutorProfile()
+                .getUser()
+                .getUserId();
+
+        if (!ownerId.equals(tutorUserId)) {
+            log.warn("Material delete denied: material {} belongs to tutor {}, requested by {}",
+                    materialId, ownerId, tutorUserId);
+            throw new ResourceAccessDeniedException("No tenés permiso para eliminar este material");
+        }
+
+        if (reportRepository.existsByMaterialAcademicMaterialId(materialId)) {
+            log.warn("Material delete blocked: material {} has reports", materialId);
+            throw new BusinessConflictException(
+                    "MATERIAL_HAS_REPORTS",
+                    "No podés eliminar un material con denuncias asociadas.",
+                    "Material " + materialId + " has associated reports");
+        }
+
+        String storagePath = material.getStoragePath();
+
+        materialRepository.delete(material);
+        materialRepository.flush();
+
+        supabaseStorageService.delete(storagePath);
+
+        log.info("Material deleted: {} by tutor: {}", materialId, tutorUserId);
+    }
+
     private void validateSubjectId(UUID subjectId) {
         if (subjectId == null) {
             throw new SubjectNotAssociatedException("Debés asociar el material a una materia");
@@ -175,13 +221,13 @@ public class MaterialServiceImpl implements IMaterialService {
         }
 
         String extension = getFileExtension(originalFilename).toLowerCase(Locale.ROOT);
-        if (!FileFormatConstants.ALLOWED_EXTENSIONS.contains(extension)) {
+        if (!ALLOWED_EXTENSIONS.contains(extension)) {
             throw new FormatNotAllowedException("El formato del archivo no está permitido");
         }
 
         String contentType = file.getContentType();
         if (contentType == null
-                || !FileFormatConstants.ALLOWED_CONTENT_TYPES.get(extension).equals(contentType)) {
+                || !ALLOWED_CONTENT_TYPES.get(extension).equals(contentType)) {
             throw new FormatNotAllowedException("El formato del archivo no está permitido");
         }
     }

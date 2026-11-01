@@ -1,5 +1,6 @@
 package com.knowlink.api.materials.data.models;
 
+import com.knowlink.api.admin.materialreports.data.models.MaterialReportCase;
 import com.knowlink.api.materials.data.enums.MaterialReportReason;
 import com.knowlink.api.materials.data.enums.MaterialReportStatus;
 import com.knowlink.api.materials.data.enums.MaterialReportResolution;
@@ -45,6 +46,10 @@ public class AcademicMaterialReport {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "academic_material_id", nullable = false)
     private AcademicMaterial material;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "material_report_case_id")
+    private MaterialReportCase reportCase;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reporter_user_id", nullable = false)

@@ -11,4 +11,5 @@ public interface IMaterialService {
     MaterialResponse upload(MaterialUploadRequest request, MultipartFile file, UUID tutorUserId);
     List<MaterialResponse> listBySubject(UUID subjectId, UUID userId, String role);
     String getDownloadUrl(UUID materialId, UUID userId, String role);
+    void delete(UUID materialId, UUID tutorUserId);
 }

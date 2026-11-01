@@ -5,6 +5,7 @@ import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.users.controllers.responses.UserResponse;
 import com.knowlink.api.users.data.models.User;
+import com.knowlink.api.users.utils.UserNameUtils;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -24,7 +25,9 @@ public class UserMapper {
     public User toStudentUser(StudentRegistrationRequest request) {
         return User.builder()
                 .email(request.email())
-                .fullName(request.firstName() + " " + request.lastName())
+                .firstName(request.firstName().trim())
+                .lastName(request.lastName().trim())
+                .fullName(UserNameUtils.buildFullName(request.firstName(), request.lastName()))
                 .dni(request.dni())
                 .phoneNumber(request.phoneNumber())
                 .role(Role.STUDENT)
@@ -34,7 +37,9 @@ public class UserMapper {
     public User toTutorUser(TutorRegistrationRequest request) {
         return User.builder()
                 .email(request.email())
-                .fullName(request.firstName() + " " + request.lastName())
+                .firstName(request.firstName().trim())
+                .lastName(request.lastName().trim())
+                .fullName(UserNameUtils.buildFullName(request.firstName(), request.lastName()))
                 .dni(request.dni())
                 .phoneNumber(request.phoneNumber())
                 .role(Role.TUTOR)

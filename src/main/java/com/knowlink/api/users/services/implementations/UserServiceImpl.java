@@ -6,7 +6,6 @@ import com.knowlink.api.users.data.models.Token;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.auth.controllers.requests.StudentRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
-import com.knowlink.api.users.controllers.requests.UpdateUserRequest;
 import com.knowlink.api.exceptions.custom_exceptions.*;
 import com.knowlink.api.users.events.PasswordResetRequestedEvent;
 import com.knowlink.api.users.events.ResendConfirmationEvent;
@@ -15,16 +14,23 @@ import com.knowlink.api.users.validation.IUserValidationService;
 import com.knowlink.api.users.repositories.IUserRepository;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.users.services.interfaces.ITokenService;
+import com.knowlink.api.users.utils.UserNameUtils;
 import com.knowlink.api.users.services.interfaces.IUserService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.function.Supplier;
 
+import static com.knowlink.api.users.utils.Constants.RESET_LINK_INVALID_CODE;
+import static com.knowlink.api.users.utils.Constants.RESET_LINK_INVALID_MESSAGE;
+
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl implements IUserService {
@@ -91,14 +97,21 @@ public class UserServiceImpl implements IUserService {
 
     @Override
     @Transactional
-    public User updateUser(UUID userId, UpdateUserRequest request) {
+    public User updatePersonalData(UUID userId, String firstName, String lastName, String dni,
+            String phoneNumber) {
         User user = findByIdOrThrowException(userId);
-        user.setFullName(request.firstName() + " " + request.lastName());
 
-        if (request.profilePicture() != null) {
-            user.setProfilePictureUrl(request.profilePicture());
+        String newDni = dni.trim();
+        if (!newDni.equals(user.getDni())) {
+            userValidationService.ifDniBelongsToAnotherUserThrowException(newDni, userId);
         }
 
+        user.setFirstName(firstName.trim());
+        user.setLastName(lastName.trim());
+        user.setFullName(UserNameUtils.buildFullName(firstName, lastName));
+        user.setDni(newDni);
+        user.setPhoneNumber(phoneNumber.trim());
+        // The email is NEVER modified here.
         return userRepository.save(user);
     }
 
@@ -151,26 +164,62 @@ public class UserServiceImpl implements IUserService {
 
     @Override
     @Transactional
-    public void resetPassword(UUID token, String newPassword, String confirmNewPassword) {
-        userValidationService.verifyIfPasswordsMatch(newPassword, confirmNewPassword);
-        Token resetToken = tokenService.findByTokenOrThrowException(token);
-        userValidationService.validateTokenNotExpired(resetToken);
+    public void resetPassword(String rawToken, String newPassword, String confirmNewPassword) {
+        UUID tokenId = parseResetTokenOrThrow(rawToken);
+
+        Token resetToken = tokenService.findPasswordResetTokenForUpdate(tokenId)
+                .orElseThrow(() -> invalidResetLink("token inexistente, ya utilizado o de otro tipo"));
+
+        if (resetToken.getTokenExpirationDate().isBefore(LocalDateTime.now())) {
+            throw invalidResetLink("token de reset vencido");
+        }
 
         User user = resetToken.getUser();
+        if (user.getAccountStatus() != AccountStatus.ACTIVE) {
+            throw invalidResetLink(String.format("usuario '%s' no está activo", user.getUserId()));
+        }
+
+        userValidationService.verifyIfPasswordsMatch(newPassword, confirmNewPassword);
+
         user.setPassword(passwordEncoder.encode(newPassword));
         userRepository.save(user);
 
-        tokenService.deleteTokensByUser(user);
+        tokenService.deletePasswordResetTokensByUser(user);
     }
 
     @Override
     @Transactional
     public void sendResetPasswordEmail(String email) {
-        User user = findUserByEmailOrThrowException(email);
-        userValidationService.validateResendLimit(user);
+        // Never reveal whether the account exists: every branch returns normally.
+        userRepository.findByEmail(email.trim()).ifPresentOrElse(
+                this::issuePasswordResetToken,
+                () -> log.info("Password reset requested for an unregistered email"));
+    }
 
-        Token token = tokenService.saveUserToken(user);
+    private void issuePasswordResetToken(User user) {
+        if (user.getAccountStatus() != AccountStatus.ACTIVE) {
+            log.info("Password reset ignored for non-active userId '{}'", user.getUserId());
+            return;
+        }
+        if (!tokenService.canIssuePasswordResetToken(user)) {
+            log.warn("Password reset rate limit reached for userId '{}'", user.getUserId());
+            return;
+        }
+        Token token = tokenService.savePasswordResetToken(user);
         eventPublisher.publishEvent(new PasswordResetRequestedEvent(user, token.getTokenId()));
+    }
+
+    private UUID parseResetTokenOrThrow(String rawToken) {
+        try {
+            return UUID.fromString(rawToken.trim());
+        } catch (IllegalArgumentException ex) {
+            throw invalidResetLink("token con formato inválido");
+        }
+    }
+
+    private UnprocessableEntityException invalidResetLink(String technicalMessage) {
+        return new UnprocessableEntityException(
+                RESET_LINK_INVALID_CODE, RESET_LINK_INVALID_MESSAGE, technicalMessage);
     }
 
     @Override

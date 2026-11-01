@@ -8,10 +8,15 @@ import com.knowlink.api.users.repositories.IUserRepository;
 import com.knowlink.api.users.services.interfaces.IUserService;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
+import com.knowlink.api.tutors.controllers.requests.UpdateTutorProfileRequest;
+import com.knowlink.api.tutors.controllers.requests.UpdateTutorSubjectRequest;
+import com.knowlink.api.tutors.data.enums.CompensationType;
+import com.knowlink.api.tutors.data.enums.TutorSubjectStatus;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.materials.service.interfaces.IProfileImageService;
 import com.knowlink.api.tutors.availability.controllers.responses.AvailabilityBlockResponse;
+import com.knowlink.api.tutors.availability.data.models.AvailabilityBlock;
 import com.knowlink.api.tutors.availability.repositories.IAvailabilityBlockRepository;
 import com.knowlink.api.tutors.controllers.responses.*;
 import com.knowlink.api.tutors.data.mappers.TutorProfileMapper;
@@ -28,21 +33,26 @@ import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
 import com.knowlink.api.ratings.repositories.*;
 import com.knowlink.api.users.data.models.User;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.time.DayOfWeek;
+import java.time.Clock;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class TutorProfileServiceImpl implements ITutorProfileService {
 
         private final ITutorSubjectRepository tutorSubjectRepository;
@@ -61,6 +71,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         private final IUserProfileLookupService userProfileLookupService;
         private final IProfileImageService profileImageService;
         private final IUserRepository userRepository;
+        private final Clock clock;
 
         @Override
         @Transactional(readOnly = true)
@@ -68,7 +79,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                 TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
 
                 List<TutorSubjectResponse> subjectResponses = tutorSubjectRepository
-                                .findByTutorProfileId(tutorProfile.getTutorProfileId())
+                                .findActiveByTutorProfileId(tutorProfile.getTutorProfileId())
                                 .stream()
                                 .map(tutorProfileMapper::toSubjectResponse)
                                 .collect(Collectors.toList());
@@ -117,6 +128,33 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
 
         @Override
         @Transactional
+        public TutorSelfProfileResponse updateProfile(UUID tutorUserId, UpdateTutorProfileRequest request) {
+                TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
+                Career career = careerService.findByNameOrThrowException(request.career().trim());
+
+                tutorProfileValidationService.ifCareerChangeBlockedBySubjectsThrowException(tutorProfile, career);
+                tutorProfileValidationService.ifAddressRequiredForInPersonSubjectsThrowException(
+                                tutorProfile, request.address());
+
+                userService.updatePersonalData(tutorUserId, request.firstName(), request.lastName(),
+                                request.dni(), request.phoneNumber());
+
+                tutorProfile.setCareer(career);
+                tutorProfile.setInstitutionalId(blankToNull(request.institutionalId()));
+                tutorProfile.setBiography(blankToNull(request.biography()));
+                tutorProfile.setAddress(blankToNull(request.address()));
+                tutorProfile = tutorProfileRepository.save(tutorProfile);
+
+                boolean hasStudentProfile = userProfileLookupService.hasStudentProfile(tutorUserId);
+                return tutorProfileMapper.toSelfProfileResponse(tutorProfile, hasStudentProfile);
+        }
+
+        private String blankToNull(String value) {
+                return value == null || value.isBlank() ? null : value.trim();
+        }
+
+        @Override
+        @Transactional
         public TutorSelfProfileResponse uploadProfilePicture(UUID tutorUserId, MultipartFile file) {
                 TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
 
@@ -161,7 +199,8 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         public List<TutorSearchResponse> searchTutor(String query, UUID studentUserId, TutorSearchFilters filters) {
                 validateMinRating(filters.minRating());
 
-                Specification<TutorSubject> subjectSpec = TutorSearchSpecifications.subjectNameContains(query);
+                Specification<TutorSubject> subjectSpec = TutorSearchSpecifications.subjectNameContains(query)
+                                .and(TutorSearchSpecifications.subjectActive());
                 if (filters.hasModality()) {
                         subjectSpec = subjectSpec.and(TutorSearchSpecifications.modalityIn(filters.modality()));
                 }
@@ -169,26 +208,21 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                         subjectSpec = subjectSpec.and(TutorSearchSpecifications.compensationIn(filters.compensation()));
                 }
                 if (Boolean.TRUE.equals(filters.verifiedOnly())) {
-                        subjectSpec = subjectSpec.and(TutorSearchSpecifications.tutorVerified());
+                        subjectSpec = subjectSpec.and(TutorSearchSpecifications.subjectValidated());
                 }
                 if (filters.hasMinRating()) {
                         subjectSpec = subjectSpec.and(TutorSearchSpecifications.minAverageRating(filters.minRating()));
                 }
 
                 // Tutores que matchean por materia: la query dinámica combina la búsqueda
-                // base de US-06A con los filtros presentes (AND). Los filtros de
-                // verified/minRating se evalúan contra el tutor de la materia matcheada,
-                // por lo que "verificado" cruza contra la materia buscada. La disponibilidad
-                // se filtra en memoria (DAYOFWEEK difiere entre MySQL y H2, ver
-                // TutorSearchSpecifications), con la misma semántica para ambas rutas.
+                // base de US-06A con los filtros presentes (AND). "Verificado" se evalúa
+                // sobre el estado de validación de la materia buscada y minRating sobre el
+                // tutor de esa materia. La disponibilidad se resuelve después, en una sola
+                // consulta para todos los candidatos (sin N+1).
                 Map<UUID, List<TutorSubject>> groupedResults = new LinkedHashMap<>();
                 for (TutorSubject tutorSubject : tutorSubjectRepository.findAll(subjectSpec)) {
-                        TutorProfile tutorProfile = tutorSubject.getTutorProfile();
-                        if (filters.hasAvailability()
-                                        && !tutorHasAvailability(tutorProfile, filters.dayOfWeek())) {
-                                continue;
-                        }
-                        groupedResults.computeIfAbsent(tutorProfile.getUser().getUserId(), k -> new ArrayList<>())
+                        groupedResults.computeIfAbsent(tutorSubject.getTutorProfile().getUser().getUserId(),
+                                        k -> new ArrayList<>())
                                         .add(tutorSubject);
                 }
 
@@ -196,10 +230,8 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 .findByUser_FullNameContainingIgnoreCase(query);
 
                 for (TutorProfile tutorProfile : nameMatches) {
-                        if (tutorProfile.getSubjects().isEmpty()) {
-                                continue;
-                        }
-                        if (Boolean.TRUE.equals(filters.verifiedOnly()) && !tutorProfile.isVerified()) {
+                        List<TutorSubject> activeSubjects = subjectsVisibleForSearch(tutorProfile, filters);
+                        if (activeSubjects.isEmpty()) {
                                 continue;
                         }
                         if (filters.hasMinRating()
@@ -207,12 +239,8 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                                         || tutorProfile.getAverageRating() < filters.minRating())) {
                                 continue;
                         }
-                        if (filters.hasAvailability()
-                                        && !tutorHasAvailability(tutorProfile, filters.dayOfWeek())) {
-                                continue;
-                        }
 
-                        List<TutorSubject> subjects = tutorProfile.getSubjects();
+                        List<TutorSubject> subjects = activeSubjects;
                         if (filters.hasModality() || filters.hasCompensation()) {
                                 subjects = subjects.stream()
                                                 .filter(ts -> TutorSearchSpecifications.matchesModality(
@@ -228,6 +256,10 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                         groupedResults.putIfAbsent(tutorProfile.getUser().getUserId(), subjects);
                 }
 
+                if (filters.hasAvailability()) {
+                        retainTutorsWithAvailability(groupedResults, filters);
+                }
+
                 return groupedResults.values()
                                 .stream()
                                 .map(subjects -> {
@@ -239,13 +271,57 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 .toList();
         }
 
-        private boolean tutorHasAvailability(TutorProfile tutorProfile, DayOfWeek dayOfWeek) {
-                return availabilityBlockRepository.findAvailableByTutorProfileId(tutorProfile.getTutorProfileId())
-                                .stream()
-                                .anyMatch(block -> TutorSearchSpecifications.matchesAvailability(
-                                                block, dayOfWeek, null));
+        /**
+         * Materias mostrables de un tutor encontrado por nombre: solo las activas
+         * (visibilidad, US-12) y, con verifiedOnly, solo las aprobadas en su
+         * validación académica ({@link TutorSubjectStatus#ACTIVE}, US-22/US-25).
+         */
+        private List<TutorSubject> subjectsVisibleForSearch(TutorProfile tutorProfile, TutorSearchFilters filters) {
+                boolean verifiedOnly = Boolean.TRUE.equals(filters.verifiedOnly());
+                return tutorProfile.getSubjects().stream()
+                                .filter(TutorSubject::isActive)
+                                .filter(ts -> !verifiedOnly || ts.getTutorSubjectStatus() == TutorSubjectStatus.ACTIVE)
+                                .toList();
         }
 
+        /**
+         * Aplica el filtro de disponibilidad sobre los tutores ya acotados por el resto
+         * de los filtros. Hace una única consulta con todos los tutorProfileId
+         * candidatos (anti N+1) y descarta a quienes no tienen ningún bloque futuro y
+         * libre que cumpla día y franja sobre el mismo bloque.
+         */
+        private void retainTutorsWithAvailability(Map<UUID, List<TutorSubject>> groupedResults,
+                        TutorSearchFilters filters) {
+                Set<UUID> candidateTutorProfileIds = groupedResults.values().stream()
+                                .map(subjects -> subjects.get(0).getTutorProfile().getTutorProfileId())
+                                .collect(Collectors.toSet());
+                if (candidateTutorProfileIds.isEmpty()) {
+                        return;
+                }
+
+                Map<UUID, List<AvailabilityBlock>> blocksByTutorProfileId = availabilityBlockRepository
+                                .findUpcomingAvailableByTutorProfileIds(
+                                                candidateTutorProfileIds,
+                                                LocalDate.now(clock),
+                                                LocalTime.now(clock))
+                                .stream()
+                                .collect(Collectors.groupingBy(
+                                                block -> block.getTutorProfile().getTutorProfileId()));
+
+                groupedResults.entrySet().removeIf(entry -> {
+                        UUID tutorProfileId = entry.getValue().get(0).getTutorProfile().getTutorProfileId();
+                        return !hasMatchingAvailability(blocksByTutorProfileId.get(tutorProfileId), filters);
+                });
+        }
+
+        private boolean hasMatchingAvailability(List<AvailabilityBlock> blocks, TutorSearchFilters filters) {
+                if (blocks == null || blocks.isEmpty()) {
+                        return false;
+                }
+                return blocks.stream()
+                                .anyMatch(block -> TutorSearchSpecifications.matchesAvailability(
+                                                block, filters.daysOfWeek(), filters.timeFrame()));
+        }
 
         /**
          * Estrategia definida para el edge case de calificacionMinima fuera de rango:
@@ -274,6 +350,70 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                 TutorSubject saved = tutorSubjectRepository.save(tutorSubject);
 
                 return tutorProfileMapper.toSubjectResponse(saved);
+        }
+
+        @Override
+        @Transactional
+        public TutorSubjectResponse updateTutorSubject(UUID tutorUserId, UUID tutorSubjectId,
+                        UpdateTutorSubjectRequest request) {
+                TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
+
+                TutorSubject tutorSubject = tutorProfileValidationService
+                                .findTutorSubjectOfTutorOrThrowException(tutorProfile, tutorSubjectId);
+
+                tutorProfileValidationService.ifPaidPriceIsInvalidThrowException(
+                                request.compensationType(), request.pricePerHour());
+
+                tutorSubject.setModality(request.modality());
+                tutorSubject.setCompensationType(request.compensationType());
+                tutorSubject.setPricePerHour(
+                                request.compensationType() == CompensationType.FREE ? null : request.pricePerHour());
+
+                TutorSubject saved = tutorSubjectRepository.save(tutorSubject);
+                return tutorProfileMapper.toSubjectResponse(saved);
+        }
+
+        @Override
+        @Transactional
+        public TutorSubjectResponse deactivateTutorSubject(UUID tutorUserId, UUID tutorSubjectId) {
+                TutorSubject tutorSubject = findOwnedTutorSubjectForUpdateOrThrow(tutorUserId, tutorSubjectId);
+
+                if (!tutorSubject.isActive()) {
+                        return tutorProfileMapper.toSubjectResponse(tutorSubject); // idempotent
+                }
+
+                tutorProfileValidationService.ifSubjectHasActiveBookingsThrowException(tutorSubject);
+
+                tutorSubject.setActive(false);
+                TutorSubject saved = tutorSubjectRepository.save(tutorSubject);
+                log.info("TutorSubject {} deactivated by tutor user {}", tutorSubjectId, tutorUserId);
+                return tutorProfileMapper.toSubjectResponse(saved);
+        }
+
+        @Override
+        @Transactional
+        public TutorSubjectResponse reactivateTutorSubject(UUID tutorUserId, UUID tutorSubjectId) {
+                TutorSubject tutorSubject = findOwnedTutorSubjectForUpdateOrThrow(tutorUserId, tutorSubjectId);
+
+                if (tutorSubject.isActive()) {
+                        return tutorProfileMapper.toSubjectResponse(tutorSubject); // idempotent
+                }
+
+                tutorSubject.setActive(true);
+                TutorSubject saved = tutorSubjectRepository.save(tutorSubject);
+                log.info("TutorSubject {} reactivated by tutor user {}", tutorSubjectId, tutorUserId);
+                return tutorProfileMapper.toSubjectResponse(saved);
+        }
+
+        private TutorSubject findOwnedTutorSubjectForUpdateOrThrow(UUID tutorUserId, UUID tutorSubjectId) {
+                TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
+                return tutorSubjectRepository
+                                .findOwnedByIdForUpdate(tutorSubjectId, tutorProfile.getTutorProfileId())
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "TUTOR_SUBJECT_NOT_FOUND",
+                                                "La materia no existe o no te pertenece.",
+                                                String.format("TutorSubject '%s' not found for tutor user '%s'",
+                                                                tutorSubjectId, tutorUserId)));
         }
 
         @Override

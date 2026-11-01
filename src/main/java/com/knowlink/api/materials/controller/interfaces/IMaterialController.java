@@ -81,4 +81,17 @@ public interface IMaterialController {
             @Parameter(description = "Tutor user ID") @PathVariable UUID tutorId,
             @Parameter(description = "Subject ID filter (optional)") @RequestParam(required = false) UUID subjectId,
             @AuthenticationPrincipal UserDetails userDetails);
+
+    @Operation(summary = "Eliminar material propio",
+               description = "Elimina de forma permanente un material subido por el tutor autenticado")
+    @ApiResponse(responseCode = "204", description = "Material eliminado")
+    @ApiResponse(responseCode = "403", description = "El material pertenece a otro tutor o el rol no es TUTOR")
+    @ApiResponse(responseCode = "404", description = "Material no encontrado")
+    @ApiResponse(responseCode = "409", description = "El material tiene denuncias asociadas")
+    @ApiResponse(responseCode = "502", description = "No se pudo eliminar el archivo del almacenamiento")
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    ResponseEntity<Void> delete(
+            @Parameter(description = "Material ID") @PathVariable UUID id,
+            @AuthenticationPrincipal UserDetails userDetails);
 }

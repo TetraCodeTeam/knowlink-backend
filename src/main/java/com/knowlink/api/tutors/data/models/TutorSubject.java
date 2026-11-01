@@ -7,6 +7,7 @@ import com.knowlink.api.materials.data.models.AcademicMaterial;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -56,4 +57,9 @@ public class TutorSubject {
     @Enumerated(EnumType.STRING)
     @Column(name = "modality", nullable = false)
     private Modality modality;
+
+    @Column(name = "active", nullable = false)
+    @ColumnDefault("true")
+    @Builder.Default
+    private boolean active = true;
 }

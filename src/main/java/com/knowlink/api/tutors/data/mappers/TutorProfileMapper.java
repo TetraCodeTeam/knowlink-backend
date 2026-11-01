@@ -16,6 +16,7 @@ import com.knowlink.api.ratings.data.models.Rating;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.data.models.TutorSubject;
 import com.knowlink.api.users.data.models.User;
+import com.knowlink.api.users.utils.UserNameUtils;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -57,7 +58,8 @@ public class TutorProfileMapper {
                 tutorSubject.getPricePerHour(),
                 tutorSubject.getTutorSubjectStatus().name(),
                 null, // averageRating por materia - pendiente
-                null // reviewCount por materia - pendiente
+                null, // reviewCount por materia - pendiente
+                tutorSubject.isActive()
         );
     }
 
@@ -112,9 +114,13 @@ public class TutorProfileMapper {
         return new TutorSelfProfileResponse(
                 tutorProfile.getUser().getUserId(),
                 tutorProfile.getUser().getFullName(),
+                UserNameUtils.firstNameOf(tutorProfile.getUser()),
+                UserNameUtils.lastNameOf(tutorProfile.getUser()),
                 tutorProfile.getUser().getEmail(),
                 tutorProfile.getUser().getPhoneNumber(),
+                tutorProfile.getUser().getDni(),
                 tutorProfile.getCareer().getName(),
+                tutorProfile.getInstitutionalId(),
                 tutorProfile.getProfilePictureUrl(),
                 tutorProfile.getBiography(),
                 tutorProfile.getAddress(),

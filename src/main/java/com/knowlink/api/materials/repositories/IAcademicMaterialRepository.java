@@ -1,6 +1,8 @@
 package com.knowlink.api.materials.repositories;
 
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -62,4 +64,23 @@ public interface IAcademicMaterialRepository extends JpaRepository<AcademicMater
     List<AcademicMaterial> findAccessibleByTutorAndSubjectIds(
             @Param("tutorUserId") UUID tutorUserId,
             @Param("subjectIds") List<UUID> subjectIds);
-}
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT m FROM AcademicMaterial m WHERE m.academicMaterialId = :materialId")
+    Optional<AcademicMaterial> findByIdForUpdate(@Param("materialId") UUID materialId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+           UPDATE AcademicMaterial material
+           SET material.active = false, material.available = false
+           WHERE material.academicMaterialId = :materialId
+           """)
+    int removeFromCatalog(@Param("materialId") UUID materialId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+           UPDATE AcademicMaterial material
+           SET material.available = true
+           WHERE material.academicMaterialId = :materialId
+           """)
+    int markAvailable(@Param("materialId") UUID materialId);}

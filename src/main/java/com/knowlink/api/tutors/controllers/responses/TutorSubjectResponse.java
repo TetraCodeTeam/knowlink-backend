@@ -11,5 +11,6 @@ public record TutorSubjectResponse(
         BigDecimal pricePerHour,
         String verificationStatus, // "PENDING" | "ACTIVE" | "REJECTED"
         Double averageRating,      // null por ahora — pendiente de US de calificaciones por materia
-        Integer reviewCount        // null por ahora, mismo motivo
+        Integer reviewCount,       // null por ahora, mismo motivo
+        boolean active             // US-12: materia ofrecida (true) o desactivada (false)
 ) {}

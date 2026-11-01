@@ -1,17 +1,25 @@
 package com.knowlink.api.tutors.validations;
 
 import com.knowlink.api.tutors.data.enums.CompensationType;
+import com.knowlink.api.tutors.data.enums.Modality;
 import com.knowlink.api.tutors.data.models.Subject;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
+import com.knowlink.api.bookings.repositories.IBookingRepository;
+import com.knowlink.api.bookings.utils.BookingConstants;
+import com.knowlink.api.exceptions.custom_exceptions.BusinessConflictException;
 import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
+import com.knowlink.api.tutors.data.models.Career;
 import com.knowlink.api.tutors.data.models.TutorProfile;
+import com.knowlink.api.tutors.data.models.TutorSubject;
 import com.knowlink.api.tutors.repositories.ITutorProfileRepository;
+import com.knowlink.api.tutors.repositories.ITutorSubjectRepository;
 import com.knowlink.api.users.data.models.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 @Service
@@ -19,6 +27,8 @@ import java.util.UUID;
 public class TutorProfileValidationServiceImpl implements ITutorProfileValidationService {
 
     private final ITutorProfileRepository tutorProfileRepository;
+    private final ITutorSubjectRepository tutorSubjectRepository;
+    private final IBookingRepository bookingRepository;
 
     @Override
     public void ifTutorProfileAlreadyExistsThrowException(User user) {
@@ -62,6 +72,65 @@ public class TutorProfileValidationServiceImpl implements ITutorProfileValidatio
             throw new ValidationException(
                     String.format("El precio por hora debe ser mayor a cero para la materia '%s'.",
                             request.subjectName()));
+        }
+    }
+
+    @Override
+    public TutorSubject findTutorSubjectOfTutorOrThrowException(TutorProfile tutorProfile, UUID tutorSubjectId) {
+        return tutorSubjectRepository
+                .findByTutorSubjectIdAndTutorProfile_TutorProfileId(tutorSubjectId,
+                        tutorProfile.getTutorProfileId())
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "TUTOR_SUBJECT_NOT_FOUND",
+                        "La materia seleccionada no existe.",
+                        String.format("TutorSubject '%s' not found for TutorProfile '%s'", tutorSubjectId,
+                                tutorProfile.getTutorProfileId())));
+    }
+
+    @Override
+    public void ifPaidPriceIsInvalidThrowException(CompensationType compensationType, BigDecimal pricePerHour) {
+        boolean isPaidWithInvalidPrice = compensationType == CompensationType.PAID
+                && (pricePerHour == null || pricePerHour.signum() <= 0);
+
+        if (isPaidWithInvalidPrice) {
+            throw new ValidationException("El precio por hora debe ser mayor a cero.");
+        }
+    }
+
+    @Override
+    public void ifCareerChangeBlockedBySubjectsThrowException(TutorProfile tutorProfile, Career newCareer) {
+        boolean careerChanged = !tutorProfile.getCareer().getCareerId().equals(newCareer.getCareerId());
+
+        if (careerChanged && !tutorProfile.getSubjects().isEmpty()) {
+            throw new ValidationException(
+                    "No podés cambiar tu carrera mientras tengas materias registradas. Eliminá tus materias primero.");
+        }
+    }
+
+    @Override
+    public void ifAddressRequiredForInPersonSubjectsThrowException(TutorProfile tutorProfile, String address) {
+        boolean hasInPersonSubject = tutorProfile.getSubjects().stream()
+                .anyMatch(tutorSubject -> tutorSubject.getModality() == Modality.IN_PERSON
+                        || tutorSubject.getModality() == Modality.BOTH);
+
+        if (hasInPersonSubject && (address == null || address.isBlank())) {
+            throw new ValidationException("La dirección es obligatoria para clases presenciales.");
+        }
+    }
+
+    @Override
+    public void ifSubjectHasActiveBookingsThrowException(TutorSubject tutorSubject) {
+        boolean hasActiveBookings = bookingRepository
+                .existsByTutorSubject_TutorSubjectIdAndBookingStatusIn(
+                        tutorSubject.getTutorSubjectId(), BookingConstants.ACTIVE_STATUSES);
+
+        if (hasActiveBookings) {
+            throw new BusinessConflictException(
+                    "SUBJECT_HAS_ACTIVE_BOOKINGS",
+                    "No podés desactivar esta materia porque tiene reservas activas. "
+                            + "Cancelalas o esperá a que se completen.",
+                    String.format("TutorSubject '%s' has active bookings",
+                            tutorSubject.getTutorSubjectId()));
         }
     }
 }

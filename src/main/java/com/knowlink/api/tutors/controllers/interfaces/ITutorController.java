@@ -3,12 +3,15 @@ package com.knowlink.api.tutors.controllers.interfaces;
 import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.tutors.controllers.requests.UpdateMinNoticeMinutesRequest;
+import com.knowlink.api.tutors.controllers.requests.UpdateTutorProfileRequest;
+import com.knowlink.api.tutors.controllers.requests.UpdateTutorSubjectRequest;
 import com.knowlink.api.tutors.controllers.responses.ActivateStudentRoleResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSubjectResponse;
 import com.knowlink.api.tutors.data.enums.CompensationType;
 import com.knowlink.api.tutors.data.enums.Modality;
+import com.knowlink.api.tutors.data.enums.TimeFrame;
 import com.knowlink.api.tutors.data.models.TutorSearchResponse;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,6 +25,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -69,9 +73,29 @@ public interface ITutorController {
         @PreAuthorize("hasRole('TUTOR')")
         TutorSelfProfileResponse getMyProfile(@AuthenticationPrincipal UserPrincipal principal);
 
+        @PutMapping("/me/profile")
+        @Operation(summary = "Editar mis datos personales (tutor)",
+                description = "Modifica nombre, apellido, DNI, celular, carrera, legajo, biografía y dirección del tutor autenticado. "
+                        + "El correo electrónico y las materias no se modifican aquí. Devuelve el perfil actualizado.")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Perfil actualizado"),
+                        @ApiResponse(responseCode = "400", description = "Datos inválidos (campo obligatorio, DNI, biografía > 300, dirección requerida con clases presenciales o cambio de carrera con materias)"),
+                        @ApiResponse(responseCode = "401", description = "No autenticado"),
+                        @ApiResponse(responseCode = "403", description = "Acceso denegado"),
+                        @ApiResponse(responseCode = "404", description = "Perfil o carrera no encontrados"),
+                        @ApiResponse(responseCode = "409", description = "El DNI ya pertenece a otro usuario")
+        })
+        @ResponseStatus(OK)
+        @PreAuthorize("hasRole('TUTOR')")
+        TutorSelfProfileResponse updateMyProfile(
+                @Valid @RequestBody UpdateTutorProfileRequest request,
+                @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal);
+
         @GetMapping("/search/{query}")
         @Operation(summary = "Buscar tutores", description = "Busca tutores por nombre de materia o nombre completo del tutor. "
-                        + "Acepta filtros opcionales combinables con AND (modalidad, compensación, día de disponibilidad, verificados, calificación mínima). "
+                        + "Acepta filtros opcionales combinables con AND (modalidad, compensación, días de disponibilidad, franja horaria, verificados, calificación mínima). "
+                        + "Los días de la semana se combinan entre sí con OR y los filtros de día y franja horaria se evalúan sobre un mismo bloque de disponibilidad futuro y libre. "
+                        + "'Verificado' significa que la materia buscada está aprobada en su validación académica. "
                         + "Sin filtros se comporta idéntico a la búsqueda base. "
                         + "La respuesta es la misma lista de la búsqueda base (sin envoltorio): si el cliente aplicó filtros y la lista queda vacía, "
                         + "el frontend debe mostrar 'No se encontraron tutores para los filtros seleccionados'.")
@@ -86,8 +110,9 @@ public interface ITutorController {
                 @Parameter(description = "Término de búsqueda (materia o nombre del tutor)") @PathVariable String query,
                 @Parameter(description = "Modalidad: VIRTUAL, IN_PERSON o BOTH (VIRTUAL/IN_PERSON incluyen a BOTH)") @RequestParam(required = false) Modality modality,
                 @Parameter(description = "Tipo de compensación: FREE o PAID") @RequestParam(required = false) CompensationType compensation,
-                @Parameter(description = "Día de la semana con disponibilidad: MONDAY, TUESDAY, ..., SUNDAY") @RequestParam(required = false) DayOfWeek dayOfWeek,
-                @Parameter(description = "Solo tutores verificados") @RequestParam(required = false) Boolean verifiedOnly,
+                @Parameter(description = "Días de la semana con disponibilidad: MONDAY, TUESDAY, ..., SUNDAY. Se pueden repetir (?daysOfWeek=MONDAY&daysOfWeek=TUESDAY) o separar por coma") @RequestParam(required = false) List<DayOfWeek> daysOfWeek,
+                @Parameter(description = "Franja horaria de disponibilidad: MORNING (6-12), AFTERNOON (12-18) o EVENING (18-23:59)") @RequestParam(required = false) TimeFrame timeFrame,
+                @Parameter(description = "Solo tutores cuya materia buscada está verificada (validación académica aprobada)") @RequestParam(required = false) Boolean verifiedOnly,
                 @Parameter(description = "Calificación mínima del tutor (1-5; fuera de rango devuelve 400)") @RequestParam(required = false) Double minRating,
                 @AuthenticationPrincipal UserPrincipal principal);
 
@@ -105,6 +130,56 @@ public interface ITutorController {
         TutorSubjectResponse createTutorSubject(
                 @Valid @RequestBody TutorSubjectRequest request,
                 @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal);
+
+        @PatchMapping("/subjects/{tutorSubjectId}/deactivate")
+        @Operation(summary = "Desactivar una materia ofrecida",
+                description = "Marca la materia como inactiva: deja de aparecer en el buscador y en el perfil público y no admite nuevas reservas. "
+                        + "Conserva calificaciones, materiales y estado de validación. Falla con 409 si tiene reservas activas. Idempotente.")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Materia desactivada (o ya lo estaba)"),
+                        @ApiResponse(responseCode = "401", description = "No autenticado"),
+                        @ApiResponse(responseCode = "403", description = "Acceso denegado"),
+                        @ApiResponse(responseCode = "404", description = "La materia no existe o no pertenece al tutor"),
+                        @ApiResponse(responseCode = "409", description = "La materia tiene reservas activas (SUBJECT_HAS_ACTIVE_BOOKINGS)")
+        })
+        @ResponseStatus(OK)
+        @PreAuthorize("hasRole('TUTOR')")
+        TutorSubjectResponse deactivateTutorSubject(
+                @Parameter(description = "ID de la materia del tutor (tutorSubjectId)") @PathVariable UUID tutorSubjectId,
+                @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal);
+
+        @PatchMapping("/subjects/{tutorSubjectId}/reactivate")
+        @Operation(summary = "Reactivar una materia desactivada",
+                description = "Vuelve a ofrecer la materia: reaparece en el buscador y en el perfil público. Idempotente.")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Materia reactivada (o ya estaba activa)"),
+                        @ApiResponse(responseCode = "401", description = "No autenticado"),
+                        @ApiResponse(responseCode = "403", description = "Acceso denegado"),
+                        @ApiResponse(responseCode = "404", description = "La materia no existe o no pertenece al tutor")
+        })
+        @ResponseStatus(OK)
+        @PreAuthorize("hasRole('TUTOR')")
+        TutorSubjectResponse reactivateTutorSubject(
+                @Parameter(description = "ID de la materia del tutor (tutorSubjectId)") @PathVariable UUID tutorSubjectId,
+                @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal);
+
+        @PutMapping("/subjects/{tutorSubjectId}")
+        @Operation(summary = "Editar una materia dictada por el tutor",
+                        description = "Modifica modalidad, tipo de compensación y precio de una materia ya registrada del tutor autenticado. "
+                                        + "El nombre de la materia y el estado de validación no se modifican. "
+                                        + "Las reservas ya confirmadas conservan las condiciones con las que se reservaron.")
+        @ApiResponses({
+                        @ApiResponse(responseCode = "200", description = "Materia actualizada"),
+                        @ApiResponse(responseCode = "400", description = "Datos inválidos (modalidad ausente o precio inválido en materia paga)"),
+                        @ApiResponse(responseCode = "403", description = "Acceso denegado"),
+                        @ApiResponse(responseCode = "404", description = "La materia no existe o no pertenece al tutor")
+        })
+        @ResponseStatus(OK)
+        @PreAuthorize("hasRole('TUTOR')")
+        TutorSubjectResponse updateTutorSubject(
+                        @Parameter(description = "Id de la materia del tutor (tutorSubjectId)") @PathVariable UUID tutorSubjectId,
+                        @Valid @RequestBody UpdateTutorSubjectRequest request,
+                        @Parameter(hidden = true) @AuthenticationPrincipal UserPrincipal principal);
 
         @PutMapping("/me/min-notice-minutes")
         @Operation(summary = "Actualizar la antelación mínima (en minutos) para reservar clases del tutor autenticado")

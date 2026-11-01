@@ -4,12 +4,15 @@ import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.tutors.controllers.interfaces.ITutorController;
 import com.knowlink.api.tutors.controllers.requests.UpdateMinNoticeMinutesRequest;
+import com.knowlink.api.tutors.controllers.requests.UpdateTutorProfileRequest;
+import com.knowlink.api.tutors.controllers.requests.UpdateTutorSubjectRequest;
 import com.knowlink.api.tutors.controllers.responses.ActivateStudentRoleResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSelfProfileResponse;
 import com.knowlink.api.tutors.controllers.responses.TutorSubjectResponse;
 import com.knowlink.api.tutors.data.enums.CompensationType;
 import com.knowlink.api.tutors.data.enums.Modality;
+import com.knowlink.api.tutors.data.enums.TimeFrame;
 import com.knowlink.api.tutors.data.models.TutorSearchFilters;
 import com.knowlink.api.tutors.data.models.TutorSearchResponse;
 import com.knowlink.api.tutors.services.interfaces.ITutorProfileService;
@@ -18,7 +21,9 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.DayOfWeek;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @RestController
@@ -38,6 +43,11 @@ public class TutorControllerImpl implements ITutorController {
     }
 
     @Override
+    public TutorSelfProfileResponse updateMyProfile(UpdateTutorProfileRequest request, UserPrincipal principal) {
+        return this.tutorProfileService.updateProfile(principal.getUser().getUserId(), request);
+    }
+
+    @Override
     public void updateMinNoticeMinutes(UserPrincipal principal, UpdateMinNoticeMinutesRequest request) {
         tutorProfileService.updateMinNoticeMinutes(principal.getUser().getUserId(), request.minNoticeMinutes());
     }
@@ -50,17 +60,42 @@ public class TutorControllerImpl implements ITutorController {
 
     @Override
     public List<TutorSearchResponse> searchTutor(String query, Modality modality, CompensationType compensation,
-            DayOfWeek dayOfWeek, Boolean verifiedOnly, Double minRating,
+            List<DayOfWeek> daysOfWeek, TimeFrame timeFrame, Boolean verifiedOnly, Double minRating,
             UserPrincipal principal) {
         UUID studentId = principal != null ? principal.getUser().getUserId() : null;
         TutorSearchFilters filters = new TutorSearchFilters(
-                modality, compensation, dayOfWeek, verifiedOnly, minRating);
+                modality, compensation, toDayOfWeekSet(daysOfWeek), timeFrame, verifiedOnly, minRating);
         return this.tutorProfileService.searchTutor(query, studentId, filters);
+    }
+
+    private Set<DayOfWeek> toDayOfWeekSet(List<DayOfWeek> daysOfWeek) {
+        if (daysOfWeek == null || daysOfWeek.isEmpty()) {
+            return Set.of();
+        }
+        Set<DayOfWeek> days = EnumSet.noneOf(DayOfWeek.class);
+        days.addAll(daysOfWeek);
+        return days;
     }
 
     @Override
     public TutorSubjectResponse createTutorSubject(TutorSubjectRequest request, UserPrincipal principal) {
         return this.tutorProfileService.createTutorSubject(principal.getUser().getUserId(), request);
+    }
+
+    @Override
+    public TutorSubjectResponse updateTutorSubject(UUID tutorSubjectId, UpdateTutorSubjectRequest request,
+            UserPrincipal principal) {
+        return this.tutorProfileService.updateTutorSubject(principal.getUser().getUserId(), tutorSubjectId, request);
+    }
+
+    @Override
+    public TutorSubjectResponse deactivateTutorSubject(UUID tutorSubjectId, UserPrincipal principal) {
+        return this.tutorProfileService.deactivateTutorSubject(principal.getUser().getUserId(), tutorSubjectId);
+    }
+
+    @Override
+    public TutorSubjectResponse reactivateTutorSubject(UUID tutorSubjectId, UserPrincipal principal) {
+        return this.tutorProfileService.reactivateTutorSubject(principal.getUser().getUserId(), tutorSubjectId);
     }
 
     @Override

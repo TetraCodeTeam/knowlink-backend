@@ -64,6 +64,12 @@ src/main/java/com/knowlink/api/
 │   ├── events/                     # UserRegisteredEvent, PasswordResetRequestedEvent, ResendConfirmationEvent
 │   ├── repositories/
 │   └── services/{interfaces,implementations}/
+├── admin/                         # Módulo de administración (ADMIN)
+│   ├── config/                    # AdminSeeder, AdminSeedProperties
+│   ├── common/                    # DateRange, DateRangeResolver, paginación, auditoría
+│   ├── dashboard/                 # Badges del sidebar y Home del administrador
+│   ├── materialreports/           # Denuncias de material
+│   └── claims/                    # Reclamos de sesión
 └── tutors/                        # Módulo de tutores (carreras, materias, perfiles, reservas)
     ├── controllers/{interfaces,implementations,responses,requests}/
     ├── data/
@@ -106,7 +112,7 @@ Cada nuevo módulo de dominio replica esta misma estructura, **incluyendo la sep
 STUDENT, TUTOR, ADMIN
 ```
 
-> `ADMIN` todavía no está implementado — agregarlo a esta lista cuando se implemente el módulo de administración.
+> `ADMIN` está implementado en el paquete `com.knowlink.api.admin` (módulo de administración, US-30/33/23/50). Los administradores se crean desde variables de entorno mediante `AdminSeeder`; no existe registro público de administradores.
 
 ### Estados de Booking (enum `BookingStatus`)
 

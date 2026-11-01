@@ -7,6 +7,8 @@ import org.springframework.web.util.HtmlUtils;
 
 import java.util.UUID;
 
+import static com.knowlink.api.users.utils.Constants.PASSWORD_RESET_TOKEN_MINUTES;
+
 @Component
 public class EmailBuilder {
 
@@ -45,10 +47,32 @@ public class EmailBuilder {
         return wrapTemplate(
                 "Restablecé tu contraseña",
                 user.getFullName(),
-                "Recibimos una solicitud para restablecer la contraseña de tu cuenta de Knowlink. Hacé clic en el botón de abajo para continuar:",
+                "Recibimos una solicitud para restablecer la contraseña de tu cuenta de Knowlink. "
+                        + "El enlace es válido por " + PASSWORD_RESET_TOKEN_MINUTES
+                        + " minutos y solo puede usarse una vez. Hacé clic en el botón de abajo para continuar:",
                 resetLink,
                 "Restablecer contraseña",
                 "Si no solicitaste esto, podés ignorar este correo sin ningún problema.");
+    }
+
+    public String buildAdminNotification(User user, String heading, String bodyText) {
+        String safeRecipientName = HtmlUtils.htmlEscape(user.getFullName() == null ? "" : user.getFullName());
+        String safeHeading = HtmlUtils.htmlEscape(heading);
+        String safeBody = HtmlUtils.htmlEscape(bodyText);
+
+        return """
+                    <html>
+                        <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0f0e17; padding: 40px; text-align: center;">
+                            <div style="max-width: 600px; margin: auto; background: #1a1a2e; padding: 30px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.3);">
+                                <h2 style="color: #4361ee; margin-bottom: 20px;">%s</h2>
+                                <p style="font-size: 16px; color: #ffffff;"><strong>¡Hola %s!</strong></p>
+                                <p style="font-size: 16px; color: #cccccc;">%s</p>
+                                <p style="margin-top: 25px; font-size: 14px; color: #888888;">Equipo KnowLink</p>
+                            </div>
+                        </body>
+                    </html>
+                """
+                .formatted(safeHeading, safeRecipientName, safeBody);
     }
 
     private String wrapTemplate(String heading, String recipientName, String bodyText,

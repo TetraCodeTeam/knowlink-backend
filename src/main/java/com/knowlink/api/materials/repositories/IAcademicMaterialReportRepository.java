@@ -1,10 +1,15 @@
 package com.knowlink.api.materials.repositories;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import com.knowlink.api.admin.materialreports.data.models.MaterialReportCase;
+import com.knowlink.api.materials.data.enums.MaterialReportResolution;
+import com.knowlink.api.materials.data.enums.MaterialReportStatus;
 import com.knowlink.api.materials.data.models.AcademicMaterialReport;
+import com.knowlink.api.users.data.models.User;
 
 import java.util.Collection;
 import java.util.List;
@@ -15,6 +20,8 @@ import java.util.UUID;
 public interface IAcademicMaterialReportRepository extends JpaRepository<AcademicMaterialReport, UUID> {
 
     boolean existsByMaterialAcademicMaterialIdAndReporterUserId(UUID materialId, UUID reporterUserId);
+
+    boolean existsByMaterialAcademicMaterialId(UUID materialId);
 
     @Query("""
             SELECT report FROM AcademicMaterialReport report
@@ -78,4 +85,25 @@ public interface IAcademicMaterialReportRepository extends JpaRepository<Academi
             ORDER BY report.reportedAt DESC
             """)
     List<AcademicMaterialReport> findDetailsByMaterialId(@Param("materialId") UUID materialId);
+
+    @Query("""
+            SELECT report FROM AcademicMaterialReport report
+            JOIN FETCH report.reporter
+            WHERE report.reportCase.materialReportCaseId = :caseId
+            ORDER BY report.reportedAt DESC
+            """)
+    List<AcademicMaterialReport> findByReportCaseIdWithReporter(@Param("caseId") UUID caseId);
+
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query("""
+            UPDATE AcademicMaterialReport report
+               SET report.status = :status,
+                   report.resolution = :resolution,
+                   report.reviewedBy = :reviewedBy
+             WHERE report.reportCase = :reportCase
+            """)
+    int resolveReportsByCase(@Param("reportCase") MaterialReportCase reportCase,
+                             @Param("status") MaterialReportStatus status,
+                             @Param("resolution") MaterialReportResolution resolution,
+                             @Param("reviewedBy") User reviewedBy);
 }
