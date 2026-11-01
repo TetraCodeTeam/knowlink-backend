@@ -44,6 +44,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.jpa.domain.Specification;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -89,6 +90,8 @@ class TutorSubjectActivationServiceTest {
     private IProfileImageService profileImageService;
     @Mock
     private IUserRepository userRepository;
+    @Mock
+    private Clock clock;
     @Spy
     private TutorProfileMapper tutorProfileMapper = new TutorProfileMapper();
 
@@ -96,7 +99,7 @@ class TutorSubjectActivationServiceTest {
     private TutorProfileServiceImpl service;
 
     private static final TutorSearchFilters NO_FILTERS =
-            new TutorSearchFilters(null, null, null, null, null);
+            new TutorSearchFilters(null, null, null, null, null, null);
 
     private final UUID tutorUserId = UUID.randomUUID();
     private final UUID tutorProfileId = UUID.randomUUID();
