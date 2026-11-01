@@ -43,10 +43,21 @@ public interface IUserController {
     void resendConfirmationEmail(@RequestBody @Valid EmailRequest emailRequest);
 
     @PostMapping("/reset-password/email")
+    @Operation(summary = "Solicitar enlace de recuperación de contraseña",
+            description = "Endpoint público. Responde siempre 204 sin revelar si el correo está registrado. "
+                    + "Si la cuenta existe y está activa, envía un enlace válido por 30 minutos.")
+    @ApiResponse(responseCode = "204", description = "Solicitud procesada")
+    @ApiResponse(responseCode = "400", description = "Correo vacío o con formato inválido")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void sendResetPasswordEmail(@RequestBody @Valid EmailRequest emailRequest);
 
     @PostMapping("/reset-password")
+    @Operation(summary = "Restablecer contraseña con el enlace de recuperación",
+            description = "Endpoint público. El enlace es de un solo uso y vence a los 30 minutos. "
+                    + "La nueva contraseña exige mínimo 8 caracteres, una mayúscula, una minúscula y un carácter especial.")
+    @ApiResponse(responseCode = "204", description = "Contraseña actualizada")
+    @ApiResponse(responseCode = "400", description = "Contraseña inválida o las contraseñas no coinciden")
+    @ApiResponse(responseCode = "422", description = "Enlace usado, vencido o inválido (RESET_LINK_INVALID)")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void resetPassword(@RequestBody @Valid ResetPasswordRequest resetPasswordRequest);
 }

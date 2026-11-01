@@ -26,7 +26,7 @@ public interface IUserService {
 
     User updateUserRole(UUID userId, Role role);
 
-    void resetPassword(UUID token, String newPassword, String confirmNewPassword);
+    void resetPassword(String token, String newPassword, String confirmNewPassword);
 
     void sendResetPasswordEmail(String email);
 

@@ -1,10 +1,13 @@
 package com.knowlink.api.users.data.models;
 
+import com.knowlink.api.users.data.enums.TokenType;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+
+import static com.knowlink.api.users.utils.Constants.ACCOUNT_CONFIRMATION_TOKEN_HOURS;
 
 @Entity
 @Table(name = "tokens")
@@ -30,6 +33,12 @@ public class Token {
     @Column(name = "token_expiration_date", nullable = false)
     private LocalDateTime tokenExpirationDate;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "token_type", nullable = false, length = 30,
+            columnDefinition = "VARCHAR(30) NOT NULL DEFAULT 'ACCOUNT_CONFIRMATION'")
+    @Builder.Default
+    private TokenType tokenType = TokenType.ACCOUNT_CONFIRMATION;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     private User user;
@@ -37,6 +46,8 @@ public class Token {
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();
-        tokenExpirationDate = LocalDateTime.now().plusHours(24);
+        if (tokenExpirationDate == null) {
+            tokenExpirationDate = createdAt.plusHours(ACCOUNT_CONFIRMATION_TOKEN_HOURS);
+        }
     }
 }

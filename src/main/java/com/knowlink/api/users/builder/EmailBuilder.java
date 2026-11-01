@@ -7,6 +7,8 @@ import org.springframework.web.util.HtmlUtils;
 
 import java.util.UUID;
 
+import static com.knowlink.api.users.utils.Constants.PASSWORD_RESET_TOKEN_MINUTES;
+
 @Component
 public class EmailBuilder {
 
@@ -45,7 +47,9 @@ public class EmailBuilder {
         return wrapTemplate(
                 "Restablecé tu contraseña",
                 user.getFullName(),
-                "Recibimos una solicitud para restablecer la contraseña de tu cuenta de Knowlink. Hacé clic en el botón de abajo para continuar:",
+                "Recibimos una solicitud para restablecer la contraseña de tu cuenta de Knowlink. "
+                        + "El enlace es válido por " + PASSWORD_RESET_TOKEN_MINUTES
+                        + " minutos y solo puede usarse una vez. Hacé clic en el botón de abajo para continuar:",
                 resetLink,
                 "Restablecer contraseña",
                 "Si no solicitaste esto, podés ignorar este correo sin ningún problema.");
