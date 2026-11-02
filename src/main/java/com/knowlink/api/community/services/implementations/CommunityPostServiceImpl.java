@@ -45,10 +45,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Clock;
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.temporal.TemporalAdjusters;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -309,13 +307,17 @@ public class CommunityPostServiceImpl implements ICommunityPostService {
         }
     }
 
-    /** Inicio de la ventana en la zona de la app: hoy, la semana en curso (desde el lunes) o el mes en curso. */
+    /**
+     * Inicio de la ventana en la zona de la app. Son ventanas móviles que incluyen el día de hoy: hoy, los
+     * últimos 7 días y los últimos 30. Una semana o un mes calendario dejaría el feed casi vacío cada lunes
+     * y cada día 1, justo cuando acaba de pasar lo más reciente.
+     */
     private LocalDateTime periodStart(FeedPeriod period) {
         LocalDate today = LocalDate.now(clock);
         return switch (period) {
             case TODAY -> today.atStartOfDay();
-            case WEEK -> today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)).atStartOfDay();
-            case MONTH -> today.withDayOfMonth(1).atStartOfDay();
+            case WEEK -> today.minusDays(6).atStartOfDay();
+            case MONTH -> today.minusDays(29).atStartOfDay();
             case ALL -> null;
         };
     }
