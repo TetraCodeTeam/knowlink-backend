@@ -27,8 +27,8 @@
 --   * Las fechas son relativas al momento de ejecucion y estan en hora de Cordoba (UTC-3). Como el JDBC URL del
 --     backend usa serverTimezone=UTC, se guardan corridas segun la diferencia entre la hora local del servidor
 --     MySQL y UTC (ver @shift abajo): asume que MySQL y el backend corren en la misma maquina.
---   * Los filtros "esta semana" (desde el lunes) y "este mes" dependen del dia en que se corra el seed: si es
---     lunes, "esta semana" coincide con hoy; si es dia 1, "este mes" coincide con hoy.
+--   * Los periodos del filtro son ventanas moviles (hoy, ultimos 7 dias, ultimos 30 dias): el seed deja
+--     publicaciones de hoy, de hace 1 a 4 dias y de hace 9 y 14 dias.
 --   * Los adjuntos tienen metadatos pero no existen en el bucket: se ven con nombre y tamano, sin enlace de
 --     descarga (el backend lo tolera). Para probar subida y descarga reales, adjunta archivos desde la UI.
 -- =============================================================================
@@ -45,7 +45,6 @@ SET @shift = TIMESTAMPDIFF(HOUR, NOW(), UTC_TIMESTAMP());
 SET @now = UTC_TIMESTAMP() - INTERVAL 3 HOUR;                      -- hora de Cordoba, la que usa la app
 SET @now_db = @now + INTERVAL @shift HOUR;                         -- la misma, como queda guardada
 SET @today = DATE(@now);
-SET @week_start = @today - INTERVAL WEEKDAY(@today) DAY;           -- lunes de esta semana
 SET @month_start = DATE_FORMAT(@today, '%Y-%m-01');                -- primer dia del mes
 SET @pwd = '$2a$10$mIlh0.lvtcVeoAM/TX4nQeeL7NvVzaEMmdy/CtdszS8bMvH.7n7V6';  -- Password1!
 
@@ -53,13 +52,13 @@ SET @pwd = '$2a$10$mIlh0.lvtcVeoAM/TX4nQeeL7NvVzaEMmdy/CtdszS8bMvH.7n7V6';  -- P
 SET @t0a = GREATEST(@now - INTERVAL 25 MINUTE, TIMESTAMP(@today));
 SET @t0b = GREATEST(@now - INTERVAL 3 HOUR, TIMESTAMP(@today));
 SET @t0c = GREATEST(@now - INTERVAL 9 HOUR, TIMESTAMP(@today));
--- esta semana (desde el lunes)
-SET @w1 = GREATEST(@now - INTERVAL 1 DAY, TIMESTAMP(@week_start));
-SET @w2 = GREATEST(@now - INTERVAL 2 DAY, TIMESTAMP(@week_start));
-SET @w3 = GREATEST(@now - INTERVAL 4 DAY, TIMESTAMP(@week_start));
--- este mes
-SET @m1 = GREATEST(@now - INTERVAL 9 DAY, TIMESTAMP(@month_start));
-SET @m2 = GREATEST(@now - INTERVAL 14 DAY, TIMESTAMP(@month_start));
+-- ultimos 7 dias
+SET @w1 = @now - INTERVAL 1 DAY;
+SET @w2 = @now - INTERVAL 2 DAY;
+SET @w3 = @now - INTERVAL 4 DAY;
+-- ultimos 30 dias (mas de una semana atras)
+SET @m1 = @now - INTERVAL 9 DAY;
+SET @m2 = @now - INTERVAL 14 DAY;
 -- mes anterior: siempre entre 8 y 30 dias antes del primer dia del mes, a las 10:00
 SET @pm = TIMESTAMP(@month_start) + INTERVAL 10 HOUR;
 
