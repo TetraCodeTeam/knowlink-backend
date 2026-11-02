@@ -61,7 +61,7 @@ public interface ICommunityController {
             @AuthenticationPrincipal UserPrincipal principal,
             @Parameter(description = "Tipo de consulta: HELP_REQUEST (dudas) o SHARED_CONTENT (aportes)")
             @RequestParam(required = false) PostType type,
-            @Parameter(description = "Período sobre la fecha de publicación: TODAY, WEEK (desde el lunes), MONTH o ALL")
+            @Parameter(description = "Período sobre la fecha de publicación: TODAY (hoy), WEEK (últimos 7 días), MONTH (últimos 30 días) o ALL")
             @RequestParam(required = false) FeedPeriod period,
             @Parameter(description = "Carrera del catálogo; incluye también las materias básicas")
             @RequestParam(required = false) UUID careerId,
@@ -81,7 +81,7 @@ public interface ICommunityController {
     @ApiResponse(responseCode = "401", description = "Sin autenticar")
     @ResponseStatus(OK)
     CommunityFeedCountsResponse getFeedCounts(
-            @Parameter(description = "Período sobre la fecha de publicación: TODAY, WEEK (desde el lunes), MONTH o ALL")
+            @Parameter(description = "Período sobre la fecha de publicación: TODAY (hoy), WEEK (últimos 7 días), MONTH (últimos 30 días) o ALL")
             @RequestParam(required = false) FeedPeriod period,
             @Parameter(description = "Carrera del catálogo; incluye también las materias básicas")
             @RequestParam(required = false) UUID careerId,

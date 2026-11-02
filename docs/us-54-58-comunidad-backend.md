@@ -42,12 +42,13 @@ Módulo `com.knowlink.api.community`. Todos los endpoints requieren Bearer JWT y
 ## Filtros del feed (US-59)
 
 Todos los parámetros son opcionales y se combinan con AND. Sin ninguno, `GET /posts` devuelve todo el histórico
-(el frontend es quien arranca en `period=TODAY`, que es el período por defecto de la historia).
+(el frontend es quien arranca en `period=WEEK`, los últimos 7 días; la historia pedía "hoy" por defecto, pero con
+eso el feed quedaba casi vacío durante las primeras horas de cada día).
 
 | Parámetro | Valores | Semántica |
 |---|---|---|
 | `type` | `HELP_REQUEST` (dudas), `SHARED_CONTENT` (aportes) | Tipo de consulta. No aplica a `/posts/counts`. |
-| `period` | `TODAY`, `WEEK`, `MONTH`, `ALL` | Sobre la fecha de creación, en la zona de la app (Córdoba): hoy, semana en curso desde el lunes, mes en curso. |
+| `period` | `TODAY`, `WEEK`, `MONTH`, `ALL` | Sobre la fecha de creación, en la zona de la app (Córdoba): `TODAY` = hoy, `WEEK` = los últimos 7 días y `MONTH` = los últimos 30 (ventanas móviles que incluyen hoy, para que el feed no quede vacío cada lunes o cada día 1). |
 | `careerId` | UUID | Materias de esa carrera **más las básicas**: las básicas se guardan bajo una carrera "placeholder" (`SubjectSeeder`), así que filtrar solo por `subject.career` las dejaría fuera de las demás carreras. |
 | `subjectIds` | UUIDs separados por coma | Una o más materias. Se combina con AND con `careerId`. |
 | `status` | `OPEN`, `RESOLVED` | `OPEN` = solo **preguntas** abiertas (pedidos de ayuda): los aportes quedan siempre `OPEN` y no cuentan. `RESOLVED` = resueltas. |
