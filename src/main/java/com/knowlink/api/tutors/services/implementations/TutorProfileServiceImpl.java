@@ -31,6 +31,7 @@ import com.knowlink.api.tutors.services.interfaces.ITutorProfileService;
 import com.knowlink.api.tutors.services.interfaces.ITutorSubjectAssemblyService;
 import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
 import com.knowlink.api.ratings.repositories.*;
+import com.knowlink.api.users.data.enums.AccountStatus;
 import com.knowlink.api.users.data.models.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -76,7 +77,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         @Override
         @Transactional(readOnly = true)
         public TutorProfileResponse getTutorProfile(UUID tutorUserId, UUID studentUserId) {
-                TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
+                TutorProfile tutorProfile = tutorProfileValidationService.findActiveTutorProfileOrThrowException(tutorUserId);
 
                 List<TutorSubjectResponse> subjectResponses = tutorSubjectRepository
                                 .findActiveByTutorProfileId(tutorProfile.getTutorProfileId())
@@ -200,7 +201,8 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                 validateMinRating(filters.minRating());
 
                 Specification<TutorSubject> subjectSpec = TutorSearchSpecifications.subjectNameContains(query)
-                                .and(TutorSearchSpecifications.subjectActive());
+                                .and(TutorSearchSpecifications.subjectActive())
+                                .and(TutorSearchSpecifications.tutorAccountActive());
                 if (filters.hasModality()) {
                         subjectSpec = subjectSpec.and(TutorSearchSpecifications.modalityIn(filters.modality()));
                 }
@@ -227,7 +229,8 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                 }
 
                 List<TutorProfile> nameMatches = tutorProfileRepository
-                                .findByUser_FullNameContainingIgnoreCase(query);
+                                .findByUser_FullNameContainingIgnoreCaseAndUser_AccountStatus(query,
+                                                AccountStatus.ACTIVE);
 
                 for (TutorProfile tutorProfile : nameMatches) {
                         List<TutorSubject> activeSubjects = subjectsVisibleForSearch(tutorProfile, filters);

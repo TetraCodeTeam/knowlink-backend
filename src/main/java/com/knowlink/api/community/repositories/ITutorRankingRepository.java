@@ -90,4 +90,6 @@ public interface ITutorRankingRepository extends JpaRepository<TutorRankingEntry
             ORDER BY s.name ASC
             """)
     List<TutorSubjectName> findActiveSubjectNames(@Param("tutorIds") Collection<UUID> tutorIds);
+
+    void deleteByTutor_UserId(UUID tutorId);
 }

@@ -28,6 +28,7 @@ import com.knowlink.api.tutors.services.interfaces.ICareerService;
 import com.knowlink.api.tutors.services.interfaces.ISubjectService;
 import com.knowlink.api.tutors.services.interfaces.ITutorSubjectAssemblyService;
 import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
+import com.knowlink.api.users.data.enums.AccountStatus;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.repositories.IUserRepository;
 import com.knowlink.api.users.services.interfaces.IUserProfileLookupService;
@@ -164,7 +165,7 @@ class TutorProfileServiceImplTest {
                 TutorSubjectStatus.ACTIVE);
 
         when(tutorSubjectRepository.findAll(any(Specification.class))).thenReturn(List.of(algebra));
-        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("Algebra")).thenReturn(List.of());
+        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCaseAndUser_AccountStatus("Algebra", AccountStatus.ACTIVE)).thenReturn(List.of());
 
         List<TutorSearchResponse> result = service.searchTutor("Algebra", UUID.randomUUID(), NO_FILTERS);
 
@@ -181,7 +182,7 @@ class TutorProfileServiceImplTest {
         tutorSubject(profile, "Álgebra", Modality.VIRTUAL, CompensationType.PAID, TutorSubjectStatus.ACTIVE);
 
         when(tutorSubjectRepository.findAll(any(Specification.class))).thenReturn(List.of());
-        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("Ana")).thenReturn(List.of(profile));
+        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCaseAndUser_AccountStatus("Ana", AccountStatus.ACTIVE)).thenReturn(List.of(profile));
 
         List<TutorSearchResponse> result = service.searchTutor("Ana", UUID.randomUUID(), NO_FILTERS);
 
@@ -198,7 +199,7 @@ class TutorProfileServiceImplTest {
                 TutorSubjectStatus.ACTIVE);
 
         when(tutorSubjectRepository.findAll(any(Specification.class))).thenReturn(List.of(algebra));
-        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("Ana")).thenReturn(List.of(profile));
+        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCaseAndUser_AccountStatus("Ana", AccountStatus.ACTIVE)).thenReturn(List.of(profile));
 
         List<TutorSearchResponse> result = service.searchTutor("Ana", UUID.randomUUID(), NO_FILTERS);
 
@@ -215,7 +216,7 @@ class TutorProfileServiceImplTest {
         inactive.setActive(false);
 
         when(tutorSubjectRepository.findAll(any(Specification.class))).thenReturn(List.of());
-        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("Ana")).thenReturn(List.of(profile));
+        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCaseAndUser_AccountStatus("Ana", AccountStatus.ACTIVE)).thenReturn(List.of(profile));
 
         assertThat(service.searchTutor("Ana", UUID.randomUUID(), NO_FILTERS)).isEmpty();
     }
@@ -224,7 +225,7 @@ class TutorProfileServiceImplTest {
     @DisplayName("CP-003.05 - Query sin coincidencias devuelve lista vacía")
     void searchTutor_returnsEmptyWhenNothingMatches() {
         when(tutorSubjectRepository.findAll(any(Specification.class))).thenReturn(List.of());
-        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("xyz")).thenReturn(List.of());
+        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCaseAndUser_AccountStatus("xyz", AccountStatus.ACTIVE)).thenReturn(List.of());
 
         assertThat(service.searchTutor("xyz", UUID.randomUUID(), NO_FILTERS)).isEmpty();
     }
@@ -239,7 +240,7 @@ class TutorProfileServiceImplTest {
                 TutorSubjectStatus.ACTIVE);
 
         when(tutorSubjectRepository.findAll(any(Specification.class))).thenReturn(List.of(algebra, fisica));
-        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("a")).thenReturn(List.of());
+        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCaseAndUser_AccountStatus("a", AccountStatus.ACTIVE)).thenReturn(List.of());
 
         List<TutorSearchResponse> result = service.searchTutor("a", UUID.randomUUID(), NO_FILTERS);
 
@@ -260,7 +261,7 @@ class TutorProfileServiceImplTest {
         TutorSearchFilters filters = new TutorSearchFilters(null, null, null, null, true, null);
 
         when(tutorSubjectRepository.findAll(any(Specification.class))).thenReturn(List.of());
-        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("Test"))
+        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCaseAndUser_AccountStatus("Test", AccountStatus.ACTIVE))
                 .thenReturn(List.of(validated, pending));
 
         List<TutorSearchResponse> result = service.searchTutor("Test", UUID.randomUUID(), filters);
@@ -291,7 +292,7 @@ class TutorProfileServiceImplTest {
 
         when(tutorSubjectRepository.findAll(any(Specification.class)))
                 .thenReturn(List.of(anaAlgebra, betoAlgebra));
-        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("Algebra")).thenReturn(List.of());
+        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCaseAndUser_AccountStatus("Algebra", AccountStatus.ACTIVE)).thenReturn(List.of());
         when(availabilityBlockRepository.findUpcomingAvailableByTutorProfileIds(
                 anyCollection(), any(LocalDate.class), any(LocalTime.class)))
                 .thenReturn(List.of(tuesdayMorning));

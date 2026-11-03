@@ -8,6 +8,7 @@ import com.knowlink.api.tutors.data.enums.TutorSubjectStatus;
 import com.knowlink.api.tutors.data.models.Subject;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.data.models.TutorSubject;
+import com.knowlink.api.users.data.enums.AccountStatus;
 import jakarta.persistence.criteria.Path;
 import org.springframework.data.jpa.domain.Specification;
 
@@ -53,6 +54,12 @@ public final class TutorSearchSpecifications {
 
     public static Specification<TutorSubject> subjectActive() {
         return (root, cq, cb) -> cb.isTrue(root.get("active"));
+    }
+
+    /** Only tutors whose account is ACTIVE are discoverable (US-04). */
+    public static Specification<TutorSubject> tutorAccountActive() {
+        return (root, cq, cb) -> cb.equal(
+                root.get("tutorProfile").get("user").get("accountStatus"), AccountStatus.ACTIVE);
     }
 
     public static Specification<TutorSubject> modalityIn(Modality modality) {

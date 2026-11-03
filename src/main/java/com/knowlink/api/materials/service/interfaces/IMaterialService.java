@@ -12,4 +12,6 @@ public interface IMaterialService {
     List<MaterialResponse> listBySubject(UUID subjectId, UUID userId, String role);
     String getDownloadUrl(UUID materialId, UUID userId, String role);
     void delete(UUID materialId, UUID tutorUserId);
+
+    List<UUID> findMaterialIdsByTutor(UUID tutorUserId);
 }

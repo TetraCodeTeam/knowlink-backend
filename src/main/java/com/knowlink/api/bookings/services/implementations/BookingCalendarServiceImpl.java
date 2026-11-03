@@ -44,7 +44,7 @@ public class BookingCalendarServiceImpl implements IBookingCalendarService {
     @Override
     @Transactional(readOnly = true)
     public BookingCalendarResponse getCalendar(UUID tutorUserId, LocalDate from, LocalDate to) {
-        TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
+        TutorProfile tutorProfile = tutorProfileValidationService.findActiveTutorProfileOrThrowException(tutorUserId);
         UUID tutorProfileId = tutorProfile.getTutorProfileId();
         LocalDateTime now = LocalDateTime.now(AppTimeZone.ZONE);
 

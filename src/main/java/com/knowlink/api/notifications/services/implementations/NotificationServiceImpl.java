@@ -287,4 +287,9 @@ public class NotificationServiceImpl implements INotificationService {
         }
         return Math.min(pageSize, NotificationConstants.MAX_PAGE_SIZE);
     }
-}
+    @Override
+    @Transactional
+    public void deleteAllForRecipient(UUID userId) {
+        notificationRepository.deleteByRecipient_UserId(userId);
+        log.info("Notifications deleted for userId '{}'", userId);
+    }}

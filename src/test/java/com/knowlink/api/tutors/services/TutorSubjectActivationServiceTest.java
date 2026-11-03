@@ -29,6 +29,7 @@ import com.knowlink.api.tutors.services.interfaces.ICareerService;
 import com.knowlink.api.tutors.services.interfaces.ISubjectService;
 import com.knowlink.api.tutors.services.interfaces.ITutorSubjectAssemblyService;
 import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
+import com.knowlink.api.users.data.enums.AccountStatus;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.repositories.IUserRepository;
 import com.knowlink.api.users.services.interfaces.IUserProfileLookupService;
@@ -238,7 +239,7 @@ class TutorSubjectActivationServiceTest {
         tutorProfile.getSubjects().add(inactive);
 
         when(tutorSubjectRepository.findAll(any(Specification.class))).thenReturn(List.of());
-        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("Ana"))
+        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCaseAndUser_AccountStatus("Ana", AccountStatus.ACTIVE))
                 .thenReturn(List.of(tutorProfile));
         when(ratingRepository.countVisibleTutorRatings(tutorUserId)).thenReturn(0L);
 
@@ -255,7 +256,7 @@ class TutorSubjectActivationServiceTest {
         tutorSubject.setActive(false);
 
         when(tutorSubjectRepository.findAll(any(Specification.class))).thenReturn(List.of());
-        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCase("Ana"))
+        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCaseAndUser_AccountStatus("Ana", AccountStatus.ACTIVE))
                 .thenReturn(List.of(tutorProfile));
 
         List<TutorSearchResponse> result = service.searchTutor("Ana", null, NO_FILTERS);
@@ -266,7 +267,7 @@ class TutorSubjectActivationServiceTest {
     @Test
     @DisplayName("getTutorProfile usa solo las materias activas del tutor")
     void getTutorProfile_onlyUsesActiveSubjects() {
-        when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId)).thenReturn(tutorProfile);
+        when(tutorProfileValidationService.findActiveTutorProfileOrThrowException(tutorUserId)).thenReturn(tutorProfile);
         when(tutorSubjectRepository.findActiveByTutorProfileId(tutorProfileId))
                 .thenReturn(List.of(tutorSubject));
         when(ratingRepository.findVisibleTutorRatings(tutorUserId)).thenReturn(List.of());

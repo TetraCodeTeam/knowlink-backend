@@ -1,14 +1,19 @@
 package com.knowlink.api.users.controllers.interfaces;
 
 import com.knowlink.api.users.controllers.requests.ConfirmTokenRequest;
+import com.knowlink.api.users.controllers.requests.DeleteAccountRequest;
 import com.knowlink.api.users.controllers.requests.EmailRequest;
 import com.knowlink.api.users.controllers.requests.ResetPasswordRequest;
 import com.knowlink.api.users.controllers.responses.UserResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import com.knowlink.api.security.models.UserPrincipal;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import static org.springframework.http.HttpStatus.OK;
@@ -31,7 +36,33 @@ public interface IUserController {
     @GetMapping("/{userId}")
     @Operation(summary = "Get user by ID")
     @ResponseStatus(HttpStatus.OK)
-    UserResponse getUserById(@PathVariable UUID userId);
+    UserResponse getUserById(@PathVariable UUID userId,
+            @AuthenticationPrincipal UserPrincipal principal);
+
+    @PatchMapping("/me/deactivate")
+    @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
+    @Operation(summary = "Desactivar temporalmente mi cuenta",
+            description = "La cuenta deja de ser visible para el resto de usuarios y no se puede iniciar sesión "
+                    + "hasta reactivarla (US-40). Falla con 409 si hay reservas activas pendientes.")
+    @ApiResponse(responseCode = "204", description = "Cuenta desactivada")
+    @ApiResponse(responseCode = "409", description = "ACCOUNT_HAS_ACTIVE_BOOKINGS: hay reservas activas pendientes")
+    @ApiResponse(responseCode = "403", description = "Rol no permitido")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deactivateMyAccount(@AuthenticationPrincipal UserPrincipal principal);
+    @PostMapping("/me/delete-account")
+    @PreAuthorize("hasAnyRole('STUDENT','TUTOR')")
+    @Operation(summary = "Eliminar definitivamente mi cuenta",
+            description = "Irreversible. Exige la contraseña actual. Anonimiza y borra los datos personales. "
+                    + "Rechaza con 409 si hay reservas activas pendientes.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Cuenta eliminada"),
+            @ApiResponse(responseCode = "401", description = "Contraseña incorrecta"),
+            @ApiResponse(responseCode = "403", description = "Cuenta no eliminable (ADMIN)"),
+            @ApiResponse(responseCode = "409", description = "ACCOUNT_HAS_ACTIVE_BOOKINGS / ACCOUNT_HAS_PENDING_OBLIGATIONS")
+    })
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteMyAccount(@AuthenticationPrincipal UserPrincipal principal,
+            @RequestBody @Valid DeleteAccountRequest request);
 
     @PostMapping("/{userId}/verify-account")
     @ResponseStatus(HttpStatus.ACCEPTED)

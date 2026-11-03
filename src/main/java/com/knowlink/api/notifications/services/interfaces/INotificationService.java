@@ -56,4 +56,6 @@ public interface INotificationService {
      * Idempotent; does nothing when the notification does not exist.
      */
     void resolveNotification(UUID recipientUserId, NotificationType type, UUID resourceId);
+
+    void deleteAllForRecipient(UUID userId);
 }

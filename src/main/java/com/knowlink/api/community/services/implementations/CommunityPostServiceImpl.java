@@ -47,6 +47,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -332,4 +333,19 @@ public class CommunityPostServiceImpl implements ICommunityPostService {
         List<CommunityPostResponse> content = mapper.toPostResponses(posts.getContent(), userId);
         return PagedResponse.from(new PageImpl<>(content, pageable, posts.getTotalElements()));
     }
-}
+    @Override
+    @Transactional
+    public List<String> softDeleteAllByAuthor(UUID authorId) {
+        List<CommunityPost> posts = postRepository.findByAuthor_UserIdAndDeletedAtIsNull(authorId);
+        List<String> storagePaths = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now(clock);
+        for (CommunityPost post : posts) {
+            if (post.getAttachment() != null && post.getAttachment().getStoragePath() != null) {
+                storagePaths.add(post.getAttachment().getStoragePath());
+            }
+            post.setDeletedAt(now);
+            postRepository.save(post);
+        }
+        log.info("Community posts soft-deleted for userId '{}': {}", authorId, posts.size());
+        return storagePaths;
+    }}

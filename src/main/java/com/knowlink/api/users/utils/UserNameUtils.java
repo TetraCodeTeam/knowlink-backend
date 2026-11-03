@@ -4,6 +4,12 @@ import com.knowlink.api.users.data.models.User;
 
 public final class UserNameUtils {
 
+    /** Mask applied to the identity of accounts that are no longer active (US-04). */
+    public static final String DEACTIVATED_DISPLAY_NAME = "Usuario desactivado";
+
+    /** Mask applied to the identity of permanently deleted accounts (US-24). */
+    public static final String DELETED_DISPLAY_NAME = "Usuario eliminado";
+
     private UserNameUtils() {}
 
     /** "first last" normalized with trim, without surrounding double spaces. */
