@@ -283,4 +283,8 @@ public class MaterialServiceImpl implements IMaterialService {
                 alreadyReported
         );
     }
-}
+    @Override
+    @Transactional(readOnly = true)
+    public List<UUID> findMaterialIdsByTutor(UUID tutorUserId) {
+        return materialRepository.findIdsByTutorUserId(tutorUserId);
+    }}

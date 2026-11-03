@@ -255,4 +255,8 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
         boolean existsByTutorSubject_TutorSubjectIdAndBookingStatusIn(
                         UUID tutorSubjectId, List<BookingStatus> statuses);
 
+        boolean existsByStudent_UserIdAndBookingStatusIn(UUID studentUserId, List<BookingStatus> statuses);
+
+        boolean existsByTutor_UserIdAndBookingStatusIn(UUID tutorUserId, List<BookingStatus> statuses);
+
 }

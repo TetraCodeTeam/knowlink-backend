@@ -7,6 +7,7 @@ import com.knowlink.api.community.controllers.responses.HelpfulMarkResponse;
 import com.knowlink.api.security.enums.Role;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface ICommunityReplyService {
@@ -22,4 +23,9 @@ public interface ICommunityReplyService {
     HelpfulMarkResponse markHelpful(UUID userId, UUID postId, UUID replyId);
 
     HelpfulMarkResponse unmarkHelpful(UUID userId, UUID postId, UUID replyId);
+
+    /** Soft-deletes every active reply of the author and returns attachment storage paths (US-24). */
+    List<String> softDeleteAllByAuthor(UUID authorId);
+
+    void removeHelpfulMarksByUser(UUID userId);
 }

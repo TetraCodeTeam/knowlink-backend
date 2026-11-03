@@ -210,6 +210,13 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
 
+    @ExceptionHandler(AccountDeactivatedException.class)
+    public ResponseEntity<ApiError> handleAccountDeactivated(AccountDeactivatedException ex) {
+        logger.warn(ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.FORBIDDEN.value(), ex.getUserMessage(), ex.getErrorCode());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
+    }
+
     @ExceptionHandler(NotAssignedToAdminException.class)
     public ResponseEntity<ApiError> handleNotAssignedToAdmin(NotAssignedToAdminException ex) {
         logger.warn(ex.getMessage());

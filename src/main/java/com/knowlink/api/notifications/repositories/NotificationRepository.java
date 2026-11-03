@@ -70,4 +70,6 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
             UUID userId, NotificationType type, UUID resourceId);
 
     boolean existsByRecipient_UserIdAndDedupeKey(UUID userId, String dedupeKey);
+
+    void deleteByRecipient_UserId(UUID userId);
 }

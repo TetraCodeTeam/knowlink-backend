@@ -31,7 +31,7 @@ public class BookingEventsController {
              @ApiResponse(responseCode = "404", description = "Tutor no encontrado")
      })
     public SseEmitter subscribe(@PathVariable UUID tutorId) {
-        var tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorId);
+        var tutorProfile = tutorProfileValidationService.findActiveTutorProfileOrThrowException(tutorId);
         return eventPublisher.subscribe(tutorProfile.getTutorProfileId());
     }
 }

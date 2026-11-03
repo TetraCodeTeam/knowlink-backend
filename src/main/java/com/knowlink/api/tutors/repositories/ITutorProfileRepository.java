@@ -1,6 +1,7 @@
 package com.knowlink.api.tutors.repositories;
 
 import com.knowlink.api.tutors.data.models.TutorProfile;
+import com.knowlink.api.users.data.enums.AccountStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -17,7 +18,8 @@ public interface ITutorProfileRepository extends JpaRepository<TutorProfile, UUI
     @Query("SELECT tp FROM TutorProfile tp WHERE tp.user.userId = :userId")
     Optional<TutorProfile> findByUserId(@Param("userId") UUID userId);
  
-    List<TutorProfile> findByUser_FullNameContainingIgnoreCase(String fullName);
+    List<TutorProfile> findByUser_FullNameContainingIgnoreCaseAndUser_AccountStatus(
+            String fullName, AccountStatus accountStatus);
 
     @Query("""
             SELECT tp FROM TutorProfile tp

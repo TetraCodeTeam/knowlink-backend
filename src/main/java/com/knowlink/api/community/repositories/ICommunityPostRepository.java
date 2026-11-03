@@ -12,6 +12,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -45,4 +46,6 @@ public interface ICommunityPostRepository extends JpaRepository<CommunityPost, U
 
     @EntityGraph(attributePaths = {"author", "subject"})
     Optional<CommunityPost> findByPostIdAndDeletedAtIsNull(UUID postId);
+
+    List<CommunityPost> findByAuthor_UserIdAndDeletedAtIsNull(UUID authorId);
 }

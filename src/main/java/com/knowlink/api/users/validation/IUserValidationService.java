@@ -22,4 +22,10 @@ public interface IUserValidationService {
     void validateResendLimit(User user);
 
     void validateAtLeastOneAvailabilityParam(String email, String dni);
+
+    void ifUserHasActiveBookingsThrowException(UUID userId);
+
+    void ifUserHasActiveClaimsOrRetainedFundsThrowException(UUID userId);
+
+    void ifUserHasPendingObligationsThrowException(UUID userId);
 }

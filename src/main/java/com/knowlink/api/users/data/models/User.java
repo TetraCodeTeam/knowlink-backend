@@ -70,6 +70,9 @@ public class User {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    @Column(name = "deactivated_at")
+    private LocalDateTime deactivatedAt;
+
     @PrePersist
     protected void onCreate() {
         createdAt = LocalDateTime.now();

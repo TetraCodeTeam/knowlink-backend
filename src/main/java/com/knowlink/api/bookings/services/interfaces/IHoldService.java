@@ -11,4 +11,6 @@ public interface IHoldService {
     void releaseHold(UUID studentUserId, CreateHoldRequest request);
     void expireOverdueHolds();
     ActiveHoldStatusResponse getActiveHold(UUID studentUserId);
+
+    void deleteAllForStudent(UUID studentUserId);
 }

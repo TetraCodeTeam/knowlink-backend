@@ -32,6 +32,7 @@ import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.tutors.data.models.TutorSubject;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
 import com.knowlink.api.tutors.repositories.ITutorSubjectRepository;
+import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.services.interfaces.IUserService;
 import com.knowlink.api.students.repositories.IStudentProfileRepository;
@@ -82,6 +83,7 @@ public class BookingServiceImpl implements IBookingService {
         private final ISessionClaimService sessionClaimService;
         private final FundsLedgerService fundsLedgerService;
         private final IRatingRepository ratingRepository;
+        private final ITutorProfileValidationService tutorProfileValidationService;
         private final Clock clock;
 
         @Override
@@ -111,14 +113,9 @@ public class BookingServiceImpl implements IBookingService {
                                         "Tu tiempo para completar la reserva expiró. Elegí un horario nuevamente.");
                 }
 
-                // Lockeamos al alumno para serializar el chequeo de conflicto contra cualquier
-                // otro hold/booking que esté creándose en paralelo para el mismo alumno — sin
-                // esto, dos requests concurrentes en slots distintos pueden leer "sin
-                // conflicto" antes de que ninguna de las dos haya confirmado la suya.
-                userService.lockForUpdateOrThrowException(studentUserId);
-
-                bookingValidationService.validateNoStudentTimeConflict(
-                                student, hold.getTimeSlot().getDate(), startTime, endTime);
+                // Lock order (deadlock avoidance): the tutor subject row is locked first,
+                // then the tutor user and finally the student user. This serializes
+                // booking creation against tutor deactivation.
 
                 TutorSubject tutorSubject = tutorSubjectRepository.findByIdForUpdate(request.tutorSubjectId())
                                 .orElseThrow(() -> new ResourceNotFoundException(
@@ -132,6 +129,19 @@ public class BookingServiceImpl implements IBookingService {
                                         "Esta materia ya no está disponible para reservas.",
                                         "TutorSubject " + tutorSubject.getTutorSubjectId() + " is inactive");
                 }
+
+                UUID tutorUserId = tutorSubject.getTutorProfile().getUser().getUserId();
+                userService.lockForUpdateOrThrowException(tutorUserId);
+                tutorProfileValidationService.findActiveTutorProfileOrThrowException(tutorUserId);
+
+                // Lockeamos al alumno para serializar el chequeo de conflicto contra cualquier
+                // otro hold/booking que esté creándose en paralelo para el mismo alumno — sin
+                // esto, dos requests concurrentes en slots distintos pueden leer "sin
+                // conflicto" antes de que ninguna de las dos haya confirmado la suya.
+                userService.lockForUpdateOrThrowException(studentUserId);
+
+                bookingValidationService.validateNoStudentTimeConflict(
+                                student, hold.getTimeSlot().getDate(), startTime, endTime);
 
                 bookingValidationService.validateModality(request.modality(), tutorSubject.getModality());
                 bookingValidationService.validateDailySubjectCap(

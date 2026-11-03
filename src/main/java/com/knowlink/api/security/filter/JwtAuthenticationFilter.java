@@ -14,6 +14,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.PathMatcher;
@@ -64,10 +65,18 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             final String userEmail = jwtService.extractUsername(jwt);
 
             if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                UserDetails userDetails = userDetailsService.loadUserByUsername(userEmail);
+                UserDetails userDetails;
+                try {
+                    userDetails = userDetailsService.loadUserByUsername(userEmail);
+                } catch (UsernameNotFoundException ex) {
+                    // The account was deleted (email anonymized) or no longer exists: stay unauthenticated so the
+                    // entry point answers 401 instead of leaking a 500.
+                    filterChain.doFilter(request, response);
+                    return;
+                }
                 final String jti = jwtService.extractJti(jwt);
                 final boolean isBlacklisted = jti != null && tokenBlacklistService.isBlacklisted(jti);
-                if (jwtService.isTokenValid(jwt, userDetails) && !isBlacklisted) {
+                if (jwtService.isTokenValid(jwt, userDetails) && !isBlacklisted && userDetails.isEnabled()) {
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails, null, userDetails.getAuthorities()
                     );

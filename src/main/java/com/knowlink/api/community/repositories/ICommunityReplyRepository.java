@@ -55,4 +55,6 @@ public interface ICommunityReplyRepository extends JpaRepository<CommunityReply,
             WHERE r.post.postId IN :postIds AND r.deletedAt IS NULL
             """)
     List<ReplyHelpfulCount> countHelpfulByPostIds(@Param("postIds") Collection<UUID> postIds);
+
+    List<CommunityReply> findByAuthor_UserIdAndDeletedAtIsNull(UUID authorId);
 }

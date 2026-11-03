@@ -16,6 +16,7 @@ import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.users.services.interfaces.ITokenService;
 import com.knowlink.api.users.utils.UserNameUtils;
 import com.knowlink.api.users.services.interfaces.IUserService;
+import com.knowlink.api.security.models.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -23,10 +24,15 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
 
+import static com.knowlink.api.users.utils.Constants.DELETED_EMAIL_DOMAIN;
+import static com.knowlink.api.users.utils.Constants.DELETED_EMAIL_PREFIX;
+import static com.knowlink.api.users.utils.Constants.DELETED_USER_DISPLAY_NAME;
 import static com.knowlink.api.users.utils.Constants.RESET_LINK_INVALID_CODE;
 import static com.knowlink.api.users.utils.Constants.RESET_LINK_INVALID_MESSAGE;
 
@@ -41,6 +47,7 @@ public class UserServiceImpl implements IUserService {
     private final ITokenService tokenService;
     private final IUserValidationService userValidationService;
     private final ApplicationEventPublisher eventPublisher;
+    private final Clock clock;
 
     @Override
     @Transactional
@@ -123,6 +130,13 @@ public class UserServiceImpl implements IUserService {
                         "USER_NOT_FOUND",
                         "Usuario no encontrado.",
                         String.format("user con email '%s' no existe", email)));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<User> findOptionalByEmail(String email) {
+        // Includes DELETED accounts so reactivation can answer LockedException instead of BadCredentials.
+        return userRepository.findByEmailIncludingDeleted(email.trim());
     }
 
     @Override
@@ -230,5 +244,76 @@ public class UserServiceImpl implements IUserService {
                         "USER_NOT_FOUND",
                         "Usuario no encontrado.",
                         String.format("user con id '%s' no existe", userId)));
+    }
+
+    @Override
+    @Transactional
+    public void deactivateAccount(UUID userId) {
+        // Lock first, then validate: this serializes against hold/booking creation.
+        User user = lockForUpdateOrThrowException(userId);
+        if (user.getAccountStatus() != AccountStatus.ACTIVE) {
+            throw new BusinessConflictException(
+                    "ACCOUNT_NOT_ACTIVE",
+                    "Tu cuenta no está activa.",
+                    String.format("user '%s' status is %s", userId, user.getAccountStatus()));
+        }
+        userValidationService.ifUserHasActiveBookingsThrowException(userId);
+        userValidationService.ifUserHasActiveClaimsOrRetainedFundsThrowException(userId);
+        user.setAccountStatus(AccountStatus.DEACTIVATED);
+        user.setDeactivatedAt(LocalDateTime.now(clock));
+        userRepository.save(user);
+        log.info("Account deactivated for userId '{}'", userId);
+    }
+
+    @Override
+    @Transactional
+    public User reactivateAccount(UUID userId) {
+        User user = lockForUpdateOrThrowException(userId);
+        if (user.getAccountStatus() != AccountStatus.DEACTIVATED) {
+            throw new BusinessConflictException(
+                    "ACCOUNT_NOT_DEACTIVATED",
+                    "La cuenta no está desactivada.",
+                    String.format("user '%s' has status '%s'", userId, user.getAccountStatus()));
+        }
+        user.setAccountStatus(AccountStatus.ACTIVE);
+        user.setDeactivatedAt(null);
+        User reactivatedUser = userRepository.save(user);
+        log.info("Account reactivated for userId '{}'", userId);
+        return reactivatedUser;
+    }
+
+    @Override
+    @Transactional
+    public User anonymizeForDeletion(User user) {
+        user.setEmail(DELETED_EMAIL_PREFIX + user.getUserId() + DELETED_EMAIL_DOMAIN);
+        user.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+        user.setFirstName(null);
+        user.setLastName(null);
+        user.setFullName(DELETED_USER_DISPLAY_NAME);
+        user.setDni(null);
+        user.setPhoneNumber(null);
+        user.setProfilePictureUrl(null);
+        user.setAccountStatus(AccountStatus.DELETED);
+        user.setDeletedAt(LocalDateTime.now(clock));
+        return userRepository.save(user);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public User findVisibleByIdOrThrowException(UUID targetId, UserPrincipal requester) {
+        User user = findByIdOrThrowException(targetId);
+
+        boolean isSelf = requester != null && requester.getUser() != null
+                && requester.getUser().getUserId().equals(targetId);
+        boolean isAdmin = requester != null && requester.getUser() != null
+                && requester.getUser().getRole() == Role.ADMIN;
+
+        if (user.getAccountStatus() == AccountStatus.DEACTIVATED && !isSelf && !isAdmin) {
+            throw new ResourceNotFoundException(
+                    "USER_NOT_FOUND",
+                    "Usuario no encontrado.",
+                    String.format("user '%s' is deactivated", targetId));
+        }
+        return user;
     }
 }

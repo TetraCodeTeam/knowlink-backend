@@ -20,6 +20,8 @@ public interface IHoldRepository extends JpaRepository<Hold, UUID> {
 
         boolean existsByStudent_UserId(UUID studentUserId);
 
+        void deleteByStudent_UserId(UUID studentUserId);
+
         Optional<Hold> findByStudent_UserId(UUID studentUserId);
 
         Optional<Hold> findByStudent_UserIdAndExpiresAtAfter(UUID studentUserId, LocalDateTime now);
@@ -87,5 +89,17 @@ public interface IHoldRepository extends JpaRepository<Hold, UUID> {
                         """)
         boolean existsActiveHoldForStudent(
                         @Param("studentUserId") UUID studentUserId,
+                        @Param("now") LocalDateTime now);
+
+        boolean existsByStudent_UserIdAndExpiresAtAfter(UUID studentUserId, LocalDateTime now);
+
+        @Query("""
+                        SELECT CASE WHEN COUNT(h) > 0 THEN true ELSE false END
+                        FROM Hold h
+                        WHERE h.expiresAt > :now
+                        AND h.timeSlot.tutorProfileId IN (
+                            SELECT tp.tutorProfileId FROM TutorProfile tp WHERE tp.user.userId = :tutorUserId)
+                        """)
+        boolean existsActiveHoldOnTutorSlots(@Param("tutorUserId") UUID tutorUserId,
                         @Param("now") LocalDateTime now);
 }

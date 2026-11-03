@@ -14,6 +14,7 @@ import java.util.UUID;
 public interface ITutorProfileValidationService {
     void ifTutorProfileAlreadyExistsThrowException(User user);
     TutorProfile findTutorProfileOrThrowException(UUID tutorUserId);
+    TutorProfile findActiveTutorProfileOrThrowException(UUID tutorUserId);
     void ifTutorAlreadyTeachesSubjectThrowException(TutorProfile tutorProfile, Subject subject);
     void ifPaidSubjectHasInvalidPriceThrowException(TutorSubjectRequest request);
     TutorSubject findTutorSubjectOfTutorOrThrowException(TutorProfile tutorProfile, UUID tutorSubjectId);
