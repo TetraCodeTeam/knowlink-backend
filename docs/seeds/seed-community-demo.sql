@@ -19,6 +19,21 @@
 --   * Actividad del MES ANTERIOR suficiente para el ranking (US-58): al consultar /podium por primera vez
 --     el backend genera el ranking del mes en curso (11 tutores con puntaje, del 1 al 11).
 --
+-- Datos para ver TODAS las secciones del menu (navbar) de alumno y tutor (seccion 7 en adelante):
+--   * Agenda ("Mi agenda"): bloques de disponibilidad de lunes a viernes durante 12 semanas para Sofia, Julian,
+--       Luciana, Diego, Mateo y Florencia, mas el historico de horarios ofrecidos de las ultimas 12 semanas.
+--   * Clases ("Mis clases"): ~80 reservas en todos los estados (reservadas, en curso, completadas, no confirmadas,
+--       canceladas, vencidas, tutor ausente, sesion no realizada). Matias tiene al menos una de cada estado y
+--       Sofia ~30 sesiones en 3 meses para que el panel de estadisticas tenga graficos.
+--   * Estadisticas: calificaciones visibles (5, 4 y 3 estrellas), fondos retenidos / liberados / devueltos / suspendidos.
+--   * Reclamos ("Mis reclamos" / "Soporte y solicitudes"): reclamos Abierto, En revision y Resuelto de Matias y de
+--       Sofia (como reclamante y como reclamada), con comentarios.
+--   * Material denunciado: materiales de varios tutores con denuncias Pendiente, En revision (con descargo del
+--       tutor), Resuelto-Procedente (material dado de baja) y Resuelto-No procedente.
+--   * Notificaciones de todos los tipos para Matias, Sofia, Julian y Luciana (leidas y sin leer).
+--   Inicio de sesion principal: Matias (alumno) y Sofia (tutora), contrasena Password1!. Nota: Matias tiene una
+--   clase sin calificar y Sofia otra, para probar el pop-up de calificacion.
+--
 -- Es re-ejecutable: borra y vuelve a crear solo lo que pertenece a los usuarios @comunidad.knowlink.test
 -- (sus publicaciones, las respuestas y marcas que recibieron, y las notificaciones asociadas) y el ranking
 -- del mes en curso, para que se regenere. No toca nada de otros usuarios.
@@ -87,6 +102,56 @@ DELETE p FROM community_post p
 
 -- Se regenera solo al consultar /podium, a partir de la actividad del mes anterior.
 DELETE FROM community_tutor_ranking WHERE period_start = @month_start;
+
+-- Reservas, fondos, calificaciones, reclamos, agenda, materiales y notificaciones de las secciones del menu.
+-- Se borran las reservas de cualquier usuario @comunidad (incluidas las que hayas creado probando la UI), el
+-- horario de sus tutores y SOLO los materiales sembrados por este script (storage_path 'materials/seed-demo/').
+DROP TEMPORARY TABLE IF EXISTS old_booking;
+CREATE TEMPORARY TABLE old_booking AS
+SELECT b.booking_id
+  FROM booking b
+  JOIN users s ON s.user_id = b.student_id
+  JOIN users t ON t.user_id = b.tutor_id
+ WHERE s.email LIKE '%@comunidad.knowlink.test' OR t.email LIKE '%@comunidad.knowlink.test';
+
+DROP TEMPORARY TABLE IF EXISTS old_tutor_profile;
+CREATE TEMPORARY TABLE old_tutor_profile AS
+SELECT tp.tutor_profile_id
+  FROM tutor_profile tp JOIN users u ON u.user_id = tp.user_id
+ WHERE u.email LIKE '%@comunidad.knowlink.test';
+
+DROP TEMPORARY TABLE IF EXISTS old_material;
+CREATE TEMPORARY TABLE old_material AS
+SELECT academic_material_id FROM academic_material WHERE storage_path LIKE 'materials/seed-demo/%';
+
+DELETE FROM user_notification WHERE dedupe_key LIKE 'seed-demo:%';
+
+DELETE FROM session_claim_comment
+ WHERE claim_id IN (SELECT claim_id FROM session_claim WHERE booking_id IN (SELECT booking_id FROM old_booking));
+DELETE FROM claim_attachment
+ WHERE claim_id IN (SELECT claim_id FROM session_claim WHERE booking_id IN (SELECT booking_id FROM old_booking));
+DELETE FROM session_claim WHERE booking_id IN (SELECT booking_id FROM old_booking);
+DELETE FROM funds_transfer WHERE booking_id IN (SELECT booking_id FROM old_booking);
+DELETE FROM rating WHERE booking_id IN (SELECT booking_id FROM old_booking);
+DELETE FROM booking_cancellation WHERE booking_id IN (SELECT booking_id FROM old_booking);
+DELETE FROM booking WHERE booking_id IN (SELECT booking_id FROM old_booking);
+
+DELETE FROM booking_hold
+ WHERE time_slot_id IN (SELECT time_slot_id FROM time_slot
+                         WHERE tutor_profile_id IN (SELECT tutor_profile_id FROM old_tutor_profile));
+DELETE FROM time_slot WHERE tutor_profile_id IN (SELECT tutor_profile_id FROM old_tutor_profile);
+DELETE FROM availability_block WHERE tutor_profile_id IN (SELECT tutor_profile_id FROM old_tutor_profile);
+DELETE FROM availability_week_customization WHERE tutor_profile_id IN (SELECT tutor_profile_id FROM old_tutor_profile);
+DELETE FROM offered_slot_history WHERE tutor_profile_id IN (SELECT tutor_profile_id FROM old_tutor_profile);
+
+DELETE FROM material_defense_attachment
+ WHERE academic_material_defense_id IN (
+         SELECT academic_material_defense_id FROM academic_material_defense
+          WHERE academic_material_id IN (SELECT academic_material_id FROM old_material));
+DELETE FROM academic_material_defense WHERE academic_material_id IN (SELECT academic_material_id FROM old_material);
+DELETE FROM academic_material_report WHERE academic_material_id IN (SELECT academic_material_id FROM old_material);
+DELETE FROM material_report_case WHERE academic_material_id IN (SELECT academic_material_id FROM old_material);
+DELETE FROM academic_material WHERE academic_material_id IN (SELECT academic_material_id FROM old_material);
 
 -- ---------------------------------------------------------------------------
 -- 2. Usuarios, perfiles y materias ofrecidas
@@ -608,8 +673,648 @@ WHERE r.deleted_at IS NULL
   AND p.deleted_at IS NULL
   AND r.author_id <> p.author_id;
 
+-- ===========================================================================
+-- DATOS PARA LAS SECCIONES DEL MENU (alumno y tutor)
+-- ===========================================================================
+SET @d = '@comunidad.knowlink.test';
+
+-- Direccion de los tutores que dan clases presenciales (la muestra el detalle de la reserva)
+UPDATE tutor_profile tp JOIN users u ON u.user_id = tp.user_id
+   SET tp.address = 'Av. Sabattini 1450, Villa María, Córdoba'
+ WHERE u.email = CONCAT('sofia.albarracin', @d) AND tp.address IS NULL;
+UPDATE tutor_profile tp JOIN users u ON u.user_id = tp.user_id
+   SET tp.address = 'Bv. Alvear 320, Villa María, Córdoba'
+ WHERE u.email = CONCAT('julian.mendez', @d) AND tp.address IS NULL;
+
 -- ---------------------------------------------------------------------------
--- 7. Resumen
+-- 7. Agenda de los tutores ("Mi agenda")
+--    Un bloque = un horario (time_slot) de lunes a viernes durante las proximas 12 semanas. Los bloques de la
+--    primera semana son los "originales" y el resto las copias que genera la repeticion semanal.
+-- ---------------------------------------------------------------------------
+DROP TEMPORARY TABLE IF EXISTS tmp_n;
+CREATE TEMPORARY TABLE tmp_n (n INT PRIMARY KEY);
+INSERT INTO tmp_n (n)
+SELECT a.d + 10 * b.d + 100 * c.d
+FROM (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
+      UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) a
+CROSS JOIN (SELECT 0 AS d UNION ALL SELECT 1 UNION ALL SELECT 2 UNION ALL SELECT 3 UNION ALL SELECT 4
+      UNION ALL SELECT 5 UNION ALL SELECT 6 UNION ALL SELECT 7 UNION ALL SELECT 8 UNION ALL SELECT 9) b
+CROSS JOIN (SELECT 0 AS d UNION ALL SELECT 1) c;
+
+-- Dias habiles de las ultimas 12 semanas (past = 1) y de las proximas 12 (past = 0)
+DROP TEMPORARY TABLE IF EXISTS tmp_day;
+CREATE TEMPORARY TABLE tmp_day (d DATE PRIMARY KEY, past TINYINT);
+INSERT INTO tmp_day (d, past)
+SELECT @today - INTERVAL 84 DAY + INTERVAL n DAY, IF(n < 84, 1, 0)
+FROM tmp_n
+WHERE n < 168 AND WEEKDAY(@today - INTERVAL 84 DAY + INTERVAL n DAY) < 5;
+
+DROP TEMPORARY TABLE IF EXISTS tmp_block;
+CREATE TEMPORARY TABLE tmp_block (tutor VARCHAR(120), start_t TIME, end_t TIME);
+INSERT INTO tmp_block (tutor, start_t, end_t) VALUES
+  (CONCAT('sofia.albarracin', @d), '09:00', '13:00'), (CONCAT('sofia.albarracin', @d), '15:00', '19:00'),
+  (CONCAT('julian.mendez', @d),    '10:00', '14:00'), (CONCAT('julian.mendez', @d),    '16:00', '20:00'),
+  (CONCAT('luciana.gomez', @d),    '14:00', '20:00'),
+  (CONCAT('diego.montoya', @d),    '09:00', '12:00'), (CONCAT('diego.montoya', @d),    '17:00', '21:00'),
+  (CONCAT('mateo.rivas', @d),      '08:00', '12:00'),
+  (CONCAT('florencia.diaz', @d),   '15:00', '21:00');
+
+INSERT INTO availability_block (availability_block_id, `date`, start_time, end_time, available, repeat_weekly,
+                                auto_generated, tutor_profile_id)
+SELECT UUID_TO_BIN(UUID()), d.d, p.start_t, p.end_t, 1, 1, IF(d.d < @today + INTERVAL 7 DAY, 0, 1), tp.tutor_profile_id
+FROM tmp_day d
+JOIN tmp_block p
+JOIN users u ON u.email = p.tutor
+JOIN tutor_profile tp ON tp.user_id = u.user_id
+WHERE d.past = 0;
+
+INSERT INTO time_slot (time_slot_id, `date`, start_time, end_time, status, tutor_profile_id, availability_block_id)
+SELECT UUID_TO_BIN(UUID()), b.`date`, b.start_time, b.end_time, 'AVAILABLE', b.tutor_profile_id, b.availability_block_id
+FROM availability_block b
+JOIN tutor_profile tp ON tp.tutor_profile_id = b.tutor_profile_id
+JOIN users u ON u.user_id = tp.user_id
+WHERE u.email LIKE '%@comunidad.knowlink.test';
+
+-- Horarios ofrecidos en las ultimas 12 semanas (el job diario los archiva aca): alimentan la ocupacion de las estadisticas.
+DROP TEMPORARY TABLE IF EXISTS tmp_hist;
+CREATE TEMPORARY TABLE tmp_hist (tutor VARCHAR(120), dow TINYINT, start_t TIME, end_t TIME);   -- dow: 0 = lunes
+INSERT INTO tmp_hist (tutor, dow, start_t, end_t) VALUES
+  (CONCAT('sofia.albarracin', @d), 1, '09:00', '11:00'), (CONCAT('sofia.albarracin', @d), 3, '09:00', '11:00'),
+  (CONCAT('sofia.albarracin', @d), 0, '15:00', '17:00'), (CONCAT('sofia.albarracin', @d), 2, '15:00', '17:00'),
+  (CONCAT('julian.mendez', @d),    0, '10:00', '12:00'), (CONCAT('julian.mendez', @d),    2, '10:00', '12:00'),
+  (CONCAT('julian.mendez', @d),    4, '10:00', '12:00'),
+  (CONCAT('luciana.gomez', @d),    1, '14:00', '17:00'), (CONCAT('luciana.gomez', @d),    3, '14:00', '17:00');
+
+INSERT INTO offered_slot_history (offered_slot_history_id, tutor_profile_id, `date`, start_time, end_time)
+SELECT UUID_TO_BIN(UUID()), tp.tutor_profile_id, d.d, h.start_t, h.end_t
+FROM tmp_day d
+JOIN tmp_hist h ON h.dow = WEEKDAY(d.d)
+JOIN users u ON u.email = h.tutor
+JOIN tutor_profile tp ON tp.user_id = u.user_id
+WHERE d.past = 1;
+
+-- ---------------------------------------------------------------------------
+-- 8. Reservas ("Mis clases" del alumno y del tutor)
+--    futuro = 1: la reserva usa el horario de un bloque de la agenda del tutor (pasa al dia habil siguiente si cae
+--    en fin de semana). futuro = 0: horario propio ya ocupado. Prefijos: H = escenarios de Matias, S = escenarios
+--    de Sofia, G = sesiones generadas para el historial y las estadisticas.
+-- ---------------------------------------------------------------------------
+DROP TEMPORARY TABLE IF EXISTS tmp_booking;
+CREATE TEMPORARY TABLE tmp_booking (
+  k VARCHAR(8) PRIMARY KEY,
+  student VARCHAR(120),
+  tutor VARCHAR(120),
+  subject VARCHAR(120),
+  sdate DATE,
+  start_t TIME,
+  mins INT DEFAULT 60,
+  end_t TIME NULL,
+  modality VARCHAR(10) DEFAULT 'VIRTUAL',
+  status VARCHAR(30),
+  future TINYINT DEFAULT 0,
+  rating_mode VARCHAR(8) DEFAULT 'BOTH',      -- BOTH: se calificaron los dos | STUDENT: solo el alumno | NONE: nadie
+  cancel_by VARCHAR(8) DEFAULT 'STUDENT',
+  cancel_hours INT DEFAULT 48,
+  fund VARCHAR(10) NULL,
+  amount DECIMAL(10,2) NULL,
+  booking_id BINARY(16) NULL,
+  slot_id BINARY(16) NULL,
+  student_id BINARY(16) NULL,
+  tutor_id BINARY(16) NULL,
+  tutor_profile_id BINARY(16) NULL,
+  tutor_subject_id BINARY(16) NULL
+);
+
+INSERT INTO tmp_booking (k, student, tutor, subject, sdate, start_t, modality, status, future) VALUES
+  -- Reservadas (futuras)
+  ('H01', CONCAT('matias.velasquez', @d), CONCAT('sofia.albarracin', @d), 'Algoritmos',          @today + INTERVAL 1 DAY, '10:00', 'VIRTUAL',   'BOOKED', 1),
+  ('H02', CONCAT('matias.velasquez', @d), CONCAT('julian.mendez', @d),    'Física',              @today + INTERVAL 3 DAY, '16:00', 'IN_PERSON', 'BOOKED', 1),
+  ('H03', CONCAT('matias.velasquez', @d), CONCAT('diego.montoya', @d),    'Base de Datos',       @today + INTERVAL 6 DAY, '18:00', 'VIRTUAL',   'BOOKED', 1),
+  ('H04', CONCAT('lucas.benitez', @d),    CONCAT('sofia.albarracin', @d), 'Estructuras de Datos', @today + INTERVAL 2 DAY, '15:00', 'VIRTUAL',   'BOOKED', 1),
+  ('H05', CONCAT('martina.rossi', @d),    CONCAT('sofia.albarracin', @d), 'Algoritmos',          @today + INTERVAL 4 DAY, '16:00', 'VIRTUAL',   'BOOKED', 1),
+  ('H06', CONCAT('valentina.cruz', @d),   CONCAT('sofia.albarracin', @d), 'Programación',        @today + INTERVAL 8 DAY, '09:00', 'IN_PERSON', 'BOOKED', 1),
+  ('H07', CONCAT('camila.torres', @d),    CONCAT('julian.mendez', @d),    'Álgebra',             @today + INTERVAL 5 DAY, '17:00', 'VIRTUAL',   'BOOKED', 1),
+  ('H08', CONCAT('agustina.luna', @d),    CONCAT('luciana.gomez', @d),    'Programación',        @today + INTERVAL 3 DAY, '15:00', 'VIRTUAL',   'BOOKED', 1),
+  -- En curso: empezo hace 20 minutos
+  ('H09', CONCAT('matias.velasquez', @d), CONCAT('luciana.gomez', @d),    'Programación',
+         DATE(@now - INTERVAL 20 MINUTE), SEC_TO_TIME(FLOOR(TIME_TO_SEC(TIME(@now - INTERVAL 20 MINUTE)) / 60) * 60), 'VIRTUAL', 'IN_PROGRESS', 0),
+  -- Completadas de Matias (H12 queda sin calificar; H14 solo la califico el alumno)
+  ('H11', CONCAT('matias.velasquez', @d), CONCAT('sofia.albarracin', @d), 'Estructuras de Datos', @today - INTERVAL 2 DAY,  '12:00', 'VIRTUAL',   'COMPLETED', 0),
+  ('H12', CONCAT('matias.velasquez', @d), CONCAT('julian.mendez', @d),    'Álgebra',             @today - INTERVAL 5 DAY,  '11:00', 'VIRTUAL',   'COMPLETED', 0),
+  ('H13', CONCAT('matias.velasquez', @d), CONCAT('luciana.gomez', @d),    'Programación',        @today - INTERVAL 9 DAY,  '11:00', 'VIRTUAL',   'COMPLETED', 0),
+  ('H14', CONCAT('matias.velasquez', @d), CONCAT('mateo.rivas', @d),      'Química',             @today - INTERVAL 12 DAY, '09:00', 'IN_PERSON', 'COMPLETED', 0),
+  ('H15', CONCAT('matias.velasquez', @d), CONCAT('diego.montoya', @d),    'Redes',               @today - INTERVAL 20 DAY, '18:00', 'VIRTUAL',   'COMPLETED', 0),
+  -- No confirmadas (con reclamo), tutor ausente, sesion no realizada, canceladas y vencida
+  ('H16', CONCAT('matias.velasquez', @d), CONCAT('florencia.diaz', @d),   'Machine Learning',    @today - INTERVAL 4 DAY,  '19:00', 'VIRTUAL',   'NOT_CONFIRMED', 0),
+  ('H17', CONCAT('matias.velasquez', @d), CONCAT('diego.montoya', @d),    'Base de Datos',       @today - INTERVAL 8 DAY,  '18:00', 'VIRTUAL',   'NOT_CONFIRMED', 0),
+  ('H18', CONCAT('matias.velasquez', @d), CONCAT('mateo.rivas', @d),      'Fisicoquímica',       @today - INTERVAL 15 DAY, '10:00', 'VIRTUAL',   'NOT_FULFILLED_BY_TUTOR', 0),
+  ('H19', CONCAT('matias.velasquez', @d), CONCAT('julian.mendez', @d),    'Física',              @today - INTERVAL 7 DAY,  '12:00', 'VIRTUAL',   'CANCELLED', 0),
+  ('H20', CONCAT('matias.velasquez', @d), CONCAT('sofia.albarracin', @d), 'Programación',        @today - INTERVAL 3 DAY,  '13:00', 'VIRTUAL',   'CANCELLED', 0),
+  ('H21', CONCAT('matias.velasquez', @d), CONCAT('luciana.gomez', @d),    'Algoritmos',          @today - INTERVAL 11 DAY, '12:00', 'VIRTUAL',   'SESSION_NOT_HELD', 0),
+  ('H22', CONCAT('matias.velasquez', @d), CONCAT('florencia.diaz', @d),   'Inteligencia Artificial', @today - INTERVAL 6 DAY, '17:00', 'VIRTUAL', 'EXPIRED', 0),
+  -- Escenarios de Sofia
+  ('S01', CONCAT('lucas.benitez', @d),    CONCAT('sofia.albarracin', @d), 'Algoritmos',          @today - INTERVAL 6 DAY,  '11:00', 'VIRTUAL',   'NOT_CONFIRMED', 0),
+  ('S02', CONCAT('valentina.cruz', @d),   CONCAT('sofia.albarracin', @d), 'Programación',        @today - INTERVAL 9 DAY,  '17:00', 'VIRTUAL',   'NOT_CONFIRMED', 0),
+  ('S03', CONCAT('martina.rossi', @d),    CONCAT('sofia.albarracin', @d), 'Algoritmos',          @today - INTERVAL 22 DAY, '12:00', 'VIRTUAL',   'COMPLETED', 0),
+  ('S04', CONCAT('agustina.luna', @d),    CONCAT('sofia.albarracin', @d), 'Estructuras de Datos', @today - INTERVAL 1 DAY, '17:00', 'VIRTUAL',   'COMPLETED', 0),
+  ('S05', CONCAT('camila.torres', @d),    CONCAT('sofia.albarracin', @d), 'Estructuras de Datos', @today - INTERVAL 2 DAY, '17:00', 'VIRTUAL',   'CANCELLED', 0);
+
+-- Sesiones generadas: Sofia (28 sesiones en ~3 meses), Julian (12) y Luciana (10). Los fines de semana pasan al viernes.
+INSERT INTO tmp_booking (k, student, tutor, subject, sdate, start_t, modality, status, future)
+SELECT CONCAT('GS', LPAD(g.n, 2, '0')),
+       CONCAT(ELT(1 + g.n MOD 7, 'lucas.benitez', 'martina.rossi', 'camila.torres', 'valentina.cruz',
+                  'agustina.luna', 'nicolas.ibarra', 'joaquin.paz'), @d),
+       CONCAT('sofia.albarracin', @d),
+       ELT(1 + g.n MOD 3, 'Algoritmos', 'Estructuras de Datos', 'Programación'),
+       g.d - INTERVAL GREATEST(WEEKDAY(g.d) - 4, 0) DAY,
+       ELT(1 + g.n MOD 4, '09:00', '10:00', '15:00', '16:00'),
+       ELT(1 + g.n MOD 2, 'VIRTUAL', 'IN_PERSON'),
+       CASE WHEN g.n MOD 9 = 4 THEN 'CANCELLED'
+            WHEN g.n MOD 13 = 7 THEN 'NOT_CONFIRMED'
+            WHEN g.n = 11 THEN 'SESSION_NOT_HELD'
+            ELSE 'COMPLETED' END,
+       0
+FROM (SELECT n, @today - INTERVAL (4 + n * 3) DAY AS d FROM tmp_n WHERE n < 28) g;
+
+INSERT INTO tmp_booking (k, student, tutor, subject, sdate, start_t, modality, status, future)
+SELECT CONCAT('GJ', LPAD(g.n, 2, '0')),
+       CONCAT(ELT(1 + g.n MOD 5, 'lucas.benitez', 'martina.rossi', 'camila.torres', 'valentina.cruz', 'agustina.luna'), @d),
+       CONCAT('julian.mendez', @d),
+       ELT(1 + g.n MOD 3, 'Análisis Matemático', 'Álgebra', 'Física'),
+       g.d - INTERVAL GREATEST(WEEKDAY(g.d) - 4, 0) DAY,
+       ELT(1 + g.n MOD 4, '14:00', '15:00', '16:00', '17:00'),
+       'VIRTUAL',
+       CASE WHEN g.n MOD 6 = 3 THEN 'CANCELLED' WHEN g.n = 8 THEN 'NOT_CONFIRMED' ELSE 'COMPLETED' END,
+       0
+FROM (SELECT n, @today - INTERVAL (6 + n * 7) DAY AS d FROM tmp_n WHERE n < 12) g;
+
+INSERT INTO tmp_booking (k, student, tutor, subject, sdate, start_t, modality, status, future)
+SELECT CONCAT('GL', LPAD(g.n, 2, '0')),
+       CONCAT(ELT(1 + g.n MOD 5, 'martina.rossi', 'camila.torres', 'nicolas.ibarra', 'joaquin.paz', 'valentina.cruz'), @d),
+       CONCAT('luciana.gomez', @d),
+       ELT(1 + g.n MOD 2, 'Programación', 'Algoritmos'),
+       g.d - INTERVAL GREATEST(WEEKDAY(g.d) - 4, 0) DAY,
+       ELT(1 + g.n MOD 4, '14:00', '15:00', '16:00', '17:00'),
+       'VIRTUAL',
+       CASE WHEN g.n = 4 THEN 'CANCELLED' WHEN g.n = 7 THEN 'NOT_CONFIRMED' ELSE 'COMPLETED' END,
+       0
+FROM (SELECT n, @today - INTERVAL (5 + n * 8) DAY AS d FROM tmp_n WHERE n < 10) g;
+
+-- Ajustes por escenario
+UPDATE tmp_booking SET rating_mode = 'NONE'    WHERE k IN ('H12', 'S04');
+UPDATE tmp_booking SET rating_mode = 'STUDENT' WHERE k IN ('H14', 'GS00');
+UPDATE tmp_booking SET cancel_by = 'TUTOR', cancel_hours = 30 WHERE k = 'H20';
+UPDATE tmp_booking SET cancel_hours = 72 WHERE k = 'H19';
+UPDATE tmp_booking SET cancel_hours = 5  WHERE k = 'S05';      -- cancelacion tardia: el importe se transfiere al tutor
+
+-- Las reservas futuras que caen en fin de semana pasan al lunes
+UPDATE tmp_booking SET sdate = sdate + INTERVAL IF(WEEKDAY(sdate) >= 5, 7 - WEEKDAY(sdate), 0) DAY WHERE future = 1;
+UPDATE tmp_booking SET end_t = LEAST(ADDTIME(start_t, SEC_TO_TIME(mins * 60)), '23:59:00');
+
+-- Identificadores, importe (precio por hora de la materia) y destino de los fondos
+UPDATE tmp_booking b
+  JOIN users st ON st.email = b.student
+  JOIN users tu ON tu.email = b.tutor
+  JOIN tutor_profile tp ON tp.user_id = tu.user_id
+  JOIN subjects s ON s.name = b.subject
+  JOIN tutor_subject ts ON ts.tutor_profile_id = tp.tutor_profile_id AND ts.subject_id = s.subject_id
+   SET b.student_id = st.user_id, b.tutor_id = tu.user_id, b.tutor_profile_id = tp.tutor_profile_id,
+       b.tutor_subject_id = ts.tutor_subject_id, b.amount = ts.price_per_hour * b.mins / 60,
+       b.booking_id = UUID_TO_BIN(UUID());
+
+UPDATE tmp_booking
+   SET fund = CASE WHEN status IN ('CANCELLED', 'EXPIRED') THEN NULL
+                   WHEN status IN ('NOT_FULFILLED_BY_TUTOR', 'SESSION_NOT_HELD') THEN 'REFUNDED'
+                   WHEN status = 'COMPLETED' AND sdate < @today - INTERVAL 2 DAY THEN 'RELEASED'
+                   ELSE 'HELD' END;
+
+-- Horario: el de un bloque de la agenda (reservas futuras) o uno propio ya ocupado (el resto)
+UPDATE tmp_booking b
+  JOIN time_slot ts ON ts.tutor_profile_id = b.tutor_profile_id AND ts.`date` = b.sdate
+                   AND ts.start_time <= b.start_t AND ts.end_time >= b.end_t AND ts.availability_block_id IS NOT NULL
+   SET b.slot_id = ts.time_slot_id
+ WHERE b.future = 1;
+
+UPDATE tmp_booking SET slot_id = UUID_TO_BIN(UUID()) WHERE future = 0;
+
+-- Debe dar 0: si alguna reserva no encontro su materia o su bloque de agenda, el INSERT de abajo falla.
+SELECT 'reservas sin horario o sin materia (debe ser 0)' AS dato, COUNT(*) AS cantidad
+  FROM tmp_booking WHERE slot_id IS NULL OR tutor_subject_id IS NULL;
+
+INSERT INTO time_slot (time_slot_id, `date`, start_time, end_time, status, tutor_profile_id, availability_block_id)
+SELECT slot_id, sdate, start_t, end_t, 'OCCUPIED', tutor_profile_id, NULL
+FROM tmp_booking
+WHERE future = 0;
+
+INSERT INTO booking (booking_id, created_at, amount, session_date, start_time, end_time, topic, modality,
+                     virtual_session_link, confirmation_token, confirmation_token_expiration,
+                     confirmation_token_attempts, confirmed_at, last_confirmation_reminder_at,
+                     completion_notification_sent, booking_status, time_slot_id, tutor_subject_id, student_id, tutor_id)
+SELECT b.booking_id,
+       LEAST(@now - INTERVAL 2 HOUR, TIMESTAMP(b.sdate, b.start_t) - INTERVAL 3 DAY) + INTERVAL @shift HOUR,
+       b.amount, b.sdate, b.start_t, b.end_t,
+       ELT(1 + CRC32(b.k) MOD 5, 'Repaso para el parcial', 'Dudas del trabajo práctico', 'Preparación del final',
+           'Ejercicios de la guía', 'Consulta puntual sobre el último tema'),
+       b.modality,
+       IF(b.modality = 'VIRTUAL', CONCAT('https://meet.google.com/seed-', LOWER(SUBSTRING(MD5(b.k), 1, 3)), '-',
+                                         LOWER(SUBSTRING(MD5(b.k), 4, 4)), '-', LOWER(SUBSTRING(MD5(b.k), 8, 3))), NULL),
+       NULL, NULL, 0,
+       IF(b.status = 'COMPLETED', TIMESTAMP(b.sdate, b.start_t) + INTERVAL 4 MINUTE + INTERVAL @shift HOUR, NULL),
+       NULL,
+       IF(b.status IN ('BOOKED', 'IN_PROGRESS'), 0, 1),    -- 1 evita que el job genere otra notificacion SESSION_COMPLETED
+       b.status, b.slot_id, b.tutor_subject_id, b.student_id, b.tutor_id
+FROM tmp_booking b;
+
+-- Cancelaciones: antes de 24 hs se reintegra al alumno; despues, el importe va al tutor
+INSERT INTO booking_cancellation (cancellation_id, booking_id, cancelled_by, refund_destination, refund_policy,
+                                  amount, hours_in_advance, created_at)
+SELECT UUID_TO_BIN(UUID()), b.booking_id, b.cancel_by,
+       IF(b.cancel_by = 'TUTOR' OR b.cancel_hours >= 24, 'STUDENT', 'TUTOR'),
+       IF(b.cancel_by = 'TUTOR' OR b.cancel_hours >= 24, 'REFUND_TOTAL_STUDENT', 'TRANSFER_TOTAL_TUTOR'),
+       b.amount, b.cancel_hours,
+       TIMESTAMP(b.sdate, b.start_t) - INTERVAL b.cancel_hours HOUR + INTERVAL @shift HOUR
+FROM tmp_booking b
+WHERE b.status = 'CANCELLED';
+
+-- ---------------------------------------------------------------------------
+-- 9. Fondos (estadisticas del tutor y estado de cada clase)
+--    El tutor recibe el importe menos el 3 % de retencion; si hay devolucion, el alumno recupera el 100 %.
+-- ---------------------------------------------------------------------------
+INSERT INTO funds_transfer (funds_transfer_id, booking_id, original_amount, system_retention_percentage,
+                            transferred_amount, recipient, concept, funds_status, processed_at, blocking_claim_id)
+SELECT UUID_TO_BIN(UUID()), b.booking_id, b.amount,
+       IF(b.fund = 'REFUNDED', 0, 3),
+       CASE b.fund WHEN 'RELEASED' THEN ROUND(b.amount * 0.97, 2) WHEN 'REFUNDED' THEN b.amount ELSE 0 END,
+       IF(b.fund = 'REFUNDED', 'STUDENT', 'TUTOR'),
+       CASE WHEN b.fund = 'RELEASED' THEN 'Liberacion por sesion completada'
+            WHEN b.fund = 'REFUNDED' AND b.status = 'NOT_FULFILLED_BY_TUTOR' THEN 'Devolucion por tutor ausente'
+            WHEN b.fund = 'REFUNDED' THEN 'Devolucion por sesion no realizada'
+            ELSE 'Fondos retenidos para reserva' END,
+       CASE b.fund WHEN 'RELEASED' THEN 'RELEASED_TO_TUTOR' WHEN 'REFUNDED' THEN 'REFUNDED_TO_STUDENT' ELSE 'HELD' END,
+       IF(b.fund IN ('RELEASED', 'REFUNDED'),
+          LEAST(UTC_TIMESTAMP(), TIMESTAMP(b.sdate, b.start_t) + INTERVAL 3 DAY + INTERVAL 3 HOUR), NULL),
+       NULL
+FROM tmp_booking b
+WHERE b.fund IS NOT NULL;
+
+-- ---------------------------------------------------------------------------
+-- 10. Calificaciones (solo las visibles cuentan en las estadisticas del tutor)
+-- ---------------------------------------------------------------------------
+INSERT INTO rating (rating_id, booking_id, rated_user_id, rater_user_id, score, comment, rating_date, visible)
+SELECT UUID_TO_BIN(UUID()), b.booking_id, b.tutor_id, b.student_id,
+       ELT(1 + CRC32(b.k) MOD 6, 5, 5, 4, 5, 4, 3),
+       ELT(1 + CRC32(b.k) MOD 5, 'Explica con mucha claridad y paciencia, súper recomendable.',
+           'Me ayudó a destrabar los ejercicios del parcial.', NULL,
+           'Muy buena clase, llegué preparado al examen.', 'Puntual y con material de apoyo muy útil.'),
+       LEAST(@now_db, TIMESTAMP(b.sdate, b.end_t) + INTERVAL 90 MINUTE + INTERVAL @shift HOUR),
+       IF(b.rating_mode = 'BOTH', 1, 0)
+FROM tmp_booking b
+WHERE b.status = 'COMPLETED' AND b.rating_mode IN ('BOTH', 'STUDENT');
+
+INSERT INTO rating (rating_id, booking_id, rated_user_id, rater_user_id, score, comment, rating_date, visible)
+SELECT UUID_TO_BIN(UUID()), b.booking_id, b.student_id, b.tutor_id,
+       ELT(1 + CRC32(CONCAT(b.k, 't')) MOD 4, 5, 5, 4, 5),
+       ELT(1 + CRC32(CONCAT(b.k, 't')) MOD 3, 'Alumno puntual y con las dudas bien preparadas.', NULL,
+           'Muy buena predisposición para trabajar.'),
+       LEAST(@now_db, TIMESTAMP(b.sdate, b.end_t) + INTERVAL 150 MINUTE + INTERVAL @shift HOUR),
+       1
+FROM tmp_booking b
+WHERE b.status = 'COMPLETED' AND b.rating_mode = 'BOTH';
+
+-- ---------------------------------------------------------------------------
+-- 11. Reclamos de sesion ("Mis reclamos" del alumno y "Soporte y solicitudes" del tutor)
+--     by_role: S = lo inicia el alumno, T = lo inicia el tutor
+-- ---------------------------------------------------------------------------
+DROP TEMPORARY TABLE IF EXISTS tmp_claim;
+CREATE TEMPORARY TABLE tmp_claim (
+  ck VARCHAR(4) PRIMARY KEY,
+  bk VARCHAR(8),
+  by_role CHAR(1),
+  reason VARCHAR(40),
+  status VARCHAR(20),
+  comment VARCHAR(500),
+  favored VARCHAR(10) NULL,
+  justification VARCHAR(1000) NULL,
+  claim_id BINARY(16) NULL,
+  created DATETIME NULL,
+  resolved DATETIME NULL,
+  updated DATETIME NULL
+);
+
+INSERT INTO tmp_claim (ck, bk, by_role, reason, status, comment, favored, justification) VALUES
+  ('C1', 'H16', 'S', 'TUTOR_COULD_NOT_ATTEND', 'OPEN',
+   'La tutora no se conectó a la videollamada y no respondió mis mensajes durante la hora de la clase.', NULL, NULL),
+  ('C2', 'H17', 'S', 'TUTOR_COULD_NOT_ATTEND', 'IN_REVIEW',
+   'Esperé 20 minutos en la sala y nadie ingresó. Tengo captura de la espera.', NULL, NULL),
+  ('C3', 'H18', 'S', 'TUTOR_COULD_NOT_ATTEND', 'RESOLVED',
+   'El tutor no asistió a la sesión y no avisó con anticipación.', 'STUDENT',
+   'Se verificó la ausencia del tutor en el registro de asistencia. Se devuelve el importe completo al alumno.'),
+  ('C4', 'S01', 'T', 'STUDENT_COULD_NOT_ATTEND', 'OPEN',
+   'El alumno no se presentó a la sesión ni avisó con anticipación.', NULL, NULL),
+  ('C5', 'S02', 'S', 'TUTOR_COULD_NOT_ATTEND', 'IN_REVIEW',
+   'No pude comunicarme con la tutora y la sesión se postergó sin aviso.', NULL, NULL),
+  ('C6', 'S03', 'S', 'TUTOR_COULD_NOT_ATTEND', 'RESOLVED',
+   'Considero que la clase no se dictó completa.', 'TUTOR',
+   'El código de asistencia fue confirmado por ambas partes y la sesión se realizó. Los fondos se liberan a la tutora.');
+
+UPDATE tmp_claim c JOIN tmp_booking b ON b.k = c.bk
+   SET c.claim_id = UUID_TO_BIN(UUID()),
+       c.created = LEAST(@now - INTERVAL 1 HOUR, TIMESTAMP(b.sdate, b.end_t) + INTERVAL 3 HOUR);
+UPDATE tmp_claim
+   SET resolved = IF(status = 'RESOLVED', LEAST(@now, created + INTERVAL 2 DAY), NULL),
+       updated = IF(status = 'RESOLVED', LEAST(@now, created + INTERVAL 2 DAY), LEAST(@now, created + INTERVAL 1 DAY));
+
+INSERT INTO session_claim (claim_id, booking_id, user_id, claimant_role, reason, comment, status, active_key,
+                           dispute_id, automatic_outcome, assigned_admin_id, assigned_at, resolved_at, favored_party,
+                           resolution_justification, version, created_at, updated_at)
+SELECT c.claim_id, b.booking_id, IF(c.by_role = 'S', b.student_id, b.tutor_id), IF(c.by_role = 'S', 'STUDENT', 'TUTOR'),
+       c.reason, c.comment, c.status,
+       IF(c.status = 'RESOLVED', NULL,
+          CONCAT(LOWER(BIN_TO_UUID(b.booking_id)), ':',
+                 LOWER(BIN_TO_UUID(IF(c.by_role = 'S', b.student_id, b.tutor_id))))),
+       c.claim_id,
+       CASE c.reason WHEN 'TUTOR_COULD_NOT_ATTEND' THEN 'TUTOR_ABSENT_REFUND_TO_STUDENT'
+                     WHEN 'STUDENT_COULD_NOT_ATTEND' THEN 'SESSION_COMPLETED_RELEASE_TO_TUTOR'
+                     ELSE 'SESSION_NOT_HELD_REFUND_TO_STUDENT' END,
+       NULL, NULL,
+       IF(c.resolved IS NULL, NULL, c.resolved + INTERVAL @shift HOUR),
+       c.favored, c.justification, 0,
+       c.created + INTERVAL @shift HOUR, c.updated + INTERVAL @shift HOUR
+FROM tmp_claim c
+JOIN tmp_booking b ON b.k = c.bk;
+
+-- Los fondos de las clases con reclamo abierto o en revision quedan suspendidos
+UPDATE funds_transfer ft
+  JOIN session_claim sc ON sc.booking_id = ft.booking_id AND sc.status <> 'RESOLVED'
+  JOIN tmp_claim c ON c.claim_id = sc.claim_id
+   SET ft.funds_status = 'SUSPENDED_BY_CLAIM', ft.blocking_claim_id = sc.claim_id
+ WHERE ft.funds_status = 'HELD';
+
+-- Conversacion dentro de los reclamos en revision (S = alumno, T = tutor)
+DROP TEMPORARY TABLE IF EXISTS tmp_comment;
+CREATE TEMPORARY TABLE tmp_comment (ck VARCHAR(4), author CHAR(1), message VARCHAR(500), mins INT);
+INSERT INTO tmp_comment (ck, author, message, mins) VALUES
+  ('C2', 'S', 'Quedo atento a la resolución. Tengo capturas de la sala vacía a la hora de la clase.', 60),
+  ('C2', 'T', 'Tuve un corte de luz y avisé por el chat de la plataforma. Ofrezco reprogramar sin costo.', 300),
+  ('C2', 'S', 'No recibí ningún mensaje en el chat, prefiero que se revise el reclamo.', 540),
+  ('C5', 'S', 'Pido que se revise el historial del chat de la sesión.', 90),
+  ('C5', 'T', 'Reprogramé por un imprevisto médico y avisé desde la sección de notificaciones.', 360);
+
+INSERT INTO session_claim_comment (session_claim_comment_id, claim_id, author_user_id, message, created_at)
+SELECT UUID_TO_BIN(UUID()), c.claim_id, IF(m.author = 'S', b.student_id, b.tutor_id), m.message,
+       LEAST(@now_db, c.created + INTERVAL m.mins MINUTE + INTERVAL @shift HOUR)
+FROM tmp_comment m
+JOIN tmp_claim c ON c.ck = m.ck
+JOIN tmp_booking b ON b.k = c.bk;
+
+-- ---------------------------------------------------------------------------
+-- 12. Material academico y denuncias ("Material denunciado" del alumno y "Soporte y solicitudes" del tutor)
+-- ---------------------------------------------------------------------------
+DROP TEMPORARY TABLE IF EXISTS tmp_material;
+CREATE TEMPORARY TABLE tmp_material (
+  mk VARCHAR(4) PRIMARY KEY,
+  tutor VARCHAR(120),
+  subject VARCHAR(120),
+  name VARCHAR(255),
+  file_name VARCHAR(255),
+  size_b BIGINT,
+  mtype VARCHAR(8),
+  available TINYINT DEFAULT 1,
+  material_id BINARY(16) NULL
+);
+INSERT INTO tmp_material (mk, tutor, subject, name, file_name, size_b, mtype, available) VALUES
+  ('MS1', CONCAT('sofia.albarracin', @d),   'Algoritmos',           'Cheatsheet Big-O, Omega y Theta',          'cheatsheet-big-o.pdf',          214000, 'PDF',  1),
+  ('MS2', CONCAT('sofia.albarracin', @d),   'Estructuras de Datos', 'Árboles y grafos - ejercicios resueltos', 'arboles-grafos-resueltos.pdf', 1850000, 'PDF',  1),
+  ('MS3', CONCAT('sofia.albarracin', @d),   'Estructuras de Datos', 'Guía de pilas y colas',                    'guia-pilas-colas.pdf',          530000, 'PDF',  1),
+  ('MJ1', CONCAT('julian.mendez', @d),      'Análisis Matemático',  'Tabla de derivadas e integrales',          'tabla-derivadas-integrales.pdf', 420000, 'PDF', 1),
+  ('MJ2', CONCAT('julian.mendez', @d),      'Álgebra',              'Guía de autovalores y autovectores',       'guia-autovalores.pdf',          760000, 'PDF',  1),
+  ('MM1', CONCAT('mateo.rivas', @d),        'Fisicoquímica',        'Resumen de termodinámica',                 'resumen-termodinamica.pdf',     1230000, 'PDF', 1),
+  ('MD1', CONCAT('diego.montoya', @d),      'Redes',                'Apuntes de Redes - capa de transporte',    'apuntes-redes-transporte.pdf',  980000, 'PDF',  0),
+  ('MF1', CONCAT('florencia.diaz', @d),     'Machine Learning',     'Comparativa de modelos',                   'comparativa-modelos.xlsx',      310000, 'XLSX', 1);
+
+UPDATE tmp_material SET material_id = UUID_TO_BIN(UUID());
+
+INSERT INTO academic_material (academic_material_id, tutor_subject_id, name, original_file_name, storage_path, file_url,
+                               uploaded_at, size_in_bytes, reports_count, available, active, material_type)
+SELECT m.material_id, ts.tutor_subject_id, m.name, m.file_name,
+       CONCAT('materials/seed-demo/', REPLACE(UUID(), '-', ''), '-', m.file_name), NULL,
+       @now_db - INTERVAL (30 + CRC32(m.mk) MOD 40) DAY, m.size_b, 0, m.available, 1, m.mtype
+FROM tmp_material m
+JOIN users u ON u.email = m.tutor
+JOIN tutor_profile tp ON tp.user_id = u.user_id
+JOIN subjects s ON s.name = m.subject
+JOIN tutor_subject ts ON ts.tutor_profile_id = tp.tutor_profile_id AND ts.subject_id = s.subject_id;
+
+-- Denuncias: rk R? = alumno denunciante. Un caso por material (PENDING / IN_REVIEW / REMOVED / DISMISSED).
+DROP TEMPORARY TABLE IF EXISTS tmp_report;
+CREATE TEMPORARY TABLE tmp_report (
+  rk VARCHAR(4) PRIMARY KEY,
+  mk VARCHAR(4),
+  reporter VARCHAR(120),
+  reason VARCHAR(30),
+  description VARCHAR(500),
+  status VARCHAR(20),
+  resolution VARCHAR(20) NULL,
+  days_ago INT,
+  report_id BINARY(16) NULL,
+  case_id BINARY(16) NULL
+);
+INSERT INTO tmp_report (rk, mk, reporter, reason, description, status, resolution, days_ago) VALUES
+  ('RM1', 'MJ1', CONCAT('matias.velasquez', @d), 'PLAGIARISM',
+   'Gran parte del contenido es idéntico a los apuntes de otra cátedra publicados en línea.', 'PENDING', NULL, 1),
+  ('RM2', 'MM1', CONCAT('matias.velasquez', @d), 'FALSE_INFORMATION',
+   'La fórmula del trabajo en el segundo principio tiene el signo incorrecto.', 'IN_REVIEW', NULL, 3),
+  ('RM3', 'MD1', CONCAT('matias.velasquez', @d), 'INAPPROPRIATE_CONTENT',
+   'El documento incluye contenido ajeno a la materia.', 'RESOLVED', 'UPHELD', 12),
+  ('RM4', 'MF1', CONCAT('matias.velasquez', @d), 'OTHER',
+   'El archivo no coincide con el título publicado.', 'RESOLVED', 'DISMISSED', 20),
+  ('RS1', 'MS1', CONCAT('lucas.benitez', @d), 'PLAGIARISM',
+   'Parece copiado de un libro sin citar la fuente.', 'PENDING', NULL, 2),
+  ('RS2', 'MS2', CONCAT('martina.rossi', @d), 'FALSE_INFORMATION',
+   'El ejercicio 7 tiene un error en la rotación del árbol AVL.', 'IN_REVIEW', NULL, 4),
+  ('RS3', 'MS3', CONCAT('valentina.cruz', @d), 'OTHER',
+   'El documento está incompleto, faltan las colas circulares.', 'RESOLVED', 'DISMISSED', 18);
+
+UPDATE tmp_report SET report_id = UUID_TO_BIN(UUID()), case_id = UUID_TO_BIN(UUID());
+
+INSERT INTO material_report_case (material_report_case_id, academic_material_id, status, assigned_admin_id, assigned_at,
+                                  opened_at, resolved_at, resolution_note, reports_count, version)
+SELECT r.case_id, m.material_id,
+       CASE WHEN r.status = 'PENDING' THEN 'PENDING' WHEN r.status = 'IN_REVIEW' THEN 'IN_REVIEW'
+            WHEN r.resolution = 'UPHELD' THEN 'REMOVED' ELSE 'DISMISSED' END,
+       NULL, NULL,
+       @now_db - INTERVAL r.days_ago DAY,
+       IF(r.status = 'RESOLVED', LEAST(@now_db, @now_db - INTERVAL r.days_ago DAY + INTERVAL 4 DAY), NULL),
+       CASE WHEN r.resolution = 'UPHELD' THEN 'El contenido infringía las políticas de la plataforma y fue dado de baja.'
+            WHEN r.resolution = 'DISMISSED' THEN 'No se encontraron incumplimientos en el material.' ELSE NULL END,
+       1, 0
+FROM tmp_report r
+JOIN tmp_material m ON m.mk = r.mk;
+
+INSERT INTO academic_material_report (academic_material_report_id, academic_material_id, material_report_case_id,
+                                      reporter_user_id, reviewed_by_user_id, reason, description, reported_at, status,
+                                      resolution)
+SELECT r.report_id, m.material_id, r.case_id, u.user_id, NULL, r.reason, r.description,
+       @now_db - INTERVAL r.days_ago DAY, r.status, r.resolution
+FROM tmp_report r
+JOIN tmp_material m ON m.mk = r.mk
+JOIN users u ON u.email = r.reporter;
+
+UPDATE academic_material am
+   SET am.reports_count = (SELECT COUNT(*) FROM academic_material_report x
+                            WHERE x.academic_material_id = am.academic_material_id)
+ WHERE am.storage_path LIKE 'materials/seed-demo/%';
+
+-- Descargo de Sofia ante la denuncia en revision de su material
+INSERT INTO academic_material_defense (academic_material_defense_id, academic_material_id, tutor_user_id, description,
+                                       submitted_at)
+SELECT UUID_TO_BIN(UUID()), m.material_id, u.user_id,
+       'El ejercicio sigue la notación de la cátedra; adjunto la bibliografía de referencia. Si se confirma el error en la rotación del árbol, lo corrijo y vuelvo a subir el archivo.',
+       @now_db - INTERVAL 2 DAY
+FROM tmp_material m
+JOIN users u ON u.email = m.tutor
+WHERE m.mk = 'MS2';
+
+-- ---------------------------------------------------------------------------
+-- 13. Notificaciones (todos los tipos, leidas y sin leer)
+--     kind: B = reserva, C = reclamo, R = denuncia de material, S = materia del tutor (ref = nombre de la materia)
+-- ---------------------------------------------------------------------------
+DROP TEMPORARY TABLE IF EXISTS tmp_notif;
+CREATE TEMPORARY TABLE tmp_notif (
+  nk VARCHAR(4) PRIMARY KEY,
+  recipient VARCHAR(120),
+  role VARCHAR(10),
+  type VARCHAR(40),
+  kind CHAR(1),
+  ref VARCHAR(40) NULL,
+  title VARCHAR(120),
+  message VARCHAR(500),
+  hours_ago INT,
+  unread TINYINT,
+  res BINARY(16) NULL
+);
+
+INSERT INTO tmp_notif (nk, recipient, role, type, kind, ref, title, message, hours_ago, unread) VALUES
+  -- Matias (alumno)
+  ('N01', CONCAT('matias.velasquez', @d), 'STUDENT', 'BOOKING_CONFIRMED', 'B', 'H01', 'Reserva confirmada',
+   'Tu clase de Algoritmos con Lic. Sofía Albarracín fue confirmada.', 2, 1),
+  ('N02', CONCAT('matias.velasquez', @d), 'STUDENT', 'SESSION_CONFIRMATION_REMINDER', 'B', 'H01', 'Recordatorio de tu clase',
+   'Tenés una clase de Algoritmos con Lic. Sofía Albarracín. Recordá confirmar tu asistencia con el código de la sesión.', 5, 1),
+  ('N03', CONCAT('matias.velasquez', @d), 'STUDENT', 'RATING_ENABLED', 'B', 'H12', 'Calificá tu sesión',
+   'Ya podés calificar tu sesión de Álgebra con Prof. Julián Méndez.', 28, 1),
+  ('N04', CONCAT('matias.velasquez', @d), 'STUDENT', 'SESSION_COMPLETED', 'B', 'H12', 'Sesión finalizada',
+   'Tu sesión de Álgebra finalizó. Si hubo algún inconveniente, podés iniciar un reclamo.', 29, 0),
+  ('N05', CONCAT('matias.velasquez', @d), 'STUDENT', 'SESSION_CLAIM_UPDATE', 'C', 'C2', 'Tu reclamo está en revisión',
+   'Un mediador está revisando tu reclamo por la sesión de Base de Datos.', 20, 1),
+  ('N06', CONCAT('matias.velasquez', @d), 'STUDENT', 'SESSION_CLAIM_COMMENT', 'C', 'C2', 'Nuevo comentario en tu reclamo',
+   'Diego Montoya comentó en el reclamo por tu sesión de Base de Datos.', 30, 1),
+  ('N07', CONCAT('matias.velasquez', @d), 'STUDENT', 'FUNDS_SUSPENDED', 'B', 'H16', 'Fondos suspendidos por reclamo',
+   'Los fondos de tu sesión de Machine Learning quedan retenidos hasta que se resuelva el reclamo.', 90, 0),
+  ('N08', CONCAT('matias.velasquez', @d), 'STUDENT', 'SESSION_NOT_CONFIRMED', 'B', 'H16', 'Sesión no confirmada',
+   'La sesión de Machine Learning con Florencia Díaz no fue confirmada por ambas partes.', 94, 0),
+  ('N09', CONCAT('matias.velasquez', @d), 'STUDENT', 'FUNDS_TRANSFERRED', 'B', 'H18', 'Devolución acreditada',
+   'Se te devolvieron $3300.00 por la sesión de Fisicoquímica (tutor ausente).', 300, 0),
+  ('N10', CONCAT('matias.velasquez', @d), 'STUDENT', 'SESSION_CLAIM_UPDATE', 'C', 'C3', 'Tu reclamo fue resuelto',
+   'Tu reclamo por la sesión de Fisicoquímica fue resuelto a tu favor.', 310, 0),
+  ('N11', CONCAT('matias.velasquez', @d), 'STUDENT', 'BOOKING_CANCELLED', 'B', 'H20', 'Clase cancelada',
+   'Lic. Sofía Albarracín canceló la clase de Programación. Se te reintegró el importe.', 70, 0),
+  ('N12', CONCAT('matias.velasquez', @d), 'STUDENT', 'MATERIAL_REPORT_UPDATE', 'R', 'RM2', 'Tu denuncia está en revisión',
+   'Un administrador está revisando el material "Resumen de termodinámica".', 40, 1),
+  ('N13', CONCAT('matias.velasquez', @d), 'STUDENT', 'MATERIAL_REPORT_PROCESSED', 'R', 'RM3', 'Denuncia procesada',
+   'El material "Apuntes de Redes - capa de transporte" fue dado de baja. Gracias por tu aporte.', 200, 0),
+  -- Sofia (tutora)
+  ('N21', CONCAT('sofia.albarracin', @d), 'TUTOR', 'BOOKING_CONFIRMED', 'B', 'H04', 'Nueva reserva',
+   'Lucas Benítez reservó una clase de Estructuras de Datos.', 3, 1),
+  ('N22', CONCAT('sofia.albarracin', @d), 'TUTOR', 'BOOKING_CONFIRMED', 'B', 'H01', 'Nueva reserva',
+   'Matías Velasquez reservó una clase de Algoritmos.', 2, 1),
+  ('N23', CONCAT('sofia.albarracin', @d), 'TUTOR', 'SESSION_COMPLETED', 'B', 'S04', 'Sesión finalizada',
+   'Tu sesión de Estructuras de Datos con Agustina Luna finalizó.', 20, 1),
+  ('N24', CONCAT('sofia.albarracin', @d), 'TUTOR', 'RATING_ENABLED', 'B', 'S04', 'Calificá a tu alumno',
+   'Ya podés calificar tu sesión de Estructuras de Datos con Agustina Luna.', 19, 1),
+  ('N25', CONCAT('sofia.albarracin', @d), 'TUTOR', 'BOOKING_CANCELLED', 'B', 'S05', 'Clase cancelada',
+   'Camila Torres canceló la clase de Estructuras de Datos con poca anticipación: el importe se transfiere a tu cuenta.', 45, 0),
+  ('N26', CONCAT('sofia.albarracin', @d), 'TUTOR', 'FUNDS_SUSPENDED', 'B', 'S02', 'Fondos suspendidos por reclamo',
+   'Los fondos de tu sesión de Programación quedan retenidos hasta que se resuelva el reclamo.', 200, 0),
+  ('N27', CONCAT('sofia.albarracin', @d), 'TUTOR', 'SESSION_CLAIM_UPDATE', 'C', 'C5', 'Nuevo reclamo de sesión',
+   'Se inició un reclamo por tu sesión de Programación.', 200, 1),
+  ('N28', CONCAT('sofia.albarracin', @d), 'TUTOR', 'SESSION_CLAIM_COMMENT', 'C', 'C5', 'Nuevo comentario en un reclamo',
+   'Valentina Cruz comentó en el reclamo por tu sesión de Programación.', 150, 1),
+  ('N29', CONCAT('sofia.albarracin', @d), 'TUTOR', 'FUNDS_TRANSFERRED', 'B', 'S03', 'Fondos acreditados',
+   'Se acreditaron $3395.00 por tu sesión de Algoritmos (liberación por sesión completada).', 500, 0),
+  ('N30', CONCAT('sofia.albarracin', @d), 'TUTOR', 'SESSION_CLAIM_UPDATE', 'C', 'C6', 'Reclamo resuelto',
+   'El reclamo por tu sesión de Algoritmos se resolvió a tu favor.', 520, 0),
+  ('N31', CONCAT('sofia.albarracin', @d), 'TUTOR', 'MATERIAL_REPORT_UPDATE', 'R', 'RS2', 'Denuncia sobre tu material',
+   'El material "Árboles y grafos - ejercicios resueltos" fue denunciado y está en revisión. Podés enviar tu descargo.', 60, 1),
+  ('N32', CONCAT('sofia.albarracin', @d), 'TUTOR', 'MATERIAL_REPORT_PROCESSED', 'R', 'RS3', 'Denuncia desestimada',
+   'La denuncia sobre "Guía de pilas y colas" fue desestimada.', 400, 0),
+  ('N33', CONCAT('sofia.albarracin', @d), 'TUTOR', 'SUBJECT_VALIDATION_UPDATED', 'S', 'Programación', 'Materia aprobada',
+   'Tu materia Programación fue aprobada y ya aparece en tu perfil.', 600, 0),
+  ('N34', CONCAT('sofia.albarracin', @d), 'TUTOR', 'SESSION_CONFIRMATION_REMINDER', 'B', 'H04', 'Recordatorio de clase',
+   'Tenés una clase próxima de Estructuras de Datos con Lucas Benítez.', 1, 1),
+  -- Julian y Luciana (tutores)
+  ('N41', CONCAT('julian.mendez', @d), 'TUTOR', 'BOOKING_CONFIRMED', 'B', 'H02', 'Nueva reserva',
+   'Matías Velasquez reservó una clase de Física.', 4, 1),
+  ('N42', CONCAT('julian.mendez', @d), 'TUTOR', 'FUNDS_TRANSFERRED', 'B', 'GJ02', 'Fondos acreditados',
+   'Se acreditaron $2910.00 por tu sesión de Física (liberación por sesión completada).', 100, 0),
+  ('N51', CONCAT('luciana.gomez', @d), 'TUTOR', 'BOOKING_CONFIRMED', 'B', 'H08', 'Nueva reserva',
+   'Agustina Luna reservó una clase de Programación.', 6, 1),
+  ('N52', CONCAT('luciana.gomez', @d), 'TUTOR', 'SESSION_COMPLETED', 'B', 'H13', 'Sesión finalizada',
+   'Tu sesión de Programación con Matías Velasquez finalizó.', 210, 0);
+
+UPDATE tmp_notif n JOIN tmp_booking b ON n.kind = 'B' AND b.k = n.ref SET n.res = b.booking_id;
+UPDATE tmp_notif n JOIN tmp_claim c ON n.kind = 'C' AND c.ck = n.ref SET n.res = c.claim_id;
+UPDATE tmp_notif n JOIN tmp_report r ON n.kind = 'R' AND r.rk = n.ref SET n.res = r.report_id;
+UPDATE tmp_notif n
+  JOIN users u ON u.email = n.recipient
+  JOIN tutor_profile tp ON tp.user_id = u.user_id
+  JOIN subjects s ON s.name = n.ref
+  JOIN tutor_subject ts ON ts.tutor_profile_id = tp.tutor_profile_id AND ts.subject_id = s.subject_id
+   SET n.res = ts.tutor_subject_id
+ WHERE n.kind = 'S';
+
+INSERT INTO user_notification (notification_id, recipient_user_id, recipient_role, notification_type, resource_id,
+                               title, message, dedupe_key, created_at, read_at, expires_at)
+SELECT UUID_TO_BIN(UUID()), u.user_id, n.role, n.type, n.res, n.title, n.message, CONCAT('seed-demo:', n.nk),
+       @now_db - INTERVAL n.hours_ago HOUR,
+       IF(n.unread = 1, NULL, @now_db - INTERVAL GREATEST(n.hours_ago - 1, 0) HOUR),
+       IF(n.type = 'RATING_ENABLED', @now_db - INTERVAL n.hours_ago HOUR + INTERVAL 7 DAY, NULL)
+FROM tmp_notif n
+JOIN users u ON u.email = n.recipient;
+
+-- ---------------------------------------------------------------------------
+-- 14. Resumen de las secciones del menu
+-- ---------------------------------------------------------------------------
+SELECT 'reservas definidas / creadas' AS dato,
+       CONCAT((SELECT COUNT(*) FROM tmp_booking), ' / ',
+              (SELECT COUNT(*) FROM booking b JOIN users u ON u.user_id = b.student_id
+                WHERE u.email LIKE '%@comunidad.knowlink.test')) AS cantidad
+UNION ALL
+SELECT CONCAT('   ', b.booking_status), COUNT(*)
+  FROM booking b JOIN users u ON u.user_id = b.student_id
+ WHERE u.email LIKE '%@comunidad.knowlink.test' GROUP BY b.booking_status
+UNION ALL
+SELECT 'calificaciones (visibles)', CONCAT(COUNT(*), ' (', SUM(r.visible), ')')
+  FROM rating r JOIN users u ON u.user_id = r.rater_user_id WHERE u.email LIKE '%@comunidad.knowlink.test'
+UNION ALL
+SELECT 'fondos de las reservas', COUNT(*)
+  FROM funds_transfer f JOIN booking b ON b.booking_id = f.booking_id JOIN users u ON u.user_id = b.student_id
+ WHERE u.email LIKE '%@comunidad.knowlink.test'
+UNION ALL
+SELECT CONCAT('reclamos ', c.status), COUNT(*)
+  FROM session_claim c JOIN tmp_claim t ON t.claim_id = c.claim_id GROUP BY c.status
+UNION ALL
+SELECT CONCAT('denuncias de material ', r.status), COUNT(*)
+  FROM academic_material_report r JOIN tmp_report t ON t.report_id = r.academic_material_report_id GROUP BY r.status
+UNION ALL
+SELECT 'bloques de agenda futuros', COUNT(*)
+  FROM availability_block b JOIN tutor_profile tp ON tp.tutor_profile_id = b.tutor_profile_id
+  JOIN users u ON u.user_id = tp.user_id WHERE u.email LIKE '%@comunidad.knowlink.test'
+UNION ALL
+SELECT 'notificaciones del menu (sin leer)', CONCAT(COUNT(*), ' (', SUM(IF(read_at IS NULL, 1, 0)), ')')
+  FROM user_notification WHERE dedupe_key LIKE 'seed-demo:%';
+
+-- ---------------------------------------------------------------------------
+-- 15. Resumen de la comunidad
 -- ---------------------------------------------------------------------------
 SELECT 'publicaciones vivas' AS dato, COUNT(*) AS cantidad
   FROM community_post p JOIN users u ON u.user_id = p.author_id
