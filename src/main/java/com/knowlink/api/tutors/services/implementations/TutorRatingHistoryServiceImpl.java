@@ -11,7 +11,9 @@ import com.knowlink.api.tutors.data.projections.SubjectRatingSummary;
 import com.knowlink.api.ratings.repositories.IRatingRepository;
 import com.knowlink.api.tutors.services.interfaces.ITutorRatingHistoryService;
 import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
+import com.knowlink.api.users.data.enums.AccountStatus;
 import com.knowlink.api.users.data.models.User;
+import com.knowlink.api.users.utils.UserNameUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -37,7 +39,7 @@ public class TutorRatingHistoryServiceImpl implements ITutorRatingHistoryService
     @Override
     @Transactional(readOnly = true)
     public TutorRatingHistoryResponse getRatingHistory(UUID tutorId, UUID subjectId, int page, int size) {
-        tutorProfileValidationService.findTutorProfileOrThrowException(tutorId);
+        tutorProfileValidationService.findActiveTutorProfileOrThrowException(tutorId);
 
         Pageable pageable = PageRequest.of(Math.max(page, 0),
                 Math.min(Math.max(size, 1), MAX_PAGE_SIZE));
@@ -86,10 +88,16 @@ public class TutorRatingHistoryServiceImpl implements ITutorRatingHistoryService
 
     private static RatingCommentResponse toComment(Rating rating) {
         User rater = rating.getRaterUser();
+        boolean active = rater.getAccountStatus() == AccountStatus.ACTIVE;
+        String displayName = switch (rater.getAccountStatus()) {
+            case ACTIVE -> rater.getFullName();
+            case DELETED -> UserNameUtils.DELETED_DISPLAY_NAME;
+            default -> UserNameUtils.DEACTIVATED_DISPLAY_NAME;
+        };
         RatingAuthorResponse author = new RatingAuthorResponse(
                 rater.getUserId(),
-                rater.getFullName(),
-                rater.getProfilePictureUrl());
+                displayName,
+                active ? rater.getProfilePictureUrl() : null);
         return new RatingCommentResponse(
                 rating.getRatingId(),
                 rating.getBooking().getTutorSubject().getSubject().getSubjectId(),

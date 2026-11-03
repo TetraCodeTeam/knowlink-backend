@@ -36,4 +36,7 @@ public interface ICommunityPostService {
 
     /** Con careerId: materias de esa carrera más las básicas; sin él, todo el catálogo. */
     List<CommunitySubjectResponse> getSubjects(UUID careerId);
+
+    /** Soft-deletes every active post of the author and returns attachment storage paths (US-24). */
+    List<String> softDeleteAllByAuthor(UUID authorId);
 }

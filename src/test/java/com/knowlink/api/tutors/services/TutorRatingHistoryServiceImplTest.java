@@ -12,6 +12,7 @@ import com.knowlink.api.tutors.data.projections.SubjectRatingSummary;
 import com.knowlink.api.ratings.repositories.IRatingRepository;
 import com.knowlink.api.tutors.services.implementations.TutorRatingHistoryServiceImpl;
 import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
+import com.knowlink.api.users.data.enums.AccountStatus;
 import com.knowlink.api.users.data.models.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -140,7 +141,7 @@ class TutorRatingHistoryServiceImplTest {
     void averagesAreRoundedToOneDecimal() {
         UUID firstSubjectId = UUID.randomUUID();
         UUID secondSubjectId = UUID.randomUUID();
-        when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorId))
+        when(tutorProfileValidationService.findActiveTutorProfileOrThrowException(tutorId))
                 .thenReturn(null);
         when(ratingRepository.findOverallSummaryByTutorId(tutorId)).thenReturn(summary(4.26, 14L, 11L));
         when(ratingRepository.findAverageGroupedBySubject(tutorId)).thenReturn(List.of(
@@ -169,7 +170,7 @@ class TutorRatingHistoryServiceImplTest {
     @Test
     @DisplayName("CA4: tutor without ratings returns empty state with null averageRating")
     void tutorWithoutRatingsReturnsEmptyState() {
-        when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorId))
+        when(tutorProfileValidationService.findActiveTutorProfileOrThrowException(tutorId))
                 .thenReturn(null);
         when(ratingRepository.findOverallSummaryByTutorId(tutorId)).thenReturn(null);
         when(ratingRepository.findAverageGroupedBySubject(tutorId)).thenReturn(List.of());
@@ -190,7 +191,7 @@ class TutorRatingHistoryServiceImplTest {
     @Test
     @DisplayName("Page size is clamped to 50 and negative page to 0")
     void pageAndSizeAreClamped() {
-        when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorId))
+        when(tutorProfileValidationService.findActiveTutorProfileOrThrowException(tutorId))
                 .thenReturn(null);
         when(ratingRepository.findOverallSummaryByTutorId(tutorId)).thenReturn(null);
         when(ratingRepository.findAverageGroupedBySubject(tutorId)).thenReturn(List.of());
@@ -213,7 +214,7 @@ class TutorRatingHistoryServiceImplTest {
                 "TUTOR_PROFILE_NOT_FOUND",
                 "Este tutor no esta registrado.",
                 "TutorProfile not found for userId: " + unknownTutorId))
-                .when(tutorProfileValidationService).findTutorProfileOrThrowException(unknownTutorId);
+                .when(tutorProfileValidationService).findActiveTutorProfileOrThrowException(unknownTutorId);
 
         assertThatThrownBy(() -> service.getRatingHistory(unknownTutorId, null, 0, 10))
                 .isInstanceOf(ResourceNotFoundException.class);
@@ -222,7 +223,7 @@ class TutorRatingHistoryServiceImplTest {
     @Test
     @DisplayName("CA6: subjectId filters comments only, subject averages stay complete")
     void subjectFilterOnlyAffectsComments() {
-        when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorId))
+        when(tutorProfileValidationService.findActiveTutorProfileOrThrowException(tutorId))
                 .thenReturn(null);
         when(ratingRepository.findOverallSummaryByTutorId(tutorId)).thenReturn(summary(4.0, 3L));
         when(ratingRepository.findAverageGroupedBySubject(tutorId)).thenReturn(List.of(
@@ -247,11 +248,12 @@ class TutorRatingHistoryServiceImplTest {
                 .userId(UUID.randomUUID())
                 .fullName("Maria Lopez")
                 .profilePictureUrl("https://cdn.test/avatar.png")
+                .accountStatus(AccountStatus.ACTIVE)
                 .build();
         Rating rating = ratingWithComment(ratingId, commentSubjectId, "Analisis Matematico I", 5,
                 "Explica muy claro.", ratingDate, rater);
 
-        when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorId))
+        when(tutorProfileValidationService.findActiveTutorProfileOrThrowException(tutorId))
                 .thenReturn(null);
         when(ratingRepository.findOverallSummaryByTutorId(tutorId)).thenReturn(summary(5.0, 1L));
         when(ratingRepository.findAverageGroupedBySubject(tutorId)).thenReturn(List.of());
@@ -282,11 +284,12 @@ class TutorRatingHistoryServiceImplTest {
         User rater = User.builder()
                 .userId(UUID.randomUUID())
                 .fullName("Sin Foto")
+                .accountStatus(AccountStatus.ACTIVE)
                 .build();
         Rating rating = ratingWithComment(UUID.randomUUID(), UUID.randomUUID(), "Fisica I", 4,
                 "Muy bien.", ratingDate, rater);
 
-        when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorId))
+        when(tutorProfileValidationService.findActiveTutorProfileOrThrowException(tutorId))
                 .thenReturn(null);
         when(ratingRepository.findOverallSummaryByTutorId(tutorId)).thenReturn(summary(4.0, 1L));
         when(ratingRepository.findAverageGroupedBySubject(tutorId)).thenReturn(List.of());
@@ -305,7 +308,7 @@ class TutorRatingHistoryServiceImplTest {
     @Test
     @DisplayName("Averages and counts come from repository queries, not in-memory calculation")
     void averagesComeFromDatabaseQueries() {
-        when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorId))
+        when(tutorProfileValidationService.findActiveTutorProfileOrThrowException(tutorId))
                 .thenReturn(null);
         when(ratingRepository.findOverallSummaryByTutorId(tutorId)).thenReturn(summary(4.6, 14L));
         when(ratingRepository.findAverageGroupedBySubject(tutorId)).thenReturn(List.of());

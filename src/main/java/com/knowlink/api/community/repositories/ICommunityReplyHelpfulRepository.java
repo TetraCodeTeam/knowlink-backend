@@ -25,4 +25,6 @@ public interface ICommunityReplyHelpfulRepository extends JpaRepository<Communit
             WHERE h.user.userId = :userId AND h.reply.replyId IN :replyIds
             """)
     List<UUID> findMarkedReplyIds(@Param("userId") UUID userId, @Param("replyIds") Collection<UUID> replyIds);
+
+    void deleteByUser_UserId(UUID userId);
 }

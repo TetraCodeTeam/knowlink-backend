@@ -15,6 +15,7 @@ import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.data.models.TutorSubject;
 import com.knowlink.api.tutors.repositories.ITutorProfileRepository;
 import com.knowlink.api.tutors.repositories.ITutorSubjectRepository;
+import com.knowlink.api.users.data.enums.AccountStatus;
 import com.knowlink.api.users.data.models.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -47,6 +48,19 @@ public class TutorProfileValidationServiceImpl implements ITutorProfileValidatio
                         "TUTOR_PROFILE_NOT_FOUND",
                         "Este tutor no está registrado.",
                         "TutorProfile not found for userId: " + tutorUserId));
+    }
+
+    @Override
+    public TutorProfile findActiveTutorProfileOrThrowException(UUID tutorUserId) {
+        TutorProfile tutorProfile = findTutorProfileOrThrowException(tutorUserId);
+        if (tutorProfile.getUser().getAccountStatus() != AccountStatus.ACTIVE) {
+            // Same 404 as a missing profile: never reveal that the account exists but is deactivated.
+            throw new ResourceNotFoundException(
+                    "TUTOR_PROFILE_NOT_FOUND",
+                    "Este tutor no está registrado.",
+                    "TutorProfile belongs to a non-active user: " + tutorUserId);
+        }
+        return tutorProfile;
     }
 
     @Override

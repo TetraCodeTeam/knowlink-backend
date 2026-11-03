@@ -33,6 +33,8 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Clock;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -234,4 +236,25 @@ public class CommunityReplyServiceImpl implements ICommunityReplyService {
     private String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }
-}
+    @Override
+    @Transactional
+    public List<String> softDeleteAllByAuthor(UUID authorId) {
+        List<CommunityReply> replies = replyRepository.findByAuthor_UserIdAndDeletedAtIsNull(authorId);
+        List<String> storagePaths = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now(clock);
+        for (CommunityReply reply : replies) {
+            if (reply.getAttachment() != null && reply.getAttachment().getStoragePath() != null) {
+                storagePaths.add(reply.getAttachment().getStoragePath());
+            }
+            reply.setDeletedAt(now);
+            replyRepository.save(reply);
+        }
+        log.info("Community replies soft-deleted for userId '{}': {}", authorId, replies.size());
+        return storagePaths;
+    }
+
+    @Override
+    @Transactional
+    public void removeHelpfulMarksByUser(UUID userId) {
+        helpfulRepository.deleteByUser_UserId(userId);
+    }}

@@ -1,11 +1,13 @@
 package com.knowlink.api.auth.controllers.interfaces;
 
 import com.knowlink.api.auth.controllers.requests.LoginRequest;
+import com.knowlink.api.auth.controllers.requests.ReactivateAccountRequest;
 import com.knowlink.api.auth.controllers.requests.StudentRegistrationRequest;
 import com.knowlink.api.auth.controllers.requests.TutorRegistrationRequest;
 import com.knowlink.api.auth.controllers.responses.AuthResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
@@ -27,6 +29,18 @@ public interface IAuthController {
     @Operation(summary = "Login")
     @ResponseStatus(OK)
     AuthResponse login(@RequestBody @Valid LoginRequest request);
+
+    @PostMapping("/reactivate")
+    @Operation(summary = "Reactivar cuenta desactivada", description = "Revalida las credenciales de una cuenta "
+            + "desactivada temporalmente, la reactiva y devuelve un JWT nuevo. Si la cuenta ya está activa, "
+            + "el endpoint es idempotente.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Cuenta reactivada y sesión iniciada"),
+            @ApiResponse(responseCode = "400", description = "Datos de la solicitud inválidos"),
+            @ApiResponse(responseCode = "401", description = "Credenciales inválidas, cuenta sin confirmar o eliminada")
+    })
+    @ResponseStatus(OK)
+    AuthResponse reactivate(@RequestBody @Valid ReactivateAccountRequest request);
 
     @PostMapping("/register/student")
     @Operation(summary = "Registrar nuevo usuario (alumno)")

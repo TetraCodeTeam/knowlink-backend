@@ -113,4 +113,16 @@ public interface SessionClaimRepository extends JpaRepository<SessionClaim, UUID
     Set<UUID> findClaimedBookingIdsByUser(
             @Param("userId") UUID userId, @Param("status") ClaimStatus status,
             @Param("bookingIds") Collection<UUID> bookingIds);
+
+    @Query("""
+            SELECT CASE WHEN COUNT(claim) > 0 THEN true ELSE false END
+            FROM SessionClaim claim
+            WHERE claim.status IN :statuses
+              AND (claim.claimant.userId = :userId
+                   OR claim.booking.student.userId = :userId
+                   OR claim.booking.tutor.userId = :userId)
+            """)
+    boolean existsActiveClaimForUser(
+            @Param("userId") UUID userId,
+            @Param("statuses") Collection<ClaimStatus> statuses);
 }

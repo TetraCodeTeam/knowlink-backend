@@ -49,10 +49,10 @@ public class HoldServiceImpl implements IHoldService {
     public HoldResponse createHold(UUID tutorUserId, UUID studentUserId, CreateHoldRequest request) {
         User student = userService.findByIdOrThrowException(studentUserId);
 
-        // Resolvemos el tutor primero (lectura simple, sin lock) para saber contra qué
-        // tutorProfileId validar — recién después tomamos el lock de escritura, y solo
-        // si el slot realmente pertenece a este tutor.
-        TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
+        // Lock order (deadlock avoidance): lock the tutor user first, then the student
+        // user below. This also serializes hold creation against account deactivation.
+        userService.lockForUpdateOrThrowException(tutorUserId);
+        TutorProfile tutorProfile = tutorProfileValidationService.findActiveTutorProfileOrThrowException(tutorUserId);
 
         TimeSlot timeSlot = timeSlotRepository
                 .findByIdAndTutorProfileIdForUpdate(request.slotId(), tutorProfile.getTutorProfileId())
@@ -146,4 +146,8 @@ public class HoldServiceImpl implements IHoldService {
                 })
                 .orElseGet(() -> new ActiveHoldStatusResponse(false, null));
     }
-}
+    @Override
+    @Transactional
+    public void deleteAllForStudent(UUID studentUserId) {
+        holdRepository.deleteByStudent_UserId(studentUserId);
+    }}

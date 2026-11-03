@@ -22,6 +22,7 @@ import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.repositories.ITutorProfileRepository;
 import com.knowlink.api.users.data.enums.AccountStatus;
 import com.knowlink.api.users.data.models.User;
+import com.knowlink.api.users.utils.UserNameUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -230,8 +231,10 @@ public class CommunityMapper {
     }
 
     private CommunityAuthorResponse tutorAuthor(User user, TutorProfile profile) {
+        if (user.getAccountStatus() != AccountStatus.ACTIVE) {
+            return maskedAuthor(user, Role.TUTOR);
+        }
         boolean bookable = profile != null
-                && user.getAccountStatus() == AccountStatus.ACTIVE
                 && user.getDeletedAt() == null;
         String picture = profile != null && profile.getProfilePictureUrl() != null
                 ? profile.getProfilePictureUrl()
@@ -248,6 +251,9 @@ public class CommunityMapper {
     }
 
     private CommunityAuthorResponse studentAuthor(User user, Role role, StudentProfile profile) {
+        if (user.getAccountStatus() != AccountStatus.ACTIVE) {
+            return maskedAuthor(user, role);
+        }
         String picture = profile != null && profile.getProfilePictureUrl() != null
                 ? profile.getProfilePictureUrl()
                 : user.getProfilePictureUrl();
@@ -257,6 +263,21 @@ public class CommunityMapper {
                 role,
                 picture,
                 profile == null ? null : profile.getCareer().getName(),
+                null,
+                false,
+                false);
+    }
+
+    private CommunityAuthorResponse maskedAuthor(User user, Role role) {
+        String displayName = user.getAccountStatus() == AccountStatus.DELETED
+                ? UserNameUtils.DELETED_DISPLAY_NAME
+                : UserNameUtils.DEACTIVATED_DISPLAY_NAME;
+        return new CommunityAuthorResponse(
+                user.getUserId(),
+                displayName,
+                role,
+                null,
+                null,
                 null,
                 false,
                 false);

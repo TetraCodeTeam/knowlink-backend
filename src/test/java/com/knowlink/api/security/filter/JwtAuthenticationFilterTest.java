@@ -18,6 +18,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.util.PathMatcher;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 
@@ -25,6 +26,7 @@ import java.io.IOException;
 import java.util.Collections;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -101,6 +103,7 @@ class JwtAuthenticationFilterTest {
         when(jwtService.extractJti(jwt)).thenReturn("jti-2");
         when(tokenBlacklistService.isBlacklisted("jti-2")).thenReturn(false);
         when(jwtService.isTokenValid(jwt, userDetails)).thenReturn(true);
+        when(userDetails.isEnabled()).thenReturn(true);
         when(userDetails.getAuthorities()).thenReturn(Collections.emptyList());
 
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -120,6 +123,7 @@ class JwtAuthenticationFilterTest {
         when(userDetailsService.loadUserByUsername("user@test.com")).thenReturn(userDetails);
         when(jwtService.extractJti(jwt)).thenReturn(null);
         when(jwtService.isTokenValid(jwt, userDetails)).thenReturn(true);
+        when(userDetails.isEnabled()).thenReturn(true);
         when(userDetails.getAuthorities()).thenReturn(Collections.emptyList());
 
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -128,4 +132,36 @@ class JwtAuthenticationFilterTest {
         verify(tokenBlacklistService, never()).isBlacklisted(anyString());
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
     }
-}
+
+    @Test
+    @DisplayName("Un token de una cuenta eliminada (username inexistente) no autentica y sigue la cadena")
+    void deletedAccountTokenDoesNotAuthenticate() throws ServletException, IOException {
+        String jwt = "deleted-jwt";
+        when(pathMatcher.match(anyString(), anyString())).thenReturn(false);
+        when(jwtService.extractUsername(jwt)).thenReturn("deleted@knowlink.invalid");
+        when(userDetailsService.loadUserByUsername("deleted@knowlink.invalid"))
+                .thenThrow(new UsernameNotFoundException("deleted"));
+        FilterChain chain = mock(FilterChain.class);
+
+        filter.doFilter(requestWithBearer(jwt), new MockHttpServletResponse(), chain);
+
+        verify(chain).doFilter(any(), any());
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    }
+
+    @Test
+    @DisplayName("Un token de una cuenta no habilitada (DELETED/DEACTIVATED) no autentica")
+    void disabledAccountTokenDoesNotAuthenticate() throws ServletException, IOException {
+        String jwt = "disabled-jwt";
+        UserDetails userDetails = mock(UserDetails.class);
+        when(pathMatcher.match(anyString(), anyString())).thenReturn(false);
+        when(jwtService.extractUsername(jwt)).thenReturn("user@test.com");
+        when(userDetailsService.loadUserByUsername("user@test.com")).thenReturn(userDetails);
+        when(jwtService.extractJti(jwt)).thenReturn(null);
+        when(jwtService.isTokenValid(jwt, userDetails)).thenReturn(true);
+        when(userDetails.isEnabled()).thenReturn(false);
+
+        filter.doFilter(requestWithBearer(jwt), new MockHttpServletResponse(), mockChain());
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+    }}

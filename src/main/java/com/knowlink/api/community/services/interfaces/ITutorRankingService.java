@@ -17,4 +17,7 @@ public interface ITutorRankingService {
      * Posición del usuario autenticado en el ranking vigente, aunque quede fuera del top 10.
      */
     MyPodiumPositionResponse getMyPosition(UUID userId);
+
+    /** Removes every ranking snapshot entry for a tutor (US-24). */
+    void removeEntriesForTutor(UUID tutorId);
 }
