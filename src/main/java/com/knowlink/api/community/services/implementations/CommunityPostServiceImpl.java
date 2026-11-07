@@ -61,6 +61,9 @@ import java.util.stream.Collectors;
 public class CommunityPostServiceImpl implements ICommunityPostService {
 
     private static final Sort FEED_SORT = Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("postId"));
+    /** Límites para un rango con un extremo abierto (evita parámetros nulos en la consulta). */
+    private static final LocalDateTime EARLIEST_POST_DATE_TIME = LocalDate.of(1970, 1, 1).atStartOfDay();
+    private static final LocalDateTime LATEST_POST_DATE_TIME = LocalDate.of(9999, 12, 31).atStartOfDay();
 
     private final ICommunityPostRepository postRepository;
     private final ICommunityReplyRepository replyRepository;
@@ -137,12 +140,19 @@ public class CommunityPostServiceImpl implements ICommunityPostService {
 
     @Override
     @Transactional(readOnly = true)
-    public PagedResponse<CommunityPostResponse> getMyPosts(UUID userId, LocalDate date, int page, int size) {
+    public PagedResponse<CommunityPostResponse> getMyPosts(UUID userId, LocalDate dateFrom, LocalDate dateTo,
+            int page, int size) {
+        if (dateFrom != null && dateTo != null && dateFrom.isAfter(dateTo)) {
+            throw new ValidationException("La fecha desde no puede ser posterior a la fecha hasta.");
+        }
         Pageable pageable = pageable(page, size);
-        Page<CommunityPost> posts = date == null
+        Page<CommunityPost> posts = dateFrom == null && dateTo == null
                 ? postRepository.findByAuthor_UserIdAndDeletedAtIsNull(userId, pageable)
-                : postRepository.findByAuthorAndCreatedBetween(
-                        userId, date.atStartOfDay(), date.plusDays(1).atStartOfDay(), pageable);
+                : postRepository.findByAuthorAndCreatedBetween(userId,
+                        dateFrom == null ? EARLIEST_POST_DATE_TIME : dateFrom.atStartOfDay(),
+                        // El último día se incluye entero: el límite superior es el comienzo del siguiente.
+                        dateTo == null ? LATEST_POST_DATE_TIME : dateTo.plusDays(1).atStartOfDay(),
+                        pageable);
         return toPagedResponse(posts, pageable, userId);
     }
 

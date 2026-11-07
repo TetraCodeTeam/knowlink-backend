@@ -24,7 +24,14 @@ public interface ICommunityPostService {
     /** Publicaciones por tipo de consulta con los filtros aplicados, ignorando el propio filtro de tipo. */
     CommunityFeedCountsResponse getFeedCounts(CommunityFeedFilter filter);
 
-    PagedResponse<CommunityPostResponse> getMyPosts(UUID userId, LocalDate date, int page, int size);
+    /**
+     * Publicaciones propias, de la más reciente a la más antigua.
+     *
+     * @param dateFrom primer día incluido; {@code null} = sin límite inferior
+     * @param dateTo   último día incluido; {@code null} = sin límite superior
+     */
+    PagedResponse<CommunityPostResponse> getMyPosts(UUID userId, LocalDate dateFrom, LocalDate dateTo, int page,
+            int size);
 
     CommunityPostDetailResponse getDetail(UUID userId, UUID postId);
 
