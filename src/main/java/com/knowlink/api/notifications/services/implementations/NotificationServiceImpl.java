@@ -131,7 +131,7 @@ public class NotificationServiceImpl implements INotificationService {
             case UNREAD -> notificationRepository
                     .findUnreadVisibleByRecipient(userId, activeRole, LocalDateTime.now(clock), safePageable);
             case READ -> notificationRepository
-                    .findByRecipient_UserIdAndRecipientRoleAndReadAtIsNotNull(userId, activeRole, safePageable);
+                    .findReadOrExpiredByRecipient(userId, activeRole, LocalDateTime.now(clock), safePageable);
             case ALL -> notificationRepository
                     .findByRecipient_UserIdAndRecipientRole(userId, activeRole, safePageable);
         };

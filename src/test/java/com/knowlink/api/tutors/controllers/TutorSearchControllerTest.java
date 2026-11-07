@@ -1,5 +1,11 @@
 package com.knowlink.api.tutors.controllers;
 
+import com.knowlink.api.students.data.models.StudentProfile;
+import com.knowlink.api.students.repositories.IStudentProfileRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
+import com.knowlink.api.tutors.config.InstitutionCatalogData;
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.tutors.data.enums.CompensationType;
@@ -47,6 +53,12 @@ class TutorSearchControllerTest {
     private ICareerRepository careerRepository;
 
     @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    @Autowired
+    private IStudentProfileRepository studentProfileRepository;
+
+    @Autowired
     private ISubjectRepository subjectRepository;
 
     @Autowired
@@ -58,18 +70,17 @@ class TutorSearchControllerTest {
     @Autowired
     private ITutorSubjectRepository tutorSubjectRepository;
 
+    private User studentUser;
+
     @BeforeEach
     void seedData() {
-        Career career = careerRepository.findByName("Ingeniería en Sistemas")
-                .orElseGet(() -> careerRepository.save(
-                        Career.builder().name("Ingeniería en Sistemas").build()));
+        Institution institution = CatalogFixtures.saveInstitution(
+                institutionRepository, InstitutionCatalogData.UTN_FRVM);
+        Career career = CatalogFixtures.saveCareer(careerRepository, institution, "Ingeniería en Sistemas");
+        Career sharedCareer = CatalogFixtures.saveSharedCareer(careerRepository, institution);
 
-        Subject algebra = subjectRepository.findByName("Algebra")
-                .orElseGet(() -> subjectRepository.save(
-                        Subject.builder().name("Algebra").isBasic(true).career(career).build()));
-        Subject fisica = subjectRepository.findByName("Física")
-                .orElseGet(() -> subjectRepository.save(
-                        Subject.builder().name("Física").isBasic(true).career(career).build()));
+        Subject algebra = CatalogFixtures.saveSubject(subjectRepository, sharedCareer, "Algebra");
+        Subject fisica = CatalogFixtures.saveSubject(subjectRepository, sharedCareer, "Física");
 
         User anaTutora = userRepository.save(User.builder()
                 .fullName("Ana García")
@@ -115,13 +126,23 @@ class TutorSearchControllerTest {
         perfilCarlos.getSubjects().add(tutorSubjectFisica);
         tutorSubjectRepository.save(tutorSubjectFisica);
 
-        userRepository.save(User.builder()
+        studentUser = userRepository.save(User.builder()
                 .fullName("Ana Estudiante")
                 .email("ana.student@test.com")
                 .password("hashed")
                 .role(Role.STUDENT)
                 .accountStatus(AccountStatus.ACTIVE)
                 .build());
+        studentProfileRepository.save(StudentProfile.builder()
+                .user(studentUser)
+                .career(career)
+                .build());
+    }
+
+    private RequestPostProcessor asStudent() {
+        UserPrincipal principal = new UserPrincipal(studentUser);
+        return authentication(
+                new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
     }
 
     private RequestPostProcessor asUser(Role role) {
@@ -140,18 +161,18 @@ class TutorSearchControllerTest {
     @Test
     @DisplayName("CP-003.01 - 200: devuelve los tutores que dictan la materia buscada")
     void search_returnsTutorsTeachingThatSubject_asStudent() throws Exception {
-        mockMvc.perform(get("/api/v1/tutors/search/Algebra").with(asUser(Role.STUDENT)))
+        mockMvc.perform(get("/api/v1/tutors/search/Algebra").with(asStudent()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].fullName").value("Ana García"))
                 .andExpect(jsonPath("$[0].subjects[0].name").value("Algebra"))
-                .andExpect(jsonPath("$[0].subjects[0].career").value("Ingeniería en Sistemas"));
+                .andExpect(jsonPath("$[0].subjects[0].career").value("Materias Compartidas"));
     }
 
     @Test
     @DisplayName("CP-003.02 - 200: solo devuelve tutores por nombre completo, sin estudiantes")
     void search_matchesTutorsByFullName_onlyTutorsReturned() throws Exception {
-        mockMvc.perform(get("/api/v1/tutors/search/Ana").with(asUser(Role.STUDENT)))
+        mockMvc.perform(get("/api/v1/tutors/search/Ana").with(asStudent()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(1)))
                 .andExpect(jsonPath("$[0].fullName").value("Ana García"));
@@ -160,7 +181,7 @@ class TutorSearchControllerTest {
     @Test
     @DisplayName("CP-003.03 - 200: query sin coincidencias devuelve array vacio")
     void search_returnsEmptyArray_whenNothingMatches() throws Exception {
-        mockMvc.perform(get("/api/v1/tutors/search/zzz").with(asUser(Role.STUDENT)))
+        mockMvc.perform(get("/api/v1/tutors/search/zzz").with(asStudent()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$", hasSize(0)));
     }

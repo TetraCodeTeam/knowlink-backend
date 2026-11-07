@@ -14,6 +14,7 @@ import com.knowlink.api.tutors.schedule.controllers.responses.WeeklyScheduleResp
 import com.knowlink.api.tutors.schedule.controllers.responses.WeeklyScheduleSummaryResponse;
 import com.knowlink.api.tutors.schedule.services.interfaces.ITutorWeeklyScheduleService;
 import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
+import com.knowlink.api.shared.utils.EndOfDay;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -79,10 +80,15 @@ public class TutorWeeklyScheduleServiceImpl implements ITutorWeeklyScheduleServi
                         b.getEndTime()))
                 .orElse(null);
 
-        // Counts the free segments rendered in the calendar: a block split by a booking yields two segments.
+        // Counts the free hours rendered in the calendar: a 2-hour segment adds 2, and a 45-minute
+        // segment adds 0 because the minimum bookable slot is one hour.
+        int freeHoursCount = availabilityBlocks.stream()
+                .mapToInt(block -> (int) (EndOfDay.between(block.startTime(), block.endTime()).toMinutes() / 60))
+                .sum();
+
         WeeklyScheduleSummaryResponse summary = new WeeklyScheduleSummaryResponse(
                 confirmedBookings.size(),
-                availabilityBlocks.size(),
+                freeHoursCount,
                 nextClass);
 
         return new WeeklyScheduleResponse(from, to, availabilityBlocks, bookings, summary);

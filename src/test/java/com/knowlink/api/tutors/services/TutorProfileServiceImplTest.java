@@ -1,5 +1,6 @@
 package com.knowlink.api.tutors.services;
 
+import com.knowlink.api.tutors.data.models.Institution;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.materials.service.interfaces.IProfileImageService;
 import com.knowlink.api.ratings.repositories.IRatingRepository;
@@ -48,6 +49,7 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -55,6 +57,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -95,6 +98,12 @@ class TutorProfileServiceImplTest {
     @Mock
     private IUserRepository userRepository;
 
+    private static final UUID INSTITUTION_ID = UUID.randomUUID();
+    private static final Institution INSTITUTION = Institution.builder()
+            .institutionId(INSTITUTION_ID)
+            .name("UTN FRVM")
+            .build();
+
     private final Clock clock = Clock.fixed(Instant.parse("2026-05-01T12:00:00Z"), ZoneOffset.UTC);
 
     private TutorProfileServiceImpl service;
@@ -122,10 +131,16 @@ class TutorProfileServiceImplTest {
                 profileImageService,
                 userRepository,
                 clock);
+        lenient().when(userProfileLookupService.findInstitutionIdByUserId(any()))
+                .thenReturn(Optional.of(INSTITUTION_ID));
     }
 
     private TutorProfile tutorProfile(String fullName, double rating) {
-        Career career = Career.builder().careerId(UUID.randomUUID()).name("Ingeniería en Sistemas").build();
+        Career career = Career.builder()
+                .careerId(UUID.randomUUID())
+                .name("Ingeniería en Sistemas")
+                .institution(INSTITUTION)
+                .build();
         User user = User.builder()
                 .userId(UUID.randomUUID())
                 .fullName(fullName)

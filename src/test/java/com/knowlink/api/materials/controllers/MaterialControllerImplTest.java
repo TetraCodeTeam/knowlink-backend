@@ -1,5 +1,8 @@
 package com.knowlink.api.materials.controllers;
 
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
 import com.knowlink.api.materials.controller.requests.MaterialReportRequest;
 import com.knowlink.api.materials.controller.responses.MaterialReportResponse;
 import com.knowlink.api.materials.exception.ResourceAccessDeniedException;
@@ -76,6 +79,11 @@ class MaterialControllerImplTest {
     private ICareerRepository careerRepository;
 
     @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    private Institution institution;
+
+    @Autowired
     private ISubjectRepository subjectRepository;
 
     @Autowired
@@ -108,18 +116,19 @@ class MaterialControllerImplTest {
 
     @BeforeEach
     void setUp() {
+        institution = CatalogFixtures.saveInstitution(institutionRepository, "Test " + System.nanoTime());
         when(supabaseStorageService.upload(any(), any(UUID.class)))
                 .thenReturn("test-bucket/test-uuid.pdf");
         when(supabaseStorageService.generateSignedUrl(any(), any(int.class)))
                 .thenReturn("https://test.supabase.co/signed-url");
 
-        career = careerRepository.save(Career.builder()
+        career = careerRepository.save(Career.builder().institution(institution)
                 .name("Ingenieria en Sistemas " + UUID.randomUUID())
                 .build());
 
-        subject = subjectRepository.save(Subject.builder()
+        subject = subjectRepository.save(Subject.builder().institution(institution)
                 .name("Analisis Matematico II " + UUID.randomUUID())
-                .isBasic(false)
+                
                 .career(career)
                 .build());
 

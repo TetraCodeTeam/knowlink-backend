@@ -4,6 +4,7 @@ import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.bookings.events.SessionCompletionNotificationEvent;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
+import com.knowlink.api.claims.utils.ClaimDeadlineCalculator;
 import com.knowlink.api.shared.utils.AppTimeZone;
 
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ public class BookingCompletionNotificationJob {
 
     private final IBookingRepository bookingRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final ClaimDeadlineCalculator claimDeadlineCalculator;
 
     @Scheduled(fixedRate = 60_000)
     @Transactional
@@ -35,6 +37,12 @@ public class BookingCompletionNotificationJob {
 
             booking.setCompletionNotificationSent(true);
             bookingRepository.save(booking);
+
+            // A confirmed session cannot be claimed, so do not invite a claim that would be rejected.
+            if (claimDeadlineCalculator.isConfirmed(booking)
+                    || !claimDeadlineCalculator.isClaimableStatus(booking)) {
+                continue;
+            }
             eventPublisher.publishEvent(new SessionCompletionNotificationEvent(booking));
         }
     }

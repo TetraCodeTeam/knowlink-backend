@@ -46,14 +46,22 @@ public interface SessionClaimRepository extends JpaRepository<SessionClaim, UUID
             @Param("tutorUserId") UUID tutorUserId);
 
     @Query("""
-            SELECT COUNT(claim) FROM SessionClaim claim
-            WHERE claim.status = com.knowlink.api.claims.data.enums.ClaimStatus.OPEN
-              AND (claim.createdAt < :createdAt
-                   OR (claim.createdAt = :createdAt AND claim.claimId <= :claimId))
+            SELECT COUNT(c) FROM SessionClaim c
+            WHERE c.status = com.knowlink.api.claims.data.enums.ClaimStatus.OPEN
+              AND (c.disputeId IS NULL OR c.claimId = c.disputeId)
+              AND (c.createdAt < :createdAt
+                   OR (c.createdAt = :createdAt AND c.claimId <= :claimId))
             """)
-    long countOpenClaimsInQueueThrough(
+    long countOpenDisputesInQueueThrough(
             @Param("createdAt") LocalDateTime createdAt,
             @Param("claimId") UUID claimId);
+
+    @Query("""
+            SELECT COUNT(c) FROM SessionClaim c
+            WHERE c.status = com.knowlink.api.claims.data.enums.ClaimStatus.OPEN
+              AND (c.disputeId IS NULL OR c.claimId = c.disputeId)
+            """)
+    long countOpenDisputes();
 
     @Query("""
             SELECT claim FROM SessionClaim claim

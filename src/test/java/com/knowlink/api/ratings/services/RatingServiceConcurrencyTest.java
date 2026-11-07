@@ -1,5 +1,8 @@
 package com.knowlink.api.ratings.services;
 
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
@@ -67,6 +70,11 @@ class RatingServiceConcurrencyTest {
     private IUserRepository userRepository;
     @Autowired
     private ICareerRepository careerRepository;
+
+    @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    private Institution institution;
     @Autowired
     private ISubjectRepository subjectRepository;
     @Autowired
@@ -96,15 +104,16 @@ class RatingServiceConcurrencyTest {
 
     @BeforeEach
     void setUp() {
+        institution = CatalogFixtures.saveInstitution(institutionRepository, "Test " + System.nanoTime());
         student = user("student", Role.STUDENT);
         tutor = user("tutor", Role.TUTOR);
-        career = careerRepository.save(Career.builder().name("Career " + UUID.randomUUID()).build());
+        career = careerRepository.save(Career.builder().institution(institution).name("Career " + UUID.randomUUID()).build());
         tutorProfile = tutorProfileRepository.save(
                 TutorProfile.builder().user(tutor).career(career).build());
-        subject = subjectRepository.save(Subject.builder()
+        subject = subjectRepository.save(Subject.builder().institution(institution)
                 .name("Subject " + UUID.randomUUID())
                 .career(career)
-                .isBasic(true)
+                
                 .build());
         tutorSubject = tutorSubjectRepository.save(TutorSubject.builder()
                 .tutorProfile(tutorProfile)

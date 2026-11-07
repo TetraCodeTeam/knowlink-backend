@@ -27,7 +27,8 @@ import static org.springframework.http.HttpStatus.OK;
 public interface INotificationController {
 
     @GetMapping
-    @Operation(summary = "Listar las notificaciones del rol activo, de más reciente a más antigua")
+    @Operation(summary = "Listar las notificaciones del rol activo, de más reciente a más antigua",
+            description = "Con status=READ se incluyen las notificaciones vencidas aunque nunca se hayan leído.")
     @ApiResponse(responseCode = "200", description = "Página de notificaciones recuperada")
     @ResponseStatus(OK)
     PagedResponse<NotificationResponse> list(

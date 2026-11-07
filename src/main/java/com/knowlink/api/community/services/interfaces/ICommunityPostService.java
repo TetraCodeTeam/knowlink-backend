@@ -2,6 +2,7 @@ package com.knowlink.api.community.services.interfaces;
 
 import com.knowlink.api.community.controllers.requests.CreatePostRequest;
 import com.knowlink.api.community.controllers.requests.UpdatePostRequest;
+import com.knowlink.api.community.controllers.responses.CommunityCareerResponse;
 import com.knowlink.api.community.controllers.responses.CommunityFeedCountsResponse;
 import com.knowlink.api.community.controllers.responses.CommunityPostDetailResponse;
 import com.knowlink.api.community.controllers.responses.CommunityPostResponse;
@@ -34,8 +35,11 @@ public interface ICommunityPostService {
 
     CommunityPostResponse resolve(UUID userId, UUID postId);
 
-    /** Con careerId: materias de esa carrera más las básicas; sin él, todo el catálogo. */
-    List<CommunitySubjectResponse> getSubjects(UUID careerId);
+    /** Con careerId: materias de esa carrera más las compartidas de su institución; sin él, el catálogo de la institución del usuario. */
+    List<CommunitySubjectResponse> getSubjects(UUID userId, UUID careerId);
+
+    /** Carreras regulares de la institución del usuario; sin perfil, lista vacía. */
+    List<CommunityCareerResponse> getCareers(UUID userId);
 
     /** Soft-deletes every active post of the author and returns attachment storage paths (US-24). */
     List<String> softDeleteAllByAuthor(UUID authorId);

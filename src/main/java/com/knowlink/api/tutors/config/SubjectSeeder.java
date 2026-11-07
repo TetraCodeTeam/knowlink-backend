@@ -1,89 +1,58 @@
-// SubjectSeeder.java
 package com.knowlink.api.tutors.config;
 
 import com.knowlink.api.tutors.data.models.Career;
+import com.knowlink.api.tutors.data.models.Institution;
 import com.knowlink.api.tutors.data.models.Subject;
 import com.knowlink.api.tutors.repositories.ICareerRepository;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
 import com.knowlink.api.tutors.repositories.ISubjectRepository;
+import com.knowlink.api.tutors.services.interfaces.ICareerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
-import java.util.List;
-import java.util.Map;
-
 @Component
-@Order(2) // corre después de CareerSeeder
+@Order(2) // runs after CareerSeeder
 @RequiredArgsConstructor
 public class SubjectSeeder implements CommandLineRunner {
 
     private final ISubjectRepository subjectRepository;
     private final ICareerRepository careerRepository;
-
-    // Materias básicas: no dependen de una carrera puntual, pero el modelo
-    // actual exige una FK -> se asocian a una carrera "placeholder" solo para
-    // satisfacer la constraint. El front las filtra por isBasic, no por carrera.
-    private static final List<String> BASIC_SUBJECTS = List.of(
-            "Análisis Matemático",
-            "Álgebra",
-            "Física",
-            "Química",
-            "Inglés"
-    );
-
-    // Nombres únicos entre carreras (restricción actual: Subject.name es unique global)
-    private static final Map<String, List<String>> CAREER_SUBJECTS = Map.of(
-            "Ingeniería en Sistemas", List.of(
-                    "Programación", "Estructuras de Datos", "Base de Datos", "Redes",
-                    "Sistemas Operativos", "Algoritmos", "Ingeniería de Software",
-                    "Arquitectura de Computadoras", "Inteligencia Artificial", "Machine Learning"
-            ),
-            "Ciencias de la Computación", List.of(
-                    "Teoría de la Computación", "Compiladores", "Sistemas Distribuidos"
-            ),
-            "Ingeniería Civil", List.of(
-                    "Estática", "Resistencia de Materiales", "Topografía", "Hormigón Armado"
-            ),
-            "Licenciatura en Administración", List.of(
-                    "Contabilidad", "Economía", "Gestión de Proyectos", "Enfoque Lean Ágil"
-            ),
-            "Contador Público", List.of(
-                    "Auditoría", "Costos", "Finanzas Corporativas"
-            ),
-            "Ingeniería Química", List.of(
-                    "Balances de Masa y Energía", "Ciencia de los Materiales",
-                    "Fisicoquímica", "Procesos Biotecnológicos"
-            )
-    );
+    private final IInstitutionRepository institutionRepository;
+    private final ICareerService careerService;
 
     @Override
     public void run(String... args) {
-        Career placeholderCareer = careerRepository.findAll().stream()
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException(
-                        "No hay carreras cargadas: CareerSeeder debe correr antes que SubjectSeeder"));
+        InstitutionCatalogData.catalog().forEach((institutionName, catalog) -> {
+            Institution institution = institutionRepository.findByName(institutionName).orElse(null);
+            if (institution == null) {
+                return;
+            }
 
-        BASIC_SUBJECTS.forEach(name -> saveIfAbsent(name, true, placeholderCareer));
+            Career sharedCareer = careerService.findOrCreateSharedCareer(institution);
+            catalog.sharedSubjects().forEach(name -> saveIfAbsent(institution, sharedCareer, name));
 
-        CAREER_SUBJECTS.forEach((careerName, subjectNames) -> {
-            Career career = careerRepository.findByName(careerName)
-                    .orElseThrow(() -> new IllegalStateException(
-                            "Carrera no encontrada para seed de materias: " + careerName));
-
-            subjectNames.forEach(name -> saveIfAbsent(name, false, career));
+            catalog.subjectsByCareer().forEach((careerName, subjectNames) -> {
+                Career career = careerRepository
+                        .findByInstitution_InstitutionIdAndName(institution.getInstitutionId(), careerName)
+                        .orElseThrow(() -> new IllegalStateException(
+                                "Career not found for subject seed: " + careerName + " (" + institutionName + ")"));
+                subjectNames.forEach(name -> saveIfAbsent(institution, career, name));
+            });
         });
     }
 
-    private void saveIfAbsent(String name, boolean isBasic, Career career) {
-        if (subjectRepository.findByName(name).isPresent()) {
+    private void saveIfAbsent(Institution institution, Career career, String name) {
+        if (subjectRepository
+                .findByInstitution_InstitutionIdAndName(institution.getInstitutionId(), name)
+                .isPresent()) {
             return;
         }
-
         subjectRepository.save(Subject.builder()
                 .name(name)
-                .isBasic(isBasic)
                 .career(career)
+                .institution(institution)
                 .build());
     }
 }

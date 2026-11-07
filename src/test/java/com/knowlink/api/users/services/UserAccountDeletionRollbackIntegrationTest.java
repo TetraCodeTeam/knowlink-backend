@@ -1,5 +1,8 @@
 package com.knowlink.api.users.services;
 
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
 import com.knowlink.api.exceptions.custom_exceptions.BusinessConflictException;
 import com.knowlink.api.materials.service.interfaces.IMaterialService;
 import com.knowlink.api.notifications.data.enums.NotificationType;
@@ -56,6 +59,9 @@ class UserAccountDeletionRollbackIntegrationTest {
     private ITutorSubjectRepository tutorSubjectRepository;
     @Autowired
     private ICareerRepository careerRepository;
+
+    @Autowired
+    private IInstitutionRepository institutionRepository;
     @Autowired
     private ISubjectRepository subjectRepository;
     @Autowired
@@ -69,12 +75,13 @@ class UserAccountDeletionRollbackIntegrationTest {
     @Test
     @DisplayName("A failing IMaterialService.delete rolls the whole deletion back")
     void materialDeletionFailure_rollsBackTheAccountDeletion() {
-        Career career = careerRepository.save(Career.builder()
+        Institution institution = CatalogFixtures.saveInstitution(institutionRepository, "Test " + System.nanoTime());
+        Career career = careerRepository.save(Career.builder().institution(institution)
                 .name("Rollback Career " + UUID.randomUUID())
                 .build());
-        Subject subject = subjectRepository.save(Subject.builder()
+        Subject subject = subjectRepository.save(Subject.builder().institution(institution)
                 .name("Rollback Subject " + UUID.randomUUID())
-                .isBasic(false)
+                
                 .career(career)
                 .build());
         String originalEmail = "rollback." + UUID.randomUUID() + "@test.com";

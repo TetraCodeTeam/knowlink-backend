@@ -15,6 +15,7 @@ public class SecurityConstants {
                 "/api/v1/users/reset-password/**",
                 "/api/v1/public/**",
                 "/actuator/health",
+                "/api/v1/institutions",
                 "/api/v1/careers",
                 "/api/v1/subjects",
                 "/api/v1/subjects/basic",

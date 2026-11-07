@@ -1,5 +1,8 @@
 package com.knowlink.api.admin.materialreports.repositories;
 
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
 import com.knowlink.api.admin.materialreports.data.enums.MaterialReportCaseStatus;
 import com.knowlink.api.admin.materialreports.data.models.MaterialReportCase;
 import com.knowlink.api.materials.data.enums.MaterialType;
@@ -57,6 +60,11 @@ class MaterialReportCaseRepositoryTest {
     private IUserRepository userRepository;
     @Autowired
     private ICareerRepository careerRepository;
+
+    @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    private Institution institution;
     @Autowired
     private ISubjectRepository subjectRepository;
     @Autowired
@@ -72,14 +80,15 @@ class MaterialReportCaseRepositoryTest {
 
     @BeforeEach
     void setUp() {
-        Career career = careerRepository.save(Career.builder().name("Career " + UUID.randomUUID()).build());
+        institution = CatalogFixtures.saveInstitution(institutionRepository, "Test " + System.nanoTime());
+        Career career = careerRepository.save(Career.builder().institution(institution).name("Career " + UUID.randomUUID()).build());
         User tutor = userRepository.save(user("tutor", Role.TUTOR));
         TutorProfile tutorProfile = tutorProfileRepository.save(
                 TutorProfile.builder().user(tutor).career(career).build());
-        Subject subject = subjectRepository.save(Subject.builder()
+        Subject subject = subjectRepository.save(Subject.builder().institution(institution)
                 .name("Subject " + UUID.randomUUID())
                 .career(career)
-                .isBasic(true)
+                
                 .build());
         TutorSubject tutorSubject = tutorSubjectRepository.save(TutorSubject.builder()
                 .tutorProfile(tutorProfile)

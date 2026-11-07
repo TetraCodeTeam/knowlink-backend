@@ -13,23 +13,28 @@ import java.util.UUID;
 @Repository
 public interface ISubjectRepository extends JpaRepository<Subject, UUID> {
 
-    Optional<Subject> findByName(String name);
+    Optional<Subject> findByInstitution_InstitutionIdAndName(UUID institutionId, String name);
 
-    @Query("SELECT s FROM Subject s WHERE s.isBasic = true")
-    List<Subject> findBasicSubjects();
-
-    /** Materias que cursa una carrera: las propias más las básicas, comunes a todas. */
     @Query("""
             SELECT s FROM Subject s
-            WHERE s.isBasic = true OR s.career.careerId = :careerId
+            WHERE s.institution.institutionId = :institutionId
+              AND s.career.type = com.knowlink.api.tutors.data.enums.CareerType.SHARED
             ORDER BY s.name
             """)
-    List<Subject> findBasicAndByCareerId(@Param("careerId") UUID careerId);
+    List<Subject> findSharedByInstitutionId(@Param("institutionId") UUID institutionId);
 
+    /** Materias de una carrera + las compartidas de su misma institución (reemplaza findBasicAndByCareerId). */
     @Query("""
             SELECT s FROM Subject s
             WHERE s.career.careerId = :careerId
-            AND s.isBasic = false
+               OR (s.career.type = com.knowlink.api.tutors.data.enums.CareerType.SHARED
+                   AND s.institution.institutionId =
+                       (SELECT c.institution.institutionId FROM Career c WHERE c.careerId = :careerId))
+            ORDER BY s.name
             """)
-    List<Subject> findNonBasicByCareerId(@Param("careerId") UUID careerId);
+    List<Subject> findSharedAndByCareerId(@Param("careerId") UUID careerId);
+
+    List<Subject> findByCareer_CareerIdOrderByName(UUID careerId);
+
+    List<Subject> findByInstitution_InstitutionIdOrderByName(UUID institutionId);
 }

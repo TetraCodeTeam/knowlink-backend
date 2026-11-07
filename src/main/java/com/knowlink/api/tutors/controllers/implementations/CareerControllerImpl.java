@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequiredArgsConstructor
@@ -15,9 +16,9 @@ public class CareerControllerImpl implements ICareerController {
     private final ICareerService careerService;
 
     @Override
-    public List<CareerResponse> getAllCareers() {
-        return careerService.findAll().stream()
-                .map(c -> new CareerResponse(c.getCareerId(), c.getName()))
+    public List<CareerResponse> getAllCareers(UUID institutionId) {
+        return careerService.findRegularByInstitution(institutionId).stream()
+                .map(career -> new CareerResponse(career.getCareerId(), career.getName()))
                 .toList();
     }
 }

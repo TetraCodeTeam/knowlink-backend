@@ -1,5 +1,11 @@
 package com.knowlink.api.tutors.controllers;
 
+import com.knowlink.api.students.data.models.StudentProfile;
+import com.knowlink.api.students.repositories.IStudentProfileRepository;
+
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
@@ -65,6 +71,11 @@ class TutorSubjectActivationControllerTest {
     private ICareerRepository careerRepository;
 
     @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    private Institution institution;
+
+    @Autowired
     private ISubjectRepository subjectRepository;
 
     @Autowired
@@ -80,6 +91,9 @@ class TutorSubjectActivationControllerTest {
     private IBookingRepository bookingRepository;
 
     @Autowired
+    private IStudentProfileRepository studentProfileRepository;
+
+    @Autowired
     private ITimeSlotRepository timeSlotRepository;
 
     @Autowired
@@ -87,6 +101,7 @@ class TutorSubjectActivationControllerTest {
 
     private Career career;
     private User tutorUser;
+    private User studentUser;
     private TutorProfile tutorProfile;
     private Subject subjectBaseDeDatos;
     private Subject subjectProgramacion;
@@ -95,19 +110,20 @@ class TutorSubjectActivationControllerTest {
 
     @BeforeEach
     void seedData() {
-        career = careerRepository.save(Career.builder()
+        institution = CatalogFixtures.saveInstitution(institutionRepository, "Test " + System.nanoTime());
+        career = careerRepository.save(Career.builder().institution(institution)
                 .name("Carrera activacion " + UUID.randomUUID())
                 .build());
 
-        subjectBaseDeDatos = subjectRepository.save(Subject.builder()
+        subjectBaseDeDatos = subjectRepository.save(Subject.builder().institution(institution)
                 .name("Base de Datos " + UUID.randomUUID())
-                .isBasic(true)
+                
                 .career(career)
                 .build());
 
-        subjectProgramacion = subjectRepository.save(Subject.builder()
+        subjectProgramacion = subjectRepository.save(Subject.builder().institution(institution)
                 .name("Programacion " + UUID.randomUUID())
-                .isBasic(true)
+                
                 .career(career)
                 .build());
 
@@ -128,6 +144,12 @@ class TutorSubjectActivationControllerTest {
 
         baseDeDatos = saveSubject(subjectBaseDeDatos, true);
         programacion = saveSubject(subjectProgramacion, true);
+
+        studentUser = saveUser(Role.STUDENT);
+        studentProfileRepository.save(StudentProfile.builder()
+                .user(studentUser)
+                .career(career)
+                .build());
     }
 
     private TutorSubject saveSubject(Subject subject, boolean active) {
@@ -165,7 +187,7 @@ class TutorSubjectActivationControllerTest {
     }
 
     private RequestPostProcessor asStudent() {
-        return as(saveUser(Role.STUDENT));
+        return as(studentUser);
     }
 
     private ResultActions patchSubject(String url, UUID id, RequestPostProcessor auth) throws Exception {

@@ -1,5 +1,8 @@
 package com.knowlink.api.ratings.repositories;
 
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
@@ -43,6 +46,11 @@ class IRatingRepositoryTest {
 
     @Autowired
     private IRatingRepository ratingRepository;
+
+    @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    private Institution institution;
     @Autowired
     private IBookingRepository bookingRepository;
     @PersistenceContext
@@ -58,17 +66,18 @@ class IRatingRepositoryTest {
 
     @BeforeEach
     void setUp() {
-        Career career = persist(Career.builder().name("Test Career").build());
+        institution = CatalogFixtures.saveInstitution(institutionRepository, "Test " + System.nanoTime());
+        Career career = persist(Career.builder().institution(institution).name("Test Career").build());
         dualRoleUser = persistUser("dual-role", Role.TUTOR);
         student = persistUser("student", Role.STUDENT);
         otherTutor = persistUser("other-tutor", Role.TUTOR);
 
         dualRoleProfile = persistTutorProfile(dualRoleUser, career);
         otherTutorProfile = persistTutorProfile(otherTutor, career);
-        Subject subject = persist(Subject.builder()
+        Subject subject = persist(Subject.builder().institution(institution)
                 .name("Test Subject")
                 .career(career)
-                .isBasic(true)
+                
                 .build());
         dualRoleSubject = persistTutorSubject(dualRoleProfile, subject);
         otherTutorSubject = persistTutorSubject(otherTutorProfile, subject);

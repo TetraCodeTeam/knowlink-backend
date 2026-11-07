@@ -1,5 +1,8 @@
 package com.knowlink.api.students.controllers;
 
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.security.models.UserPrincipal;
@@ -55,6 +58,11 @@ class StudentProfileUpdateControllerTest {
     private ICareerRepository careerRepository;
 
     @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    private Institution institution;
+
+    @Autowired
     private IStudentProfileRepository studentProfileRepository;
 
     @Autowired
@@ -71,8 +79,9 @@ class StudentProfileUpdateControllerTest {
 
     @BeforeEach
     void seedData() {
-        careerA = careerRepository.save(Career.builder().name("Ingeniería en Sistemas US-03").build());
-        careerB = careerRepository.save(Career.builder().name("Medicina US-03").build());
+        institution = CatalogFixtures.saveInstitution(institutionRepository, "Test " + System.nanoTime());
+        careerA = careerRepository.save(Career.builder().institution(institution).name("Ingeniería en Sistemas US-03").build());
+        careerB = careerRepository.save(Career.builder().institution(institution).name("Medicina US-03").build());
 
         studentUser = userRepository.save(User.builder()
                 .firstName("Ana")

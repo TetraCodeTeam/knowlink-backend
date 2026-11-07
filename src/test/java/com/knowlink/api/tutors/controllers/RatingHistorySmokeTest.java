@@ -1,5 +1,8 @@
 package com.knowlink.api.tutors.controllers;
 
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
@@ -57,6 +60,9 @@ class RatingHistorySmokeTest {
     private IUserRepository userRepository;
     @Autowired
     private ICareerRepository careerRepository;
+
+    @Autowired
+    private IInstitutionRepository institutionRepository;
     @Autowired
     private ISubjectRepository subjectRepository;
     @Autowired
@@ -82,11 +88,12 @@ class RatingHistorySmokeTest {
     @Test
     @DisplayName("Smoke: consultar historial de calificaciones de un tutor")
     void queryRatingHistory() throws Exception {
-        Career career = careerRepository.save(Career.builder().name("Career " + UUID.randomUUID()).build());
-        Subject subjectA = subjectRepository.save(Subject.builder()
-                .name("A Analisis Matematico I " + UUID.randomUUID()).isBasic(false).career(career).build());
-        Subject subjectB = subjectRepository.save(Subject.builder()
-                .name("B Fisica I " + UUID.randomUUID()).isBasic(false).career(career).build());
+        Institution institution = CatalogFixtures.saveInstitution(institutionRepository, "Test " + System.nanoTime());
+        Career career = careerRepository.save(Career.builder().institution(institution).name("Career " + UUID.randomUUID()).build());
+        Subject subjectA = subjectRepository.save(Subject.builder().institution(institution)
+                .name("A Analisis Matematico I " + UUID.randomUUID()).career(career).build());
+        Subject subjectB = subjectRepository.save(Subject.builder().institution(institution)
+                .name("B Fisica I " + UUID.randomUUID()).career(career).build());
 
         User tutor = saveUser("Juan Perez", Role.TUTOR);
         studentUser = saveUser("Maria Lopez", Role.STUDENT);

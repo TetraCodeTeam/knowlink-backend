@@ -245,6 +245,35 @@ class NotificationRepositoryTest {
         assertThat(notificationRepository.findByRecipient_UserIdAndTypeAndResourceId(
                 recipient.getUserId(), NotificationType.RATING_ENABLED, UUID.randomUUID())).isEmpty();
     }
+    @Test
+    @DisplayName("READ - incluye leídas y vencidas no leídas; UNREAD y READ cubren todas sin solaparse")
+    void readListing_includesReadAndExpiredWithoutOverlap() {
+        LocalDateTime base = LocalDateTime.of(2026, 10, 20, 10, 0);
+        Notification read = persistNotification(recipient, Role.STUDENT, base, base.plusMinutes(1), "read");
+        Notification expiredUnread = persistRatingNotification(recipient, Role.STUDENT,
+                base.plusMinutes(1), null, UUID.randomUUID(), NOW.minusMinutes(1));
+        Notification unreadWithoutExpiry = persistNotification(recipient, Role.STUDENT,
+                base.plusMinutes(2), null, "unread-without-expiry");
+        Notification unreadFuture = persistRatingNotification(recipient, Role.STUDENT,
+                base.plusMinutes(3), null, UUID.randomUUID(), NOW.plusHours(1));
+
+        Page<Notification> readPage = notificationRepository.findReadOrExpiredByRecipient(
+                recipient.getUserId(), Role.STUDENT, NOW, PageRequest.of(0, 10));
+        Page<Notification> unreadPage = notificationRepository.findUnreadVisibleByRecipient(
+                recipient.getUserId(), Role.STUDENT, NOW, PageRequest.of(0, 10));
+        Page<Notification> allPage = notificationRepository.findByRecipient_UserIdAndRecipientRole(
+                recipient.getUserId(), Role.STUDENT, PageRequest.of(0, 10));
+
+        assertThat(readPage.getContent())
+                .extracting(Notification::getNotificationId)
+                .containsExactlyInAnyOrder(read.getNotificationId(), expiredUnread.getNotificationId());
+        assertThat(unreadPage.getContent())
+                .extracting(Notification::getNotificationId)
+                .containsExactlyInAnyOrder(unreadWithoutExpiry.getNotificationId(),
+                        unreadFuture.getNotificationId());
+        assertThat(readPage.getContent()).doesNotContainAnyElementsOf(unreadPage.getContent());
+        assertThat(allPage.getContent()).hasSize(readPage.getContent().size() + unreadPage.getContent().size());
+    }
     private Notification persistRatingNotification(User user, Role recipientRole, LocalDateTime createdAt,
             LocalDateTime readAt, UUID resourceId, LocalDateTime expiresAt) {
         Notification saved = notificationRepository.saveAndFlush(Notification.builder()
