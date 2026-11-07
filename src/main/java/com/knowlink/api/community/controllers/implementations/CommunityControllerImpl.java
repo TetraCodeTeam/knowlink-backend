@@ -48,9 +48,12 @@ public class CommunityControllerImpl implements ICommunityController {
     }
 
     @Override
-    public PagedResponse<CommunityPostResponse> getMyPosts(UserPrincipal principal, LocalDate date, int page,
-            int size) {
-        return postService.getMyPosts(userId(principal), date, page, size);
+    public PagedResponse<CommunityPostResponse> getMyPosts(UserPrincipal principal, LocalDate dateFrom,
+            LocalDate dateTo, LocalDate date, int page, int size) {
+        // `date` (un solo día) se mantiene por compatibilidad: solo cuenta si no llegó ningún extremo del rango.
+        boolean hasRange = dateFrom != null || dateTo != null;
+        return postService.getMyPosts(userId(principal), hasRange ? dateFrom : date, hasRange ? dateTo : date,
+                page, size);
     }
 
     @Override
