@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -44,12 +45,27 @@ public class CareerServiceImpl implements ICareerService {
     @Override
     @Transactional
     public Career findOrCreateSharedCareer(Institution institution) {
-        return careerRepository
-                .findByInstitution_InstitutionIdAndType(institution.getInstitutionId(), CareerType.SHARED)
-                .orElseGet(() -> careerRepository.save(Career.builder()
-                        .institution(institution)
-                        .name(SHARED_CAREER_NAME)
-                        .type(CareerType.SHARED)
-                        .build()));
+        UUID institutionId = institution.getInstitutionId();
+        Optional<Career> sharedCareer = careerRepository
+                .findByInstitution_InstitutionIdAndType(institutionId, CareerType.SHARED);
+
+        if (sharedCareer.isEmpty()) {
+            // Databases migrated from the legacy COMPARTIDA enum store the row
+            // under the canonical name but with an unknown type; reuse it instead
+            // of colliding with uk_career_institution_name.
+            Optional<Career> legacyCareer = careerRepository
+                    .findByInstitution_InstitutionIdAndName(institutionId, SHARED_CAREER_NAME);
+            if (legacyCareer.isPresent()) {
+                Career legacy = legacyCareer.get();
+                legacy.setType(CareerType.SHARED);
+                return careerRepository.save(legacy);
+            }
+        }
+
+        return sharedCareer.orElseGet(() -> careerRepository.save(Career.builder()
+                .institution(institution)
+                .name(SHARED_CAREER_NAME)
+                .type(CareerType.SHARED)
+                .build()));
     }
 }
