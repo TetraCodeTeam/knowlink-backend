@@ -15,8 +15,13 @@ public interface ISubjectRepository extends JpaRepository<Subject, UUID> {
 
     Optional<Subject> findByInstitution_InstitutionIdAndName(UUID institutionId, String name);
 
+    /**
+     * Shared subjects of an institution, with the career eagerly loaded so that
+     * Subject#isBasic() works (the mapping runs outside the transaction).
+     */
     @Query("""
             SELECT s FROM Subject s
+            JOIN FETCH s.career
             WHERE s.institution.institutionId = :institutionId
               AND s.career.type = com.knowlink.api.tutors.data.enums.CareerType.SHARED
             ORDER BY s.name
@@ -34,7 +39,18 @@ public interface ISubjectRepository extends JpaRepository<Subject, UUID> {
             """)
     List<Subject> findSharedAndByCareerId(@Param("careerId") UUID careerId);
 
-    List<Subject> findByCareer_CareerIdOrderByName(UUID careerId);
+    /**
+     * Subjects of a single career with the career eagerly loaded: Subject#isBasic()
+     * reads career.type and the response mapping happens outside the transaction
+     * (spring.jpa.open-in-view is disabled).
+     */
+    @Query("""
+            SELECT s FROM Subject s
+            JOIN FETCH s.career
+            WHERE s.career.careerId = :careerId
+            ORDER BY s.name
+            """)
+    List<Subject> findByCareer_CareerIdOrderByName(@Param("careerId") UUID careerId);
 
     List<Subject> findByInstitution_InstitutionIdOrderByName(UUID institutionId);
 }
