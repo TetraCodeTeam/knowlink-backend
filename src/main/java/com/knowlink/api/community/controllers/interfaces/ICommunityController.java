@@ -93,13 +93,20 @@ public interface ICommunityController {
 
     @GetMapping("/posts/mine")
     @Operation(summary = "Ver mis publicaciones",
-            description = "Solo las publicaciones creadas por el usuario autenticado. Con date se filtran las creadas ese día.")
+            description = "Solo las publicaciones creadas por el usuario autenticado. Con dateFrom y/o dateTo se "
+                    + "filtran las creadas en ese período (ambos días incluidos; se puede enviar solo uno de los dos).")
     @ApiResponse(responseCode = "200", description = "Página de publicaciones propias (vacía si todavía no publicó ninguna)")
+    @ApiResponse(responseCode = "400", description = "dateFrom es posterior a dateTo")
     @ApiResponse(responseCode = "401", description = "Sin autenticar")
     @ResponseStatus(OK)
     PagedResponse<CommunityPostResponse> getMyPosts(
             @AuthenticationPrincipal UserPrincipal principal,
-            @Parameter(description = "Día de publicación (yyyy-MM-dd)")
+            @Parameter(description = "Primer día del período (yyyy-MM-dd)")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateFrom,
+            @Parameter(description = "Último día del período (yyyy-MM-dd)")
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dateTo,
+            @Parameter(description = "Un solo día (yyyy-MM-dd). Equivale a dateFrom = dateTo = date; "
+                    + "se ignora si se envía dateFrom o dateTo")
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @Parameter(description = "Página (desde 0)") @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Tamaño de página (máximo 50)") @RequestParam(defaultValue = "10") int size);

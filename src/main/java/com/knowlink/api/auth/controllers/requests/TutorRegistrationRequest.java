@@ -24,9 +24,11 @@ public record TutorRegistrationRequest(
         String confirmPassword,
 
         @NotBlank(message = "First name is required")
+        @Size(max = 100, message = "First name cannot exceed 100 characters")
         String firstName,
 
         @NotBlank(message = "Last name is required")
+        @Size(max = 100, message = "Last name cannot exceed 100 characters")
         String lastName,
 
         @NotBlank(message = "DNI is required")
@@ -34,6 +36,7 @@ public record TutorRegistrationRequest(
         String dni,
 
         @NotBlank(message = "Phone number is required")
+        @Size(max = 30, message = "Phone number cannot exceed 30 characters")
         String phoneNumber,
 
         @NotBlank(message = "Career is required")
@@ -42,6 +45,7 @@ public record TutorRegistrationRequest(
         @NotNull(message = "Institution is required")
         UUID institutionId,
 
+        @Size(max = 50, message = "Institutional ID cannot exceed 50 characters")
         String institutionalId,
 
         String profilePictureUrl,
@@ -49,6 +53,7 @@ public record TutorRegistrationRequest(
         @Size(max = 300, message = "Biography cannot exceed 300 characters")
         String biography,
 
+        @Size(max = 255, message = "Address cannot exceed 255 characters")
         String address,
 
         @NotEmpty(message = "At least one subject is required")
