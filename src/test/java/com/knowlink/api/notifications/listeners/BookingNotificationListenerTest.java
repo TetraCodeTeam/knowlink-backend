@@ -51,7 +51,6 @@ class BookingNotificationListenerTest {
     private final UUID bookingId = UUID.randomUUID();
     private final UUID studentId = UUID.randomUUID();
     private final UUID tutorId = UUID.randomUUID();
-    private static final LocalDateTime RATING_EXPIRES_AT = LocalDateTime.of(2026, 10, 21, 16, 0);
 
     private BookingSnapshot snapshot;
 
@@ -216,12 +215,12 @@ class BookingNotificationListenerTest {
                 eq(bookingId), eq("SESSION_CONFIRMED:" + bookingId));
         verify(notificationService).notifyUser(eq(studentId), eq(Role.STUDENT), eq(NotificationType.RATING_ENABLED),
                 eq("Calificá tu sesión de Sistemas Operativos"),
-                eq("Contanos cómo fue tu experiencia con Carlos Lopez. Tenés 24 horas para calificar."),
-                eq(bookingId), eq("RATING_ENABLED:" + bookingId), eq(RATING_EXPIRES_AT));
+                eq("Contanos cómo fue tu experiencia con Carlos Lopez."),
+                eq(bookingId), eq("RATING_ENABLED:" + bookingId));
         verify(notificationService).notifyUser(eq(tutorId), eq(Role.TUTOR), eq(NotificationType.RATING_ENABLED),
                 eq("Calificá tu sesión de Sistemas Operativos"),
-                eq("Contanos cómo fue tu experiencia con Ana Estudiante. Tenés 24 horas para calificar."),
-                eq(bookingId), eq("RATING_ENABLED:" + bookingId), eq(RATING_EXPIRES_AT));
+                eq("Contanos cómo fue tu experiencia con Ana Estudiante."),
+                eq(bookingId), eq("RATING_ENABLED:" + bookingId));
     }
 
 
@@ -236,11 +235,9 @@ class BookingNotificationListenerTest {
         listener.handleSessionConfirmed(new SessionConfirmedEvent(bookingWithId()));
 
         verify(notificationService).notifyUser(eq(studentId), eq(Role.STUDENT), eq(NotificationType.RATING_ENABLED),
-                eq("Calificá tu sesión"), anyString(), eq(bookingId), eq("RATING_ENABLED:" + bookingId),
-                any(LocalDateTime.class));
+                eq("Calificá tu sesión"), anyString(), eq(bookingId), eq("RATING_ENABLED:" + bookingId));
         verify(notificationService).notifyUser(eq(tutorId), eq(Role.TUTOR), eq(NotificationType.RATING_ENABLED),
-                eq("Calificá tu sesión"), anyString(), eq(bookingId), eq("RATING_ENABLED:" + bookingId),
-                any(LocalDateTime.class));
+                eq("Calificá tu sesión"), anyString(), eq(bookingId), eq("RATING_ENABLED:" + bookingId));
     }
     @Test
     @DisplayName("Sesion finalizada - ambas partes reciben el aviso de cierre")

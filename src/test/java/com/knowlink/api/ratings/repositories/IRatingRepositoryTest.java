@@ -238,6 +238,104 @@ class IRatingRepositoryTest {
                 }).isInstanceOf(jakarta.persistence.PersistenceException.class);
         }
 
+    @Test
+    void findBlockingBookings_includesPastUnratedCompletedForBothRolesInOrder() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 20, 18, 0);
+        LocalDate fromDate = LocalDate.of(2026, 10, 1);
+        LocalTime fromTime = LocalTime.MIDNIGHT;
+
+        Booking asStudent = persistGateBooking(dualRoleUser, otherTutor, otherTutorProfile, otherTutorSubject,
+                LocalDate.of(2026, 10, 19), LocalTime.of(11, 0), BookingStatus.COMPLETED);
+        Booking onlyOtherPartyRated = persistGateBooking(student, dualRoleUser, dualRoleProfile, dualRoleSubject,
+                LocalDate.of(2026, 10, 20), LocalTime.of(16, 0), BookingStatus.COMPLETED);
+        Booking asTutor = persistGateBooking(student, dualRoleUser, dualRoleProfile, dualRoleSubject,
+                LocalDate.of(2026, 10, 20), LocalTime.of(17, 0), BookingStatus.COMPLETED);
+        Booking atBoundary = persistGateBooking(dualRoleUser, otherTutor, otherTutorProfile, otherTutorSubject,
+                LocalDate.of(2026, 10, 20), LocalTime.of(18, 0), BookingStatus.COMPLETED);
+
+        Booking ratedByUser = persistGateBooking(student, dualRoleUser, dualRoleProfile, dualRoleSubject,
+                LocalDate.of(2026, 10, 18), LocalTime.of(10, 0), BookingStatus.COMPLETED);
+        persistRating(ratedByUser, dualRoleUser, student, 4, false);
+        persistRating(onlyOtherPartyRated, student, dualRoleUser, 5, false);
+
+        persistGateBooking(dualRoleUser, otherTutor, otherTutorProfile, otherTutorSubject,
+                LocalDate.of(2026, 10, 20), LocalTime.of(15, 0), BookingStatus.BOOKED);
+        persistGateBooking(dualRoleUser, otherTutor, otherTutorProfile, otherTutorSubject,
+                LocalDate.of(2026, 9, 30), LocalTime.of(23, 0), BookingStatus.COMPLETED);
+        persistGateBooking(dualRoleUser, otherTutor, otherTutorProfile, otherTutorSubject,
+                LocalDate.of(2026, 10, 20), LocalTime.of(19, 0), BookingStatus.COMPLETED);
+        entityManager.flush();
+
+        List<Booking> blocking = ratingRepository.findBlockingBookings(
+                dualRoleUser.getUserId(), BookingStatus.COMPLETED,
+                now.toLocalDate(), now.toLocalTime(), fromDate, fromTime);
+
+        assertThat(blocking).extracting(Booking::getBookingId).containsExactly(
+                asStudent.getBookingId(),
+                onlyOtherPartyRated.getBookingId(),
+                asTutor.getBookingId(),
+                atBoundary.getBookingId());
+        assertThat(ratingRepository.existsBlockingBooking(
+                dualRoleUser.getUserId(), BookingStatus.COMPLETED,
+                now.toLocalDate(), now.toLocalTime(), fromDate, fromTime)).isTrue();
+    }
+
+    @Test
+    void findBlockingBookings_ignoresUserWithNothingPending() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 20, 18, 0);
+        LocalDate fromDate = LocalDate.of(2026, 10, 1);
+
+        Booking rated = persistGateBooking(dualRoleUser, otherTutor, otherTutorProfile, otherTutorSubject,
+                LocalDate.of(2026, 10, 19), LocalTime.of(11, 0), BookingStatus.COMPLETED);
+        persistRating(rated, dualRoleUser, otherTutor, 4, false);
+        persistGateBooking(dualRoleUser, otherTutor, otherTutorProfile, otherTutorSubject,
+                LocalDate.of(2026, 10, 20), LocalTime.of(19, 0), BookingStatus.COMPLETED);
+        persistGateBooking(dualRoleUser, otherTutor, otherTutorProfile, otherTutorSubject,
+                LocalDate.of(2026, 9, 30), LocalTime.of(10, 0), BookingStatus.COMPLETED);
+        entityManager.flush();
+
+        assertThat(ratingRepository.findBlockingBookings(
+                dualRoleUser.getUserId(), BookingStatus.COMPLETED,
+                now.toLocalDate(), now.toLocalTime(), fromDate, LocalTime.MIDNIGHT)).isEmpty();
+        assertThat(ratingRepository.existsBlockingBooking(
+                dualRoleUser.getUserId(), BookingStatus.COMPLETED,
+                now.toLocalDate(), now.toLocalTime(), fromDate, LocalTime.MIDNIGHT)).isFalse();
+    }
+
+    @Test
+    void findUpcomingUnratedCompleted_returnsEarliestFutureEnd() {
+        LocalDateTime now = LocalDateTime.of(2026, 10, 20, 18, 0);
+        LocalDate fromDate = LocalDate.of(2026, 10, 1);
+
+        Booking first = persistGateBooking(dualRoleUser, otherTutor, otherTutorProfile, otherTutorSubject,
+                LocalDate.of(2026, 10, 20), LocalTime.of(19, 0), BookingStatus.COMPLETED);
+        Booking second = persistGateBooking(dualRoleUser, otherTutor, otherTutorProfile, otherTutorSubject,
+                LocalDate.of(2026, 10, 21), LocalTime.of(10, 0), BookingStatus.COMPLETED);
+        persistGateBooking(dualRoleUser, otherTutor, otherTutorProfile, otherTutorSubject,
+                LocalDate.of(2026, 10, 20), LocalTime.of(17, 0), BookingStatus.COMPLETED);
+        entityManager.flush();
+
+        List<Booking> firstPage = ratingRepository.findUpcomingUnratedCompleted(
+                dualRoleUser.getUserId(), BookingStatus.COMPLETED,
+                now.toLocalDate(), now.toLocalTime(), fromDate, LocalTime.MIDNIGHT, PageRequest.of(0, 1));
+        List<Booking> all = ratingRepository.findUpcomingUnratedCompleted(
+                dualRoleUser.getUserId(), BookingStatus.COMPLETED,
+                now.toLocalDate(), now.toLocalTime(), fromDate, LocalTime.MIDNIGHT, PageRequest.of(0, 10));
+
+        assertThat(firstPage).extracting(Booking::getBookingId).containsExactly(first.getBookingId());
+        assertThat(all).extracting(Booking::getBookingId)
+                .containsExactly(first.getBookingId(), second.getBookingId());
+    }
+
+    private Booking persistGateBooking(User bookingStudent, User tutor, TutorProfile tutorProfile,
+            TutorSubject tutorSubject, LocalDate sessionDate, LocalTime endTime, BookingStatus status) {
+        Booking booking = persistBooking(bookingStudent, tutor, tutorProfile, tutorSubject, sessionDate,
+                sessionDate.atTime(endTime));
+        booking.setStartTime(endTime.minusHours(1));
+        booking.setEndTime(endTime);
+        booking.setBookingStatus(status);
+        return booking;
+    }
     private User persistUser(String localName, Role role) {
         return persist(User.builder()
                 .fullName(localName)

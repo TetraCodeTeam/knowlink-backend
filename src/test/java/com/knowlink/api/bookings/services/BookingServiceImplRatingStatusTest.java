@@ -132,7 +132,7 @@ class BookingServiceImplRatingStatusTest {
         service.getDetail(studentId, bookingId);
 
         verify(bookingMapper).toDetail(eq(booking), eq(studentId), any(), eq(RatingStatus.SUBMITTED),
-                eq(LocalDateTime.of(2026, 10, 21, 16, 0)));
+                eq(null));
     }
 
     @Test
@@ -143,19 +143,19 @@ class BookingServiceImplRatingStatusTest {
         service.getDetail(studentId, bookingId);
 
         verify(bookingMapper).toDetail(eq(booking), eq(studentId), any(), eq(RatingStatus.PENDING),
-                eq(LocalDateTime.of(2026, 10, 21, 16, 0)));
+                eq(null));
     }
 
     @Test
-    @DisplayName("Detalle - plazo vencido: EXPIRED")
-    void detail_afterDeadline_isExpired() {
+    @DisplayName("Detalle - sin vencimiento: sigue PENDING aunque hayan pasado más de 24 horas")
+    void detail_afterDeadline_isPending() {
         booking.setSessionDate(LocalDate.of(2026, 10, 18));
         booking.setConfirmedAt(LocalDateTime.of(2026, 10, 18, 16, 5));
         when(ratingRepository.existsByBooking_BookingIdAndRaterUser_UserId(bookingId, studentId)).thenReturn(false);
 
         service.getDetail(studentId, bookingId);
 
-        verify(bookingMapper).toDetail(eq(booking), eq(studentId), any(), eq(RatingStatus.EXPIRED),
-                eq(LocalDateTime.of(2026, 10, 19, 16, 5)));
+        verify(bookingMapper).toDetail(eq(booking), eq(studentId), any(), eq(RatingStatus.PENDING),
+                eq(null));
     }
 }
