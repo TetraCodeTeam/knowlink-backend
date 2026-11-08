@@ -45,7 +45,7 @@ Feature: Agenda semanal del tutor
     Given el tutor tiene 3 reservas con estado BOOKED y 5 bloques de disponibilidad libres en la semana
     When consulta la agenda semanal
     Then summary.confirmedBookingsCount = 3
-    And summary.freeBlocksCount = 5
+    And summary.freeBlocksCount = 5 horas libres
     And summary.nextClass contiene la reserva BOOKED más próxima desde el momento actual (zona horaria America/Argentina/Cordoba)
 
   Scenario: Navegación entre semanas, incluyendo semanas pasadas
@@ -120,8 +120,9 @@ GET /api/v1/tutors/me/weekly-schedule?from=YYYY-MM-DD&to=YYYY-MM-DD
 ```
 
 - `summary.nextClass` es `null` cuando no hay reservas `BOOKED` futuras.
-- `summary.freeBlocksCount` cuenta los tramos libres que se muestran en el calendario: un bloque
-  de disponibilidad partido por una reserva aporta dos tramos libres.
+- `summary.freeBlocksCount` cuenta las **horas libres** de 1 hora que se muestran en el calendario:
+  la suma de `floor(duración del tramo en minutos / 60)` de todos los tramos libres. Un bloque
+  de 09:00 a 12:00 cuenta 3, y un bloque partido por una reserva suma las horas de cada tramo.
 
 ### DTOs nuevos (únicos que hace falta crear)
 

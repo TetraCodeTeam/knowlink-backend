@@ -16,16 +16,16 @@ public class SubjectControllerImpl implements ISubjectController {
     private final ISubjectService subjectService;
 
     @Override
-    public List<SubjectResponse> getBasicSubjects() {
-        return subjectService.findBasicSubjects().stream()
-                .map(s -> new SubjectResponse(s.getSubjectId(), s.getName(), s.isBasic()))
+    public List<SubjectResponse> getBasicSubjects(UUID institutionId) {
+        return subjectService.findSharedByInstitutionId(institutionId).stream()
+                .map(subject -> new SubjectResponse(subject.getSubjectId(), subject.getName(), subject.isBasic()))
                 .toList();
     }
 
     @Override
     public List<SubjectResponse> getSubjectsByCareer(UUID careerId) {
         return subjectService.findByCareerId(careerId).stream()
-                .map(s -> new SubjectResponse(s.getSubjectId(), s.getName(), s.isBasic()))
+                .map(subject -> new SubjectResponse(subject.getSubjectId(), subject.getName(), subject.isBasic()))
                 .toList();
     }
 }

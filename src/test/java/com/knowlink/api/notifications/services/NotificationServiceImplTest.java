@@ -1,6 +1,7 @@
 package com.knowlink.api.notifications.services;
 
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
+import com.knowlink.api.notifications.controllers.responses.NotificationResponse;
 import com.knowlink.api.notifications.controllers.responses.UnreadCountResponse;
 import com.knowlink.api.notifications.data.enums.NotificationReadFilter;
 import com.knowlink.api.notifications.data.enums.NotificationType;
@@ -9,6 +10,7 @@ import com.knowlink.api.notifications.data.models.Notification;
 import com.knowlink.api.notifications.repositories.NotificationRepository;
 import com.knowlink.api.notifications.services.implementations.NotificationServiceImpl;
 import com.knowlink.api.security.enums.Role;
+import com.knowlink.api.shared.responses.PagedResponse;
 import com.knowlink.api.users.data.enums.AccountStatus;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.repositories.IUserRepository;
@@ -22,6 +24,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -323,17 +326,54 @@ class NotificationServiceImplTest {
     }
 
     @Test
-    @DisplayName("getNotifications - filtro READ consulta solo las filas leidas del rol activo")
+    @DisplayName("getNotifications - filtro READ consulta las filas leidas o vencidas del rol activo")
     void getNotifications_readFilterQueriesReadRows() {
-        when(notificationRepository.findByRecipient_UserIdAndRecipientRoleAndReadAtIsNotNull(
-                eq(recipientId), eq(Role.TUTOR), any(Pageable.class))).thenReturn(Page.empty());
+        when(notificationRepository.findReadOrExpiredByRecipient(
+                eq(recipientId), eq(Role.TUTOR), any(LocalDateTime.class), any(Pageable.class)))
+                .thenReturn(Page.empty());
 
         service.getNotifications(recipientId, Role.TUTOR, NotificationReadFilter.READ, PageRequest.of(0, 20));
 
-        verify(notificationRepository).findByRecipient_UserIdAndRecipientRoleAndReadAtIsNotNull(
-                eq(recipientId), eq(Role.TUTOR), any(Pageable.class));
+        verify(notificationRepository).findReadOrExpiredByRecipient(
+                eq(recipientId), eq(Role.TUTOR), any(LocalDateTime.class), any(Pageable.class));
         verify(notificationRepository, never()).findByRecipient_UserIdAndRecipientRole(any(UUID.class), any(),
                 any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("getNotifications - READ incluye una RATING_ENABLED vencida sin leer")
+    void getNotifications_readFilterIncludesExpiredUnreadRating() {
+        Notification expired = Notification.builder()
+                .notificationId(UUID.randomUUID())
+                .recipient(user(recipientId, Role.STUDENT, AccountStatus.ACTIVE))
+                .recipientRole(Role.STUDENT)
+                .type(NotificationType.RATING_ENABLED)
+                .message("Calificá tu sesión")
+                .resourceId(bookingId)
+                .expiresAt(NOW.minusMinutes(1))
+                .build();
+        NotificationResponse response = new NotificationResponse(
+                expired.getNotificationId(),
+                NotificationType.RATING_ENABLED,
+                "Calificá tu sesión",
+                "Calificá tu sesión",
+                bookingId,
+                true,
+                NOW.minusHours(1),
+                null,
+                NOW.minusMinutes(1),
+                com.knowlink.api.notifications.data.enums.NotificationActionStatus.EXPIRED);
+        when(notificationRepository.findReadOrExpiredByRecipient(
+                eq(recipientId), eq(Role.STUDENT), any(LocalDateTime.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(expired)));
+        when(notificationMapper.toResponse(expired)).thenReturn(response);
+
+        PagedResponse<NotificationResponse> result = service.getNotifications(
+                recipientId, Role.STUDENT, NotificationReadFilter.READ, PageRequest.of(0, 20));
+
+        assertThat(result.content()).containsExactly(response);
+        assertThat(result.content().get(0).read()).isTrue();
+        assertThat(result.content().get(0).readAt()).isNull();
     }
 
     @Test

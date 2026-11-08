@@ -1,5 +1,8 @@
 package com.knowlink.api.materials.repositories;
 
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.tutors.data.enums.CompensationType;
 import com.knowlink.api.materials.data.enums.MaterialReportReason;
@@ -38,6 +41,11 @@ class AcademicMaterialReportRepositoryTest {
 
     @Autowired
     private IAcademicMaterialRepository materialRepository;
+
+    @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    private Institution institution;
     @Autowired
     private IAcademicMaterialReportRepository reportRepository;
     @PersistenceContext
@@ -49,14 +57,15 @@ class AcademicMaterialReportRepositoryTest {
 
     @BeforeEach
     void setUp() {
-        Career career = persist(Career.builder().name("Career " + UUID.randomUUID()).build());
+        institution = CatalogFixtures.saveInstitution(institutionRepository, "Test " + System.nanoTime());
+        Career career = persist(Career.builder().institution(institution).name("Career " + UUID.randomUUID()).build());
         User tutor = persist(user("tutor", Role.TUTOR));
         reporter = persist(user("student", Role.STUDENT));
         TutorProfile tutorProfile = persist(TutorProfile.builder().user(tutor).career(career).build());
-        Subject subject = persist(Subject.builder()
+        Subject subject = persist(Subject.builder().institution(institution)
                 .name("Subject " + UUID.randomUUID())
                 .career(career)
-                .isBasic(true)
+                
                 .build());
         TutorSubject tutorSubject = persist(TutorSubject.builder()
                 .tutorProfile(tutorProfile)

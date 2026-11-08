@@ -14,6 +14,7 @@ import com.knowlink.api.tutors.data.models.TutorSubject;
 import com.knowlink.api.tutors.schedule.controllers.responses.WeeklyScheduleResponse;
 import com.knowlink.api.tutors.schedule.services.implementations.TutorWeeklyScheduleServiceImpl;
 import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
+import com.knowlink.api.shared.utils.EndOfDay;
 import com.knowlink.api.users.data.models.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -277,7 +278,7 @@ class TutorWeeklyScheduleServiceImplTest {
         assertThat(result.availabilityBlocks().get(0).endTime()).isEqualTo(LocalTime.of(11, 0));
         assertThat(result.availabilityBlocks().get(1).startTime()).isEqualTo(LocalTime.of(12, 0));
         assertThat(result.availabilityBlocks().get(1).endTime()).isEqualTo(LocalTime.of(14, 0));
-        assertThat(result.summary().freeBlocksCount()).isEqualTo(2);
+        assertThat(result.summary().freeBlocksCount()).isEqualTo(4);
     }
 
     @Test
@@ -378,5 +379,80 @@ class TutorWeeklyScheduleServiceImplTest {
         assertThat(result.availabilityBlocks()).hasSize(1);
         assertThat(result.availabilityBlocks().get(0).startTime()).isEqualTo(LocalTime.of(12, 0));
         assertThat(result.availabilityBlocks().get(0).endTime()).isEqualTo(LocalTime.of(14, 0));
+    }
+
+    @Test
+    @DisplayName("CP-052.12 - Un tramo de 09:00 a 12:00 cuenta tres horas libres")
+    void getWeeklySchedule_threeHourBlock_countsThreeFreeHours() {
+        when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId))
+                .thenReturn(buildTutorProfile());
+
+        AvailabilityBlockResponse block = new AvailabilityBlockResponse(
+                UUID.randomUUID(), monday, LocalTime.of(9, 0), LocalTime.of(12, 0), false, false);
+        when(availabilityBlockService.getBlocksInRange(tutorUserId, monday, sunday))
+                .thenReturn(List.of(block));
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+                .thenReturn(List.of());
+
+        WeeklyScheduleResponse result = service.getWeeklySchedule(tutorUserId, monday, sunday);
+
+        assertThat(result.summary().freeBlocksCount()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("CP-052.13 - Un bloque de 08:00 a 12:00 con reserva 09:00-10:00 cuenta 1 + 2 horas")
+    void getWeeklySchedule_blockSplitByBooking_countsFreeHours() {
+        when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId))
+                .thenReturn(buildTutorProfile());
+
+        AvailabilityBlockResponse block = new AvailabilityBlockResponse(
+                UUID.randomUUID(), monday, LocalTime.of(8, 0), LocalTime.of(12, 0), false, false);
+        when(availabilityBlockService.getBlocksInRange(tutorUserId, monday, sunday))
+                .thenReturn(List.of(block));
+
+        Booking booking = buildBooking(monday, LocalTime.of(9, 0), LocalTime.of(10, 0), BookingStatus.BOOKED);
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+                .thenReturn(List.of(booking));
+        when(bookingMapper.toResponse(any())).thenReturn(null);
+
+        WeeklyScheduleResponse result = service.getWeeklySchedule(tutorUserId, monday, sunday);
+
+        assertThat(result.summary().freeBlocksCount()).isEqualTo(3);
+    }
+
+    @Test
+    @DisplayName("CP-052.14 - Un tramo de 45 minutos no cuenta como hora libre")
+    void getWeeklySchedule_partialHourBlock_countsZeroFreeHours() {
+        when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId))
+                .thenReturn(buildTutorProfile());
+
+        AvailabilityBlockResponse block = new AvailabilityBlockResponse(
+                UUID.randomUUID(), monday, LocalTime.of(9, 0), LocalTime.of(9, 45), false, false);
+        when(availabilityBlockService.getBlocksInRange(tutorUserId, monday, sunday))
+                .thenReturn(List.of(block));
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+                .thenReturn(List.of());
+
+        WeeklyScheduleResponse result = service.getWeeklySchedule(tutorUserId, monday, sunday);
+
+        assertThat(result.summary().freeBlocksCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("CP-052.15 - Un bloque que termina en EndOfDay.TIME cuenta hasta las 24:00")
+    void getWeeklySchedule_blockUntilEndOfDay_countsTwentyFourHours() {
+        when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId))
+                .thenReturn(buildTutorProfile());
+
+        AvailabilityBlockResponse block = new AvailabilityBlockResponse(
+                UUID.randomUUID(), monday, LocalTime.MIDNIGHT, EndOfDay.TIME, false, false);
+        when(availabilityBlockService.getBlocksInRange(tutorUserId, monday, sunday))
+                .thenReturn(List.of(block));
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+                .thenReturn(List.of());
+
+        WeeklyScheduleResponse result = service.getWeeklySchedule(tutorUserId, monday, sunday);
+
+        assertThat(result.summary().freeBlocksCount()).isEqualTo(24);
     }
 }

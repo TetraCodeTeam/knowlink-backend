@@ -1,5 +1,9 @@
 package com.knowlink.api.tutors.controllers;
 
+import com.knowlink.api.testsupport.CatalogFixtures;
+import com.knowlink.api.tutors.config.InstitutionCatalogData;
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.tutors.data.enums.CompensationType;
@@ -49,6 +53,9 @@ class TutorWeeklyScheduleControllerTest {
     private ICareerRepository careerRepository;
 
     @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    @Autowired
     private ISubjectRepository subjectRepository;
 
     @Autowired
@@ -65,13 +72,10 @@ class TutorWeeklyScheduleControllerTest {
 
     @BeforeEach
     void seedData() {
-        Career career = careerRepository.findByName("Ingeniería en Sistemas")
-                .orElseGet(() -> careerRepository.save(
-                        Career.builder().name("Ingeniería en Sistemas").build()));
-
-        Subject algebra = subjectRepository.findByName("Algebra")
-                .orElseGet(() -> subjectRepository.save(
-                        Subject.builder().name("Algebra").isBasic(true).career(career).build()));
+        Institution institution = CatalogFixtures.saveInstitution(
+                institutionRepository, InstitutionCatalogData.UTN_FRVM);
+        Career career = CatalogFixtures.saveCareer(careerRepository, institution, "Ingeniería en Sistemas");
+        Subject algebra = CatalogFixtures.saveSubject(subjectRepository, career, "Algebra");
 
         tutorUser = userRepository.save(User.builder()
                 .fullName("Ana García")

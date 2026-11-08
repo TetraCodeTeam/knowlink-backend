@@ -282,6 +282,7 @@ DB_USER=...
 DB_PASSWORD=...
 JWT_SECRET=<base64, mínimo 256 bits>
 JWT_EXPIRATION=86400000
+RATING_GATE_ENFORCED_FROM=
 FRONTEND_URL=http://localhost:5173
 APP_URL=http://localhost:8080
 ```

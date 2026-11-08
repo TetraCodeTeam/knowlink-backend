@@ -1,5 +1,8 @@
 package com.knowlink.api.notifications.controllers;
 
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knowlink.api.bookings.controllers.requests.CreateBookingRequest;
 import com.knowlink.api.bookings.data.models.Hold;
@@ -92,6 +95,11 @@ class NotificationControllerIntegrationTest {
     private ICareerRepository careerRepository;
 
     @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    private Institution institution;
+
+    @Autowired
     private IStudentProfileRepository studentProfileRepository;
 
     @Autowired
@@ -110,8 +118,9 @@ class NotificationControllerIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        institution = CatalogFixtures.saveInstitution(institutionRepository, "Test " + System.nanoTime());
         notificationRepository.deleteAll();
-        career = careerRepository.save(Career.builder()
+        career = careerRepository.save(Career.builder().institution(institution)
                 .name("Career " + UUID.randomUUID()).build());
     }
 
@@ -386,6 +395,16 @@ class NotificationControllerIntegrationTest {
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].notificationId").value(pending.getNotificationId().toString()));
 
+        mockMvc.perform(get("/api/v1/notifications?status=READ")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.content[0].notificationId").value(expired.getNotificationId().toString()))
+                .andExpect(jsonPath("$.content[0].read").value(true))
+                .andExpect(jsonPath("$.content[0].readAt").doesNotExist())
+                .andExpect(jsonPath("$.content[0].actionStatus").value("EXPIRED"))
+                .andExpect(jsonPath("$.content[1].notificationId").value(completed.getNotificationId().toString()));
+
         mockMvc.perform(get("/api/v1/notifications/unread-count")
                         .header(HttpHeaders.AUTHORIZATION, bearer(token)))
                 .andExpect(status().isOk())
@@ -451,8 +470,8 @@ class NotificationControllerIntegrationTest {
 
     private CreatedBooking createBookingThroughService(User student, User tutor) {
         TutorProfile tutorProfile = tutorProfileRepository.findByUserId(tutor.getUserId()).orElseThrow();
-        Subject subject = subjectRepository.save(Subject.builder()
-                .name("Subject " + UUID.randomUUID()).isBasic(true).career(career).build());
+        Subject subject = subjectRepository.save(Subject.builder().institution(institution)
+                .name("Subject " + UUID.randomUUID()).career(career).build());
         TutorSubject tutorSubject = tutorSubjectRepository.save(TutorSubject.builder()
                 .tutorProfile(tutorProfile)
                 .subject(subject)

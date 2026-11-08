@@ -16,6 +16,7 @@ import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.util.Locale;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Especificaciones JPA para la búsqueda de tutores (US-49). Cada método
@@ -50,6 +51,12 @@ public final class TutorSearchSpecifications {
             String like = "%" + query.toLowerCase(Locale.ROOT) + "%";
             return cb.like(cb.lower(subject.<String>get("name")), like);
         };
+    }
+
+    /** Restricts the search to subjects that belong to the given institution. */
+    public static Specification<TutorSubject> subjectInInstitution(UUID institutionId) {
+        return (root, cq, cb) -> cb.equal(
+                root.get("subject").get("institution").get("institutionId"), institutionId);
     }
 
     public static Specification<TutorSubject> subjectActive() {

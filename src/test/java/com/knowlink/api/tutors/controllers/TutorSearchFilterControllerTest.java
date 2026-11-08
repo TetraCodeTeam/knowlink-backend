@@ -1,5 +1,11 @@
 package com.knowlink.api.tutors.controllers;
 
+import com.knowlink.api.students.data.models.StudentProfile;
+import com.knowlink.api.students.repositories.IStudentProfileRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
+import com.knowlink.api.tutors.config.InstitutionCatalogData;
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.tutors.availability.data.models.AvailabilityBlock;
@@ -62,6 +68,12 @@ class TutorSearchFilterControllerTest {
     private ICareerRepository careerRepository;
 
     @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    @Autowired
+    private IStudentProfileRepository studentProfileRepository;
+
+    @Autowired
     private ISubjectRepository subjectRepository;
 
     @Autowired
@@ -76,6 +88,8 @@ class TutorSearchFilterControllerTest {
     @Autowired
     private IAvailabilityBlockRepository availabilityBlockRepository;
 
+    private User studentUser;
+
     private static LocalDate upcoming(DayOfWeek day) {
         return LocalDate.now().plusWeeks(1).with(TemporalAdjusters.nextOrSame(day));
     }
@@ -86,16 +100,17 @@ class TutorSearchFilterControllerTest {
 
     @BeforeEach
     void seedData() {
-        Career career = careerRepository.findByName("Ingeniería en Sistemas")
-                .orElseGet(() -> careerRepository.save(
-                        Career.builder().name("Ingeniería en Sistemas").build()));
+        Institution institution = CatalogFixtures.saveInstitution(
+                institutionRepository, InstitutionCatalogData.UTN_FRVM);
+        Career career = CatalogFixtures.saveCareer(careerRepository, institution, "Ingeniería en Sistemas");
+        Career sharedCareer = CatalogFixtures.saveSharedCareer(careerRepository, institution);
 
-        Subject algebra = subject(career, "Algebra");
-        Subject fisica = subject(career, "Fisica");
-        Subject quimica = subject(career, "Quimica");
-        Subject sistemas = subject(career, "Sistemas Operativos");
-        Subject baseDeDatos = subject(career, "Base de Datos");
-        Subject historia = subject(career, "Historia");
+        Subject algebra = subject(sharedCareer, "Algebra");
+        Subject fisica = subject(sharedCareer, "Fisica");
+        Subject quimica = subject(sharedCareer, "Quimica");
+        Subject sistemas = subject(sharedCareer, "Sistemas Operativos");
+        Subject baseDeDatos = subject(sharedCareer, "Base de Datos");
+        Subject historia = subject(sharedCareer, "Historia");
 
         // Ana: materia PENDING (no verificada), con bloques lunes a la tarde y martes a la noche.
         TutorProfile ana = tutor("Ana García", career, 4.5);
@@ -137,21 +152,23 @@ class TutorSearchFilterControllerTest {
         tutorSubject(raul, historia, Modality.VIRTUAL, CompensationType.PAID, TutorSubjectStatus.ACTIVE);
         availabilityBlock(raul, NEXT_FRIDAY, LocalTime.of(9, 0), LocalTime.of(11, 0), false);
 
-        userRepository.save(User.builder()
+        studentUser = userRepository.save(User.builder()
                 .fullName("Estudiante")
                 .email("student@test.com")
                 .password("hashed")
                 .role(Role.STUDENT)
                 .accountStatus(AccountStatus.ACTIVE)
                 .build());
+        studentProfileRepository.save(StudentProfile.builder()
+                .user(studentUser)
+                .career(career)
+                .build());
 
         availabilityBlockRepository.flush();
     }
 
     private Subject subject(Career career, String name) {
-        return subjectRepository.findByName(name)
-                .orElseGet(() -> subjectRepository.save(
-                        Subject.builder().name(name).isBasic(true).career(career).build()));
+        return CatalogFixtures.saveSubject(subjectRepository, career, name);
     }
 
     private TutorProfile tutor(String fullName, Career career, double rating) {
@@ -195,14 +212,7 @@ class TutorSearchFilterControllerTest {
     }
 
     private RequestPostProcessor asStudent() {
-        User user = User.builder()
-                .fullName("Alumno Autenticado")
-                .email("auth.student@test.com")
-                .password("hashed")
-                .role(Role.STUDENT)
-                .accountStatus(AccountStatus.ACTIVE)
-                .build();
-        UserPrincipal principal = new UserPrincipal(user);
+        UserPrincipal principal = new UserPrincipal(studentUser);
         return authentication(
                 new UsernamePasswordAuthenticationToken(principal, null, principal.getAuthorities()));
     }

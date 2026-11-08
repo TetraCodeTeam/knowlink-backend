@@ -55,7 +55,8 @@ public class StudentProfileServiceImpl implements IStudentProfileService {
     public StudentProfile createProfile(User user, StudentRegistrationRequest request) {
         studentProfileValidationService.ifStudentProfileAlreadyExistsThrowException(user);
 
-        Career career = careerService.findByNameOrThrowException(request.career());
+        Career career = careerService.findRegularByNameAndInstitutionOrThrowException(
+                request.career(), request.institutionId());
         StudentProfile studentProfile = studentProfileMapper.toEntity(user, career, request);
 
         return studentProfileRepository.save(studentProfile);
@@ -75,7 +76,9 @@ public class StudentProfileServiceImpl implements IStudentProfileService {
     @Transactional
     public StudentSelfProfileResponse updateProfile(UUID userId, UpdateStudentProfileRequest request) {
         StudentProfile profile = studentProfileValidationService.getStudentProfileOrThrow(userId);
-        Career career = careerService.findByNameOrThrowException(request.career().trim());
+        Career career = careerService.findRegularByNameAndInstitutionOrThrowException(
+                request.career().trim(),
+                profile.getCareer().getInstitution().getInstitutionId());
 
         User user = userService.updatePersonalData(
                 userId, request.firstName(), request.lastName(), request.dni(), request.phoneNumber());

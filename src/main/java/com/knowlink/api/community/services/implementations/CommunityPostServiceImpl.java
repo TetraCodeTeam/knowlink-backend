@@ -2,6 +2,7 @@ package com.knowlink.api.community.services.implementations;
 
 import com.knowlink.api.community.controllers.requests.CreatePostRequest;
 import com.knowlink.api.community.controllers.requests.UpdatePostRequest;
+import com.knowlink.api.community.controllers.responses.CommunityCareerResponse;
 import com.knowlink.api.community.controllers.responses.CommunityFeedCountsResponse;
 import com.knowlink.api.community.controllers.responses.CommunityPostDetailResponse;
 import com.knowlink.api.community.controllers.responses.CommunityPostResponse;
@@ -29,9 +30,12 @@ import com.knowlink.api.materials.exception.ResourceAccessDeniedException;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.shared.responses.PagedResponse;
 import com.knowlink.api.tutors.data.models.Subject;
+import com.knowlink.api.tutors.data.models.Career;
 import com.knowlink.api.tutors.repositories.ISubjectRepository;
+import com.knowlink.api.tutors.services.interfaces.ICareerService;
 import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.repositories.IUserRepository;
+import com.knowlink.api.users.services.interfaces.IUserProfileLookupService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -69,6 +73,8 @@ public class CommunityPostServiceImpl implements ICommunityPostService {
     private final ICommunityReplyRepository replyRepository;
     private final IUserRepository userRepository;
     private final ISubjectRepository subjectRepository;
+    private final ICareerService careerService;
+    private final IUserProfileLookupService userProfileLookupService;
     private final ICommunityAttachmentService attachmentService;
     private final CommunityMapper mapper;
     private final Clock clock;
@@ -257,12 +263,25 @@ public class CommunityPostServiceImpl implements ICommunityPostService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<CommunitySubjectResponse> getSubjects(UUID careerId) {
-        List<Subject> subjects = careerId == null
-                ? subjectRepository.findAll(Sort.by("name"))
-                : subjectRepository.findBasicAndByCareerId(careerId);
+    public List<CommunitySubjectResponse> getSubjects(UUID userId, UUID careerId) {
+        List<Subject> subjects = careerId != null
+                ? subjectRepository.findSharedAndByCareerId(careerId)
+                : userProfileLookupService.findInstitutionIdByUserId(userId)
+                        .map(subjectRepository::findByInstitution_InstitutionIdOrderByName)
+                        .orElse(List.of());
         return subjects.stream()
                 .map(subject -> new CommunitySubjectResponse(subject.getSubjectId(), subject.getName()))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<CommunityCareerResponse> getCareers(UUID userId) {
+        List<Career> careers = userProfileLookupService.findInstitutionIdByUserId(userId)
+                .map(careerService::findRegularByInstitution)
+                .orElse(List.of());
+        return careers.stream()
+                .map(career -> new CommunityCareerResponse(career.getCareerId(), career.getName()))
                 .toList();
     }
 

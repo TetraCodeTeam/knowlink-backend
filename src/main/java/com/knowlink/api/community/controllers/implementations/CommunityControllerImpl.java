@@ -5,6 +5,7 @@ import com.knowlink.api.community.controllers.requests.CreatePostRequest;
 import com.knowlink.api.community.controllers.requests.CreateReplyRequest;
 import com.knowlink.api.community.controllers.requests.UpdatePostRequest;
 import com.knowlink.api.community.controllers.requests.UpdateReplyRequest;
+import com.knowlink.api.community.controllers.responses.CommunityCareerResponse;
 import com.knowlink.api.community.controllers.responses.CommunityFeedCountsResponse;
 import com.knowlink.api.community.controllers.responses.CommunityPostDetailResponse;
 import com.knowlink.api.community.controllers.responses.CommunityPostResponse;
@@ -110,8 +111,13 @@ public class CommunityControllerImpl implements ICommunityController {
     }
 
     @Override
-    public List<CommunitySubjectResponse> getSubjects(UUID careerId) {
-        return postService.getSubjects(careerId);
+    public List<CommunityCareerResponse> getCareers(UserPrincipal principal) {
+        return postService.getCareers(userId(principal));
+    }
+
+    @Override
+    public List<CommunitySubjectResponse> getSubjects(UserPrincipal principal, UUID careerId) {
+        return postService.getSubjects(userId(principal), careerId);
     }
 
     private static UUID userId(UserPrincipal principal) {

@@ -1,5 +1,8 @@
 package com.knowlink.api.tutors.controllers;
 
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.security.models.UserPrincipal;
@@ -62,6 +65,11 @@ class TutorProfileUpdateControllerTest {
     private ICareerRepository careerRepository;
 
     @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    private Institution institution;
+
+    @Autowired
     private ISubjectRepository subjectRepository;
 
     @Autowired
@@ -87,12 +95,13 @@ class TutorProfileUpdateControllerTest {
 
     @BeforeEach
     void seedData() {
-        careerA = careerRepository.save(Career.builder().name("Ingeniería en Sistemas Tutor US-03").build());
-        careerB = careerRepository.save(Career.builder().name("Medicina Tutor US-03").build());
+        institution = CatalogFixtures.saveInstitution(institutionRepository, "Test " + System.nanoTime());
+        careerA = careerRepository.save(Career.builder().institution(institution).name("Ingeniería en Sistemas Tutor US-03").build());
+        careerB = careerRepository.save(Career.builder().institution(institution).name("Medicina Tutor US-03").build());
 
-        Subject algebra = subjectRepository.save(Subject.builder()
+        Subject algebra = subjectRepository.save(Subject.builder().institution(institution)
                 .name("Algebra Tutor US-03")
-                .isBasic(true)
+                
                 .career(careerA)
                 .build());
 
@@ -210,9 +219,9 @@ class TutorProfileUpdateControllerTest {
     }
 
     private TutorSubject buildSubject(String name, Modality modality) {
-        Subject subject = subjectRepository.save(Subject.builder()
+        Subject subject = subjectRepository.save(Subject.builder().institution(institution)
                 .name(name)
-                .isBasic(true)
+                
                 .career(careerA)
                 .build());
         return TutorSubject.builder()

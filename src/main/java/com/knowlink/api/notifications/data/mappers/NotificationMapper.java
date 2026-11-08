@@ -18,13 +18,14 @@ public class NotificationMapper {
 
     public NotificationResponse toResponse(Notification notification) {
         LocalDateTime now = LocalDateTime.now(clock);
+        boolean expired = notification.getExpiresAt() != null && now.isAfter(notification.getExpiresAt());
         return new NotificationResponse(
                 notification.getNotificationId(),
                 notification.getType(),
                 notification.getTitle(),
                 notification.getMessage(),
                 notification.getResourceId(),
-                notification.getReadAt() != null,
+                notification.getReadAt() != null || expired,
                 notification.getCreatedAt(),
                 notification.getReadAt(),
                 notification.getExpiresAt(),

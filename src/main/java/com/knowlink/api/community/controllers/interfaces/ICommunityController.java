@@ -4,6 +4,7 @@ import com.knowlink.api.community.controllers.requests.CreatePostRequest;
 import com.knowlink.api.community.controllers.requests.CreateReplyRequest;
 import com.knowlink.api.community.controllers.requests.UpdatePostRequest;
 import com.knowlink.api.community.controllers.requests.UpdateReplyRequest;
+import com.knowlink.api.community.controllers.responses.CommunityCareerResponse;
 import com.knowlink.api.community.controllers.responses.CommunityFeedCountsResponse;
 import com.knowlink.api.community.controllers.responses.CommunityPostDetailResponse;
 import com.knowlink.api.community.controllers.responses.CommunityPostResponse;
@@ -239,11 +240,23 @@ public interface ICommunityController {
             @PathVariable UUID postId,
             @PathVariable UUID replyId);
 
+    @GetMapping("/careers")
+    @Operation(summary = "Listar las carreras de la institución del usuario",
+            description = "Devuelve las carreras regulares de la institución del usuario autenticado, ordenadas por nombre. "
+                    + "Si el usuario todavía no tiene perfil académico, devuelve una lista vacía.")
+    @ApiResponse(responseCode = "200", description = "Carreras ordenadas por nombre (vacía si no hay perfil)")
+    @ApiResponse(responseCode = "401", description = "Sin autenticar")
+    @ResponseStatus(OK)
+    List<CommunityCareerResponse> getCareers(@AuthenticationPrincipal UserPrincipal principal);
+
     @GetMapping("/subjects")
     @Operation(summary = "Listar las materias del catálogo",
-            description = "Sirve para publicar y para filtrar el feed. Con careerId devuelve las materias de esa carrera más las básicas.")
+            description = "Sirve para publicar y para filtrar el feed. Con careerId devuelve las materias de esa carrera "
+                    + "más las compartidas de su institución; sin careerId, todas las materias de la institución del usuario.")
     @ApiResponse(responseCode = "200", description = "Materias ordenadas por nombre")
+    @ApiResponse(responseCode = "401", description = "Sin autenticar")
     @ResponseStatus(OK)
     List<CommunitySubjectResponse> getSubjects(
+            @AuthenticationPrincipal UserPrincipal principal,
             @Parameter(description = "Carrera del catálogo") @RequestParam(required = false) UUID careerId);
 }

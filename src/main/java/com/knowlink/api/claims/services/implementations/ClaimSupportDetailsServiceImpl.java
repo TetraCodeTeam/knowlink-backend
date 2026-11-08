@@ -75,12 +75,29 @@ public class ClaimSupportDetailsServiceImpl implements IClaimSupportDetailsServi
         LocalDateTime dueAt = claim.getCreatedAt().plusHours(supportProperties.claimResponseHours());
         long remainingMinutes = Math.max(0,
                 Duration.between(LocalDateTime.now(AppTimeZone.ZONE), dueAt).toMinutes());
-        Integer queuePosition = claim.getStatus() == ClaimStatus.OPEN
-                ? Math.toIntExact(sessionClaimRepository.countOpenClaimsInQueueThrough(
-                        claim.getCreatedAt(), claim.getClaimId()))
+        SessionClaim representative = resolveRepresentative(claim);
+        boolean open = claim.getStatus() == ClaimStatus.OPEN;
+        Integer queuePosition = open
+                ? Math.toIntExact(sessionClaimRepository.countOpenDisputesInQueueThrough(
+                        representative.getCreatedAt(), representative.getClaimId()))
+                : null;
+        Integer queueTotal = open
+                ? Math.toIntExact(sessionClaimRepository.countOpenDisputes())
                 : null;
 
-        return new ClaimReviewProgressResponse(phase, queuePosition, dueAt, remainingMinutes);
+        return new ClaimReviewProgressResponse(phase, queuePosition, queueTotal, dueAt, remainingMinutes);
+    }
+
+    /**
+     * A dispute groups every claim of the same booking. The representative claim is the one whose
+     * claimId is the disputeId, so the counterpart claim inherits the same queue position.
+     */
+    private SessionClaim resolveRepresentative(SessionClaim claim) {
+        UUID disputeId = claim.getDisputeId();
+        if (disputeId == null || disputeId.equals(claim.getClaimId())) {
+            return claim;
+        }
+        return sessionClaimRepository.findById(disputeId).orElse(claim);
     }
 
     @Override

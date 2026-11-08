@@ -1,5 +1,8 @@
 package com.knowlink.api.materials.controllers;
 
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knowlink.api.materials.data.models.AcademicMaterial;
@@ -127,6 +130,9 @@ class MaterialRealUploadIntegrationTest {
     private ICareerRepository careerRepository;
 
     @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    @Autowired
     private ISubjectRepository subjectRepository;
 
     @Autowired
@@ -156,10 +162,11 @@ class MaterialRealUploadIntegrationTest {
                         && !effectiveUrl.contains("test.supabase.co"),
                 "supabase.url real no disponible: se esta usando el valor de prueba");
 
-        Career career = careerRepository.save(Career.builder()
+        Institution institution = CatalogFixtures.saveInstitution(institutionRepository, "Test " + System.nanoTime());
+        Career career = careerRepository.save(Career.builder().institution(institution)
                 .name("Career " + UUID.randomUUID()).build());
-        Subject subject = subjectRepository.save(Subject.builder()
-                .name("Subject " + UUID.randomUUID()).isBasic(true).career(career).build());
+        Subject subject = subjectRepository.save(Subject.builder().institution(institution)
+                .name("Subject " + UUID.randomUUID()).career(career).build());
 
         User tutor = userRepository.save(User.builder()
                 .fullName("Tutor Material Test")

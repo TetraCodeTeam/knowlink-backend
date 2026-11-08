@@ -1,5 +1,8 @@
 package com.knowlink.api.admin.materialreports;
 
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
 import com.knowlink.api.admin.materialreports.data.enums.MaterialReportCaseStatus;
 import com.knowlink.api.admin.materialreports.data.models.MaterialReportCase;
 import com.knowlink.api.admin.materialreports.repositories.IMaterialReportCaseRepository;
@@ -67,6 +70,11 @@ class AdminMaterialReportAssignConcurrencyTest {
     private IUserRepository userRepository;
     @Autowired
     private ICareerRepository careerRepository;
+
+    @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    private Institution institution;
     @Autowired
     private ISubjectRepository subjectRepository;
     @Autowired
@@ -89,18 +97,19 @@ class AdminMaterialReportAssignConcurrencyTest {
 
     @BeforeEach
     void setUp() {
+        institution = CatalogFixtures.saveInstitution(institutionRepository, "Test " + System.nanoTime());
         transactionTemplate = new TransactionTemplate(transactionManager);
         transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
 
-        career = careerRepository.save(Career.builder().name("Career " + UUID.randomUUID()).build());
+        career = careerRepository.save(Career.builder().institution(institution).name("Career " + UUID.randomUUID()).build());
         tutor = userRepository.save(user("tutor", Role.TUTOR));
         firstAdmin = userRepository.save(user("admin-one", Role.ADMIN));
         secondAdmin = userRepository.save(user("admin-two", Role.ADMIN));
         tutorProfile = tutorProfileRepository.save(TutorProfile.builder().user(tutor).career(career).build());
-        subject = subjectRepository.save(Subject.builder()
+        subject = subjectRepository.save(Subject.builder().institution(institution)
                 .name("Subject " + UUID.randomUUID())
                 .career(career)
-                .isBasic(true)
+                
                 .build());
         tutorSubject = tutorSubjectRepository.save(TutorSubject.builder()
                 .tutorProfile(tutorProfile)

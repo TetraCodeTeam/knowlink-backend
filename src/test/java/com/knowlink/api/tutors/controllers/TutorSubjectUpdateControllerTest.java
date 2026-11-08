@@ -1,5 +1,8 @@
 package com.knowlink.api.tutors.controllers;
 
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
@@ -66,6 +69,11 @@ class TutorSubjectUpdateControllerTest {
     private ICareerRepository careerRepository;
 
     @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    private Institution institution;
+
+    @Autowired
     private ISubjectRepository subjectRepository;
 
     @Autowired
@@ -94,13 +102,14 @@ class TutorSubjectUpdateControllerTest {
 
     @BeforeEach
     void seedData() {
-        career = careerRepository.save(Career.builder()
+        institution = CatalogFixtures.saveInstitution(institutionRepository, "Test " + System.nanoTime());
+        career = careerRepository.save(Career.builder().institution(institution)
                 .name("Carrera edición " + UUID.randomUUID())
                 .build());
 
-        Subject algebra = subjectRepository.save(Subject.builder()
+        Subject algebra = subjectRepository.save(Subject.builder().institution(institution)
                 .name("Materia edición " + UUID.randomUUID())
-                .isBasic(true)
+                
                 .career(career)
                 .build());
 
@@ -135,9 +144,9 @@ class TutorSubjectUpdateControllerTest {
 
     private TutorSubject saveSubjectFor(TutorProfile profile, TutorSubjectStatus status, Modality modality,
             CompensationType compensationType, String pricePerHour) {
-        Subject subject = subjectRepository.save(Subject.builder()
+        Subject subject = subjectRepository.save(Subject.builder().institution(institution)
                 .name("Materia " + UUID.randomUUID())
-                .isBasic(true)
+                
                 .career(career)
                 .build());
 

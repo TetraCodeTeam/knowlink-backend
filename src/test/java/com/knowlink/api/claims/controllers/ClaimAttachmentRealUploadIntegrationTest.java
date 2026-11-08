@@ -1,5 +1,8 @@
 package com.knowlink.api.claims.controllers;
 
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
@@ -160,6 +163,11 @@ class ClaimAttachmentRealUploadIntegrationTest {
     private ICareerRepository careerRepository;
 
     @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    private Institution institution;
+
+    @Autowired
     private ISubjectRepository subjectRepository;
 
     @Autowired
@@ -193,10 +201,11 @@ class ClaimAttachmentRealUploadIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        Career career = careerRepository.save(Career.builder()
+        institution = CatalogFixtures.saveInstitution(institutionRepository, "Test " + System.nanoTime());
+        Career career = careerRepository.save(Career.builder().institution(institution)
                 .name("Career " + UUID.randomUUID()).build());
-        Subject subject = subjectRepository.save(Subject.builder()
-                .name("Subject " + UUID.randomUUID()).isBasic(true).career(career).build());
+        Subject subject = subjectRepository.save(Subject.builder().institution(institution)
+                .name("Subject " + UUID.randomUUID()).career(career).build());
         tutor = saveUser("Tutor Test", Role.TUTOR);
         tutorProfile = tutorProfileRepository.save(TutorProfile.builder()
                 .user(tutor).career(career).verified(true).build());

@@ -1,5 +1,7 @@
 package com.knowlink.api.tutors.services;
 
+import com.knowlink.api.tutors.data.models.Institution;
+
 import com.knowlink.api.exceptions.custom_exceptions.BusinessConflictException;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.materials.service.interfaces.IProfileImageService;
@@ -54,6 +56,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -102,6 +105,12 @@ class TutorSubjectActivationServiceTest {
     private static final TutorSearchFilters NO_FILTERS =
             new TutorSearchFilters(null, null, null, null, null, null);
 
+    private static final UUID INSTITUTION_ID = UUID.randomUUID();
+    private static final Institution INSTITUTION = Institution.builder()
+            .institutionId(INSTITUTION_ID)
+            .name("UTN FRVM")
+            .build();
+
     private final UUID tutorUserId = UUID.randomUUID();
     private final UUID tutorProfileId = UUID.randomUUID();
     private final UUID tutorSubjectId = UUID.randomUUID();
@@ -111,7 +120,11 @@ class TutorSubjectActivationServiceTest {
 
     @BeforeEach
     void setUp() {
-        Career career = Career.builder().careerId(UUID.randomUUID()).name("Ingenieria en Sistemas").build();
+        Career career = Career.builder()
+                .careerId(UUID.randomUUID())
+                .name("Ingenieria en Sistemas")
+                .institution(INSTITUTION)
+                .build();
         User user = User.builder()
                 .userId(tutorUserId)
                 .fullName("Ana Tutora")
@@ -134,6 +147,8 @@ class TutorSubjectActivationServiceTest {
                 .tutorSubjectStatus(TutorSubjectStatus.ACTIVE)
                 .build();
         tutorProfile.getSubjects().add(tutorSubject);
+        lenient().when(userProfileLookupService.findInstitutionIdByUserId(any()))
+                .thenReturn(Optional.of(INSTITUTION_ID));
     }
 
     private void givenOwnedSubject() {

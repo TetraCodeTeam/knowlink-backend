@@ -149,6 +149,12 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(error);
     }
 
+    @ExceptionHandler(RatingRequiredException.class)
+    public ResponseEntity<ApiError> handleRatingRequired(RatingRequiredException ex) {
+        logger.debug(ex.getMessage());
+        ApiError error = new ApiError(HttpStatus.LOCKED.value(), ex.getUserMessage(), ex.getErrorCode());
+        return ResponseEntity.status(HttpStatus.LOCKED).body(error);
+    }
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiError> handleNotReadable(HttpMessageNotReadableException ex) {
         logger.warn("Malformed request body: {}", ex.getMessage());

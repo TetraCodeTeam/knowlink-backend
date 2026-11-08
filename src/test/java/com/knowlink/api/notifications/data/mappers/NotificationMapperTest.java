@@ -86,6 +86,25 @@ class NotificationMapperTest {
                 .isEqualTo(NotificationActionStatus.NONE);
     }
 
+    @Test
+    @DisplayName("Vencida sin leer - read true, readAt null y actionStatus EXPIRED")
+    void expiredUnreadRating_isReadAndKeepsNullReadAt() {
+        Notification notification = notification(NotificationType.RATING_ENABLED, NOW.minusMinutes(1), null);
+
+        NotificationResponse response = mapper.toResponse(notification);
+
+        assertThat(response.read()).isTrue();
+        assertThat(response.readAt()).isNull();
+        assertThat(response.actionStatus()).isEqualTo(NotificationActionStatus.EXPIRED);
+    }
+
+    @Test
+    @DisplayName("Vigente sin leer - read false")
+    void activeUnreadRating_isNotRead() {
+        Notification notification = notification(NotificationType.RATING_ENABLED, NOW.plusHours(1), null);
+
+        assertThat(mapper.toResponse(notification).read()).isFalse();
+    }
     private Notification notification(NotificationType type, LocalDateTime expiresAt, LocalDateTime resolvedAt) {
         return Notification.builder()
                 .notificationId(UUID.randomUUID())

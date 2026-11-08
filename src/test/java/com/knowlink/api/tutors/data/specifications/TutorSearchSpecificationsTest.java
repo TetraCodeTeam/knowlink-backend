@@ -1,5 +1,8 @@
 package com.knowlink.api.tutors.data.specifications;
 
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.tutors.availability.data.models.AvailabilityBlock;
 import com.knowlink.api.tutors.data.enums.CompensationType;
@@ -44,6 +47,11 @@ class TutorSearchSpecificationsTest {
     private ICareerRepository careerRepository;
 
     @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    private Institution institution;
+
+    @Autowired
     private ISubjectRepository subjectRepository;
 
     @Autowired
@@ -54,12 +62,13 @@ class TutorSearchSpecificationsTest {
 
     @BeforeEach
     void seedData() {
-        Career career = careerRepository.save(Career.builder().name("Ingeniería en Sistemas").build());
+        institution = CatalogFixtures.saveInstitution(institutionRepository, "Test " + System.nanoTime());
+        Career career = careerRepository.save(Career.builder().institution(institution).name("Ingeniería en Sistemas").build());
 
-        Subject algebra = subjectRepository.save(Subject.builder().name("Algebra").isBasic(true).career(career).build());
-        Subject fisica = subjectRepository.save(Subject.builder().name("Fisica").isBasic(true).career(career).build());
-        Subject quimica = subjectRepository.save(Subject.builder().name("Quimica").isBasic(true).career(career).build());
-        Subject biologia = subjectRepository.save(Subject.builder().name("Biologia").isBasic(true).career(career).build());
+        Subject algebra = subjectRepository.save(Subject.builder().institution(institution).name("Algebra").career(career).build());
+        Subject fisica = subjectRepository.save(Subject.builder().institution(institution).name("Fisica").career(career).build());
+        Subject quimica = subjectRepository.save(Subject.builder().institution(institution).name("Quimica").career(career).build());
+        Subject biologia = subjectRepository.save(Subject.builder().institution(institution).name("Biologia").career(career).build());
 
         TutorProfile ana = tutor(career, "Ana Test", 4.5);
         tutorSubject(ana, algebra, Modality.VIRTUAL, CompensationType.PAID, TutorSubjectStatus.ACTIVE);
@@ -275,8 +284,8 @@ class TutorSearchSpecificationsTest {
     @DisplayName("subjectActive excluye las materias desactivadas")
     void subjectActive_excludesInactiveSubjects() {
         Career career = careerRepository.findAll().get(0);
-        Subject inactiveSubject = subjectRepository.save(Subject.builder()
-                .name("Materia inactiva").isBasic(true).career(career).build());
+        Subject inactiveSubject = subjectRepository.save(Subject.builder().institution(institution)
+                .name("Materia inactiva").career(career).build());
         TutorProfile inactiveTutor = tutor(career, "Inactivo Test", 4.0);
         TutorSubject inactive = tutorSubject(inactiveTutor, inactiveSubject, Modality.VIRTUAL,
                 CompensationType.PAID, TutorSubjectStatus.ACTIVE);

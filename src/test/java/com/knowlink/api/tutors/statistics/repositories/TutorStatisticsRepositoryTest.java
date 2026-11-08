@@ -1,5 +1,8 @@
 package com.knowlink.api.tutors.statistics.repositories;
 
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.enums.CancellationRole;
 import com.knowlink.api.bookings.data.enums.RefundDestination;
@@ -53,6 +56,11 @@ class TutorStatisticsRepositoryTest {
 
     @Autowired
     private ITutorStatisticsRepository repository;
+
+    @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    private Institution institution;
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -65,13 +73,14 @@ class TutorStatisticsRepositoryTest {
 
     @BeforeEach
     void setUp() {
-        Career career = persist(Career.builder().name("Career " + UUID.randomUUID()).build());
+        institution = CatalogFixtures.saveInstitution(institutionRepository, "Test " + System.nanoTime());
+        Career career = persist(Career.builder().institution(institution).name("Career " + UUID.randomUUID()).build());
         tutor = persist(user("tutor", Role.TUTOR));
         otherTutor = persist(user("other-tutor", Role.TUTOR));
         student = persist(user("student", Role.STUDENT));
         tutorProfile = persist(TutorProfile.builder().user(tutor).career(career).build());
-        Subject subject = persist(Subject.builder()
-                .name("Subject " + UUID.randomUUID()).career(career).isBasic(true).build());
+        Subject subject = persist(Subject.builder().institution(institution)
+                .name("Subject " + UUID.randomUUID()).career(career).build());
         tutorSubject = persist(TutorSubject.builder()
                 .tutorProfile(tutorProfile)
                 .subject(subject)

@@ -13,23 +13,44 @@ import java.util.UUID;
 @Repository
 public interface ISubjectRepository extends JpaRepository<Subject, UUID> {
 
-    Optional<Subject> findByName(String name);
+    Optional<Subject> findByInstitution_InstitutionIdAndName(UUID institutionId, String name);
 
-    @Query("SELECT s FROM Subject s WHERE s.isBasic = true")
-    List<Subject> findBasicSubjects();
-
-    /** Materias que cursa una carrera: las propias más las básicas, comunes a todas. */
+    /**
+     * Shared subjects of an institution, with the career eagerly loaded so that
+     * Subject#isBasic() works (the mapping runs outside the transaction).
+     */
     @Query("""
             SELECT s FROM Subject s
-            WHERE s.isBasic = true OR s.career.careerId = :careerId
+            JOIN FETCH s.career
+            WHERE s.institution.institutionId = :institutionId
+              AND s.career.type = com.knowlink.api.tutors.data.enums.CareerType.SHARED
             ORDER BY s.name
             """)
-    List<Subject> findBasicAndByCareerId(@Param("careerId") UUID careerId);
+    List<Subject> findSharedByInstitutionId(@Param("institutionId") UUID institutionId);
 
+    /** Materias de una carrera + las compartidas de su misma institución (reemplaza findBasicAndByCareerId). */
     @Query("""
             SELECT s FROM Subject s
             WHERE s.career.careerId = :careerId
-            AND s.isBasic = false
+               OR (s.career.type = com.knowlink.api.tutors.data.enums.CareerType.SHARED
+                   AND s.institution.institutionId =
+                       (SELECT c.institution.institutionId FROM Career c WHERE c.careerId = :careerId))
+            ORDER BY s.name
             """)
-    List<Subject> findNonBasicByCareerId(@Param("careerId") UUID careerId);
+    List<Subject> findSharedAndByCareerId(@Param("careerId") UUID careerId);
+
+    /**
+     * Subjects of a single career with the career eagerly loaded: Subject#isBasic()
+     * reads career.type and the response mapping happens outside the transaction
+     * (spring.jpa.open-in-view is disabled).
+     */
+    @Query("""
+            SELECT s FROM Subject s
+            JOIN FETCH s.career
+            WHERE s.career.careerId = :careerId
+            ORDER BY s.name
+            """)
+    List<Subject> findByCareer_CareerIdOrderByName(@Param("careerId") UUID careerId);
+
+    List<Subject> findByInstitution_InstitutionIdOrderByName(UUID institutionId);
 }

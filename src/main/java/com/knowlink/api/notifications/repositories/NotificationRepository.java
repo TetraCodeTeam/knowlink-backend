@@ -48,6 +48,26 @@ public interface NotificationRepository extends JpaRepository<Notification, UUID
             @Param("now") LocalDateTime now,
             Pageable pageable);
 
+    @Query(value = """
+            SELECT n FROM Notification n
+            WHERE n.recipient.userId = :userId
+              AND n.recipientRole = :recipientRole
+              AND (n.readAt IS NOT NULL
+                   OR (n.expiresAt IS NOT NULL AND n.expiresAt < :now))
+            """,
+            countQuery = """
+            SELECT COUNT(n) FROM Notification n
+            WHERE n.recipient.userId = :userId
+              AND n.recipientRole = :recipientRole
+              AND (n.readAt IS NOT NULL
+                   OR (n.expiresAt IS NOT NULL AND n.expiresAt < :now))
+            """)
+    Page<Notification> findReadOrExpiredByRecipient(
+            @Param("userId") UUID userId,
+            @Param("recipientRole") Role recipientRole,
+            @Param("now") LocalDateTime now,
+            Pageable pageable);
+
     @Query("""
             SELECT COUNT(n) FROM Notification n
             WHERE n.recipient.userId = :userId

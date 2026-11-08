@@ -1,5 +1,8 @@
 package com.knowlink.api.bookings.repositories;
 
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.security.enums.Role;
@@ -44,6 +47,11 @@ class BookingHistoryRepositoryTest {
     @Autowired
     private IBookingRepository bookingRepository;
 
+    @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    private Institution institution;
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -54,14 +62,15 @@ class BookingHistoryRepositoryTest {
 
     @BeforeEach
     void setUp() {
-        Career career = persist(Career.builder().name("Test Career").build());
+        institution = CatalogFixtures.saveInstitution(institutionRepository, "Test " + System.nanoTime());
+        Career career = persist(Career.builder().institution(institution).name("Test Career").build());
         student = persistUser("student", Role.STUDENT);
         tutor = persistUser("tutor", Role.TUTOR);
         tutorProfile = persist(TutorProfile.builder().user(tutor).career(career).build());
-        Subject subject = persist(Subject.builder()
+        Subject subject = persist(Subject.builder().institution(institution)
                 .name("Test Subject")
                 .career(career)
-                .isBasic(true)
+                
                 .build());
         tutorSubject = persist(TutorSubject.builder()
                 .tutorProfile(tutorProfile)

@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -26,5 +27,14 @@ public class UserProfileLookupServiceImpl implements IUserProfileLookupService {
     @Transactional(readOnly = true)
     public boolean hasStudentProfile(UUID userId) {
         return studentProfileRepository.existsByUser_UserId(userId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<UUID> findInstitutionIdByUserId(UUID userId) {
+        return studentProfileRepository.findByUserId(userId)
+                .map(profile -> profile.getCareer().getInstitution().getInstitutionId())
+                .or(() -> tutorProfileRepository.findByUserId(userId)
+                        .map(profile -> profile.getCareer().getInstitution().getInstitutionId()));
     }
 }

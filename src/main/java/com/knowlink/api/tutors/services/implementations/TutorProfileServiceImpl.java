@@ -109,7 +109,8 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         public TutorProfile createProfile(User user, TutorRegistrationRequest request) {
                 tutorProfileValidationService.ifTutorProfileAlreadyExistsThrowException(user);
 
-                Career career = careerService.findByNameOrThrowException(request.career());
+                Career career = careerService.findRegularByNameAndInstitutionOrThrowException(
+                                request.career(), request.institutionId());
                 TutorProfile tutorProfile = tutorProfileMapper.toEntity(user, career, request);
 
                 tutorProfile.getSubjects().addAll(
@@ -131,7 +132,9 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         @Transactional
         public TutorSelfProfileResponse updateProfile(UUID tutorUserId, UpdateTutorProfileRequest request) {
                 TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
-                Career career = careerService.findByNameOrThrowException(request.career().trim());
+                Career career = careerService.findRegularByNameAndInstitutionOrThrowException(
+                                request.career().trim(),
+                                tutorProfile.getCareer().getInstitution().getInstitutionId());
 
                 tutorProfileValidationService.ifCareerChangeBlockedBySubjectsThrowException(tutorProfile, career);
                 tutorProfileValidationService.ifAddressRequiredForInPersonSubjectsThrowException(
@@ -200,9 +203,16 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
         public List<TutorSearchResponse> searchTutor(String query, UUID studentUserId, TutorSearchFilters filters) {
                 validateMinRating(filters.minRating());
 
+                UUID institutionId = userProfileLookupService.findInstitutionIdByUserId(studentUserId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "STUDENT_PROFILE_NOT_FOUND",
+                                                "No encontramos tu perfil de alumno.",
+                                                String.format("Student profile not found for user '%s'", studentUserId)));
+
                 Specification<TutorSubject> subjectSpec = TutorSearchSpecifications.subjectNameContains(query)
                                 .and(TutorSearchSpecifications.subjectActive())
-                                .and(TutorSearchSpecifications.tutorAccountActive());
+                                .and(TutorSearchSpecifications.tutorAccountActive())
+                                .and(TutorSearchSpecifications.subjectInInstitution(institutionId));
                 if (filters.hasModality()) {
                         subjectSpec = subjectSpec.and(TutorSearchSpecifications.modalityIn(filters.modality()));
                 }
@@ -233,6 +243,9 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                                 AccountStatus.ACTIVE);
 
                 for (TutorProfile tutorProfile : nameMatches) {
+                        if (!institutionId.equals(tutorProfile.getCareer().getInstitution().getInstitutionId())) {
+                                continue;
+                        }
                         List<TutorSubject> activeSubjects = subjectsVisibleForSearch(tutorProfile, filters);
                         if (activeSubjects.isEmpty()) {
                                 continue;

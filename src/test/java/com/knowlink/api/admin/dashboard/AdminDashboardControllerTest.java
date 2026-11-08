@@ -1,5 +1,8 @@
 package com.knowlink.api.admin.dashboard;
 
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.students.data.models.StudentProfile;
@@ -54,6 +57,11 @@ class AdminDashboardControllerTest {
     private ICareerRepository careerRepository;
 
     @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    private Institution institution;
+
+    @Autowired
     private IStudentProfileRepository studentProfileRepository;
 
     @Autowired
@@ -65,7 +73,8 @@ class AdminDashboardControllerTest {
 
     @BeforeEach
     void setUp() {
-        Career career = careerRepository.save(Career.builder()
+        institution = CatalogFixtures.saveInstitution(institutionRepository, "Test " + System.nanoTime());
+        Career career = careerRepository.save(Career.builder().institution(institution)
                 .name("Career " + UUID.randomUUID())
                 .build());
         admin = saveUser(Role.ADMIN);

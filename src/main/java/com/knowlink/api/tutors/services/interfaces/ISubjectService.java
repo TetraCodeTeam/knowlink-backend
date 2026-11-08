@@ -7,7 +7,12 @@ import java.util.List;
 import java.util.UUID;
 
 public interface ISubjectService {
+
     Subject findByNameAndCareerOrThrowException(String name, Career career);
-    List<Subject> findBasicSubjects();
+
+    List<Subject> findSharedByInstitutionId(UUID institutionId);
+
     List<Subject> findByCareerId(UUID careerId);
+
+    List<Subject> findByInstitutionId(UUID institutionId);
 }

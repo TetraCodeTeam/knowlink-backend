@@ -1,5 +1,8 @@
 package com.knowlink.api.users.controllers;
 
+import com.knowlink.api.tutors.data.models.Institution;
+import com.knowlink.api.tutors.repositories.IInstitutionRepository;
+import com.knowlink.api.testsupport.CatalogFixtures;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
@@ -89,6 +92,11 @@ class DeactivatedAccountVisibilityIntegrationTest {
     private ITutorSubjectRepository tutorSubjectRepository;
     @Autowired
     private ICareerRepository careerRepository;
+
+    @Autowired
+    private IInstitutionRepository institutionRepository;
+
+    private Institution institution;
     @Autowired
     private ISubjectRepository subjectRepository;
     @Autowired
@@ -113,12 +121,13 @@ class DeactivatedAccountVisibilityIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        career = careerRepository.save(Career.builder()
+        institution = CatalogFixtures.saveInstitution(institutionRepository, "Test " + System.nanoTime());
+        career = careerRepository.save(Career.builder().institution(institution)
                 .name("Career " + UUID.randomUUID())
                 .build());
-        subject = subjectRepository.save(Subject.builder()
+        subject = subjectRepository.save(Subject.builder().institution(institution)
                 .name("Visible " + UUID.randomUUID())
-                .isBasic(false)
+                
                 .career(career)
                 .build());
 
@@ -144,9 +153,9 @@ class DeactivatedAccountVisibilityIntegrationTest {
     void search_doesNotReturnDeactivatedTutor() throws Exception {
         User deactivatedTutor = saveUser("Hidden Tutor " + UUID.randomUUID(), Role.TUTOR,
                 AccountStatus.DEACTIVATED);
-        Subject hiddenSubject = subjectRepository.save(Subject.builder()
+        Subject hiddenSubject = subjectRepository.save(Subject.builder().institution(institution)
                 .name("Hidden Subject " + UUID.randomUUID())
-                .isBasic(false)
+                
                 .career(career)
                 .build());
         TutorProfile hiddenProfile = tutorProfileRepository.save(TutorProfile.builder()

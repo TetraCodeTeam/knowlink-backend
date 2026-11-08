@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 
 import java.util.List;
+import java.util.UUID;
 
 public record TutorRegistrationRequest(
 
@@ -40,6 +41,9 @@ public record TutorRegistrationRequest(
 
         @NotBlank(message = "Career is required")
         String career,
+
+        @NotNull(message = "Institution is required")
+        UUID institutionId,
 
         @Size(max = 50, message = "Institutional ID cannot exceed 50 characters")
         String institutionalId,

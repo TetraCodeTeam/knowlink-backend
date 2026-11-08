@@ -10,7 +10,6 @@ import com.knowlink.api.ratings.events.RatingSubmittedEvent;
 import com.knowlink.api.ratings.services.implementations.RatingServiceImpl;
 import com.knowlink.api.bookings.validations.IBookingValidationService;
 import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
-import com.knowlink.api.exceptions.custom_exceptions.RatingWindowExpiredException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.ratings.data.models.Rating;
 import com.knowlink.api.ratings.repositories.IRatingRepository;
@@ -136,7 +135,7 @@ class BookingRatingServiceImplTest {
     }
 
     @Test
-    void ratingAfterTwentyFourHoursIsRejected() {
+    void ratingAfterTwentyFourHoursIsAccepted() {
         UUID bookingId = UUID.randomUUID();
         User student = user();
         User tutor = user();
@@ -144,16 +143,13 @@ class BookingRatingServiceImplTest {
         booking.setSessionDate(NOW.minusDays(2).toLocalDate());
         prepareBooking(bookingId, booking, List.of());
 
-        RatingWindowExpiredException exception = assertThrows(RatingWindowExpiredException.class,
-                () -> bookingRatingService.submitRating(
-                        student.getUserId(), bookingId, new CreateRatingRequest(3, null)));
+        RatingResponse response = bookingRatingService.submitRating(
+                student.getUserId(), bookingId, new CreateRatingRequest(3, null));
 
-        assertEquals("RATING_WINDOW_EXPIRED", exception.getErrorCode());
-        verify(ratingRepository, never()).save(any(Rating.class));
-        verify(ratingRepository, never()).saveAll(anyList());
-        verify(applicationEventPublisher, never()).publishEvent(any(Object.class));
+        assertTrue(response.visible());
+        verify(ratingRepository).saveAll(anyList());
+        verify(applicationEventPublisher).publishEvent(any(Object.class));
     }
-
     @Test
     void alreadySubmittedRatingCannotBeModified() {
         UUID bookingId = UUID.randomUUID();
@@ -173,7 +169,7 @@ class BookingRatingServiceImplTest {
     }
 
     @Test
-    void duplicateTakesPrecedenceOverExpiredWindow() {
+    void duplicateStillTakesPrecedence() {
         UUID bookingId = UUID.randomUUID();
         User student = user();
         User tutor = user();
@@ -240,7 +236,7 @@ class BookingRatingServiceImplTest {
     }
 
     @Test
-    void expiredWindowWithoutConfirmedAtIsRejected() {
+    void ratingWithoutConfirmedAtAfterTheSessionIsAccepted() {
         UUID bookingId = UUID.randomUUID();
         User student = user();
         User tutor = user();
@@ -248,13 +244,12 @@ class BookingRatingServiceImplTest {
         booking.setSessionDate(NOW.minusDays(2).toLocalDate());
         prepareBooking(bookingId, booking, List.of());
 
-        assertThrows(RatingWindowExpiredException.class,
-                () -> bookingRatingService.submitRating(
-                        student.getUserId(), bookingId, new CreateRatingRequest(4, null)));
+        RatingResponse response = bookingRatingService.submitRating(
+                student.getUserId(), bookingId, new CreateRatingRequest(4, null));
 
-        verify(ratingRepository, never()).save(any(Rating.class));
+        assertTrue(response.visible());
+        verify(ratingRepository).saveAll(anyList());
     }
-
     @Test
     void confirmationAfterSessionEndMovesTheDeadline() {
         UUID bookingId = UUID.randomUUID();
