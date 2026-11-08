@@ -20,7 +20,7 @@ import static org.springframework.http.HttpStatus.CREATED;
 import java.util.UUID;
 
 @RequestMapping("/api/v1/bookings")
-@Tag(name = "Calificaciones", description = "Gestión de calificaciones de clases")
+@Tag(name = "Calificaciones", description = "Gestión de calificaciones de clases. Mientras el usuario tenga calificaciones pendientes, el resto de la API responde 423 RATING_REQUIRED.")
 public interface IRatingsController {
 
     @PostMapping("/{bookingId}/ratings")
@@ -28,7 +28,6 @@ public interface IRatingsController {
     @ApiResponse(responseCode = "201", description = "Calificación registrada")
     @ApiResponse(responseCode = "400", description = "La sesión no está realizada o el puntaje es inválido")
     @ApiResponse(responseCode = "409", description = "El usuario ya calificó esta sesión")
-    @ApiResponse(responseCode = "422", description = "Ya pasó el plazo de 24 horas para calificar la sesión")
     @ApiResponse(responseCode = "404", description = "La reserva no existe o no pertenece al usuario autenticado")
     @ResponseStatus(CREATED)
     RatingResponse submitRating(

@@ -10,7 +10,6 @@ import com.knowlink.api.bookings.events.SessionConfirmedEvent;
 import com.knowlink.api.bookings.events.SessionNotConfirmedEvent;
 import com.knowlink.api.notifications.data.enums.NotificationType;
 import com.knowlink.api.notifications.services.interfaces.INotificationService;
-import com.knowlink.api.ratings.utils.RatingWindow;
 import com.knowlink.api.security.enums.Role;
 import org.springframework.scheduling.annotation.Async;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +18,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-import java.time.LocalDateTime;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -140,8 +138,6 @@ public class BookingNotificationListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleSessionConfirmed(SessionConfirmedEvent event) {
         withSnapshot(event.booking().getBookingId(), snapshot -> {
-            LocalDateTime expiresAt = RatingWindow.deadline(
-                    snapshot.sessionDate(), snapshot.endTime(), snapshot.confirmedAt());
             String title = "Sesión confirmada";
             notifyQuietly(snapshot.studentUserId(), Role.STUDENT, NotificationType.SESSION_CONFIRMED, title,
                     "La sesión de " + snapshot.subjectName() + " con " + snapshot.tutorName()
@@ -155,12 +151,12 @@ public class BookingNotificationListener {
             String ratingTitle = ratingTitle(snapshot.subjectName());
             notifyQuietly(snapshot.studentUserId(), Role.STUDENT, NotificationType.RATING_ENABLED, ratingTitle,
                     "Contanos cómo fue tu experiencia con " + snapshot.tutorName()
-                            + ". Tenés 24 horas para calificar.",
-                    snapshot, expiresAt);
+                            + ".",
+                    snapshot);
             notifyQuietly(snapshot.tutorUserId(), Role.TUTOR, NotificationType.RATING_ENABLED, ratingTitle,
                     "Contanos cómo fue tu experiencia con " + snapshot.studentName()
-                            + ". Tenés 24 horas para calificar.",
-                    snapshot, expiresAt);
+                            + ".",
+                    snapshot);
         });
     }
 
@@ -218,13 +214,4 @@ public class BookingNotificationListener {
         }
     }
 
-    private void notifyQuietly(UUID recipientUserId, Role recipientRole, NotificationType type, String title,
-                               String message, BookingSnapshot snapshot, LocalDateTime expiresAt) {
-        try {
-            notificationService.notifyUser(recipientUserId, recipientRole, type, title, message, snapshot.bookingId(),
-                    snapshot.dedupeKeyFor(type), expiresAt);
-        } catch (Exception e) {
-            log.error("Failed to create notification {} for user {}: {}", type, recipientUserId, e.getMessage(), e);
-        }
-    }
 }

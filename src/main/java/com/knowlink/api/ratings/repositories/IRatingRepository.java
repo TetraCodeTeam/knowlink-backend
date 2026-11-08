@@ -4,6 +4,7 @@ import com.knowlink.api.ratings.data.models.Rating;
 import com.knowlink.api.tutors.data.projections.OverallRatingSummary;
 import com.knowlink.api.tutors.data.projections.SubjectRatingSummary;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
+import com.knowlink.api.bookings.data.models.Booking;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
@@ -165,4 +166,63 @@ public interface IRatingRepository extends JpaRepository<Rating, UUID> {
             """)
     Page<Rating> findCompletedCommentsBySubject(@Param("tutorId") UUID tutorId,
             @Param("subjectId") UUID subjectId, Pageable pageable);
+
+    @Query("""
+            SELECT b FROM Booking b
+            JOIN FETCH b.student
+            JOIN FETCH b.tutor
+            JOIN FETCH b.tutorSubject ts
+            JOIN FETCH ts.subject
+            WHERE b.bookingStatus = :completedStatus
+              AND (b.student.userId = :userId OR b.tutor.userId = :userId)
+              AND (b.sessionDate < :today OR (b.sessionDate = :today AND b.endTime <= :nowTime))
+              AND (b.sessionDate > :fromDate OR (b.sessionDate = :fromDate AND b.endTime >= :fromTime))
+              AND NOT EXISTS (SELECT r.ratingId FROM Rating r
+                              WHERE r.booking = b AND r.raterUser.userId = :userId)
+            ORDER BY b.sessionDate ASC, b.endTime ASC
+            """)
+    List<Booking> findBlockingBookings(
+            @Param("userId") UUID userId,
+            @Param("completedStatus") BookingStatus completedStatus,
+            @Param("today") LocalDate today,
+            @Param("nowTime") LocalTime nowTime,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("fromTime") LocalTime fromTime);
+
+    @Query("""
+            SELECT CASE WHEN COUNT(b) > 0 THEN true ELSE false END
+            FROM Booking b
+            WHERE b.bookingStatus = :completedStatus
+              AND (b.student.userId = :userId OR b.tutor.userId = :userId)
+              AND (b.sessionDate < :today OR (b.sessionDate = :today AND b.endTime <= :nowTime))
+              AND (b.sessionDate > :fromDate OR (b.sessionDate = :fromDate AND b.endTime >= :fromTime))
+              AND NOT EXISTS (SELECT r.ratingId FROM Rating r
+                              WHERE r.booking = b AND r.raterUser.userId = :userId)
+            """)
+    boolean existsBlockingBooking(
+            @Param("userId") UUID userId,
+            @Param("completedStatus") BookingStatus completedStatus,
+            @Param("today") LocalDate today,
+            @Param("nowTime") LocalTime nowTime,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("fromTime") LocalTime fromTime);
+
+    @Query("""
+            SELECT b FROM Booking b
+            WHERE b.bookingStatus = :completedStatus
+              AND (b.student.userId = :userId OR b.tutor.userId = :userId)
+              AND (b.sessionDate > :today OR (b.sessionDate = :today AND b.endTime > :nowTime))
+              AND (b.sessionDate > :fromDate OR (b.sessionDate = :fromDate AND b.endTime >= :fromTime))
+              AND NOT EXISTS (SELECT r.ratingId FROM Rating r
+                              WHERE r.booking = b AND r.raterUser.userId = :userId)
+            ORDER BY b.sessionDate ASC, b.endTime ASC
+            """)
+    List<Booking> findUpcomingUnratedCompleted(
+            @Param("userId") UUID userId,
+            @Param("completedStatus") BookingStatus completedStatus,
+            @Param("today") LocalDate today,
+            @Param("nowTime") LocalTime nowTime,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("fromTime") LocalTime fromTime,
+            Pageable pageable);
 }
