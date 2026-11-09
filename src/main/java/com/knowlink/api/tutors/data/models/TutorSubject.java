@@ -62,4 +62,27 @@ public class TutorSubject {
     @ColumnDefault("true")
     @Builder.Default
     private boolean active = true;
+
+    /**
+     * Derived verification flag: true when the average of the ratings that
+     * count for this subject (visible, completed booking, rated = tutor) is
+     * within the configured thresholds. Nobody sets it by hand and creating
+     * the subject never grants it (verification by rating average).
+     */
+    @Column(name = "verified", nullable = false)
+    @Builder.Default
+    private boolean verified = false;
+
+    /**
+     * Average of the counting ratings, truncated to the column scale so the
+     * persisted value never claims more than the real (unrounded) average
+     * used to decide {@link #verified}.
+     */
+    @Column(name = "average_rating", precision = 3, scale = 2)
+    private BigDecimal averageRating;
+
+    /** Number of counting ratings behind {@link #averageRating}. */
+    @Column(name = "rating_count", nullable = false)
+    @Builder.Default
+    private int ratingCount = 0;
 }

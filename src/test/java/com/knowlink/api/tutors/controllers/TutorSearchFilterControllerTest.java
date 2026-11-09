@@ -194,6 +194,8 @@ class TutorSearchFilterControllerTest {
                 .modality(modality)
                 .compensationType(compensation)
                 .tutorSubjectStatus(status)
+                // Approved subjects are the verified ones for these filters.
+                .verified(status == TutorSubjectStatus.ACTIVE)
                 .build();
         profile.getSubjects().add(ts);
         tutorSubjectRepository.save(ts);

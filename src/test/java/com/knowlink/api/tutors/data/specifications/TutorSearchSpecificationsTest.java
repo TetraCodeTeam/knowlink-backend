@@ -111,6 +111,8 @@ class TutorSearchSpecificationsTest {
                 .modality(modality)
                 .compensationType(compensation)
                 .tutorSubjectStatus(status)
+                // Approved subjects are the verified ones for these specs.
+                .verified(status == TutorSubjectStatus.ACTIVE)
                 .build();
         profile.getSubjects().add(ts);
         return tutorSubjectRepository.save(ts);
@@ -161,7 +163,7 @@ class TutorSearchSpecificationsTest {
     }
 
     @Test
-    @DisplayName("subjectValidated devuelve solo materias con tutorSubjectStatus ACTIVE (PENDING y REJECTED excluidas)")
+    @DisplayName("subjectValidated devuelve solo materias verificadas por promedio (las no verificadas quedan afuera)")
     void subjectValidated_returnsOnlyActiveSubjectStatuses() {
         assertThat(tutorNames(TutorSearchSpecifications.subjectValidated()))
                 .containsExactlyInAnyOrder("Ana Test", "Marta Test", "Luis Test");

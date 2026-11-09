@@ -3,6 +3,7 @@ package com.knowlink.api.ratings.repositories;
 import com.knowlink.api.ratings.data.models.Rating;
 import com.knowlink.api.tutors.data.projections.OverallRatingSummary;
 import com.knowlink.api.tutors.data.projections.SubjectRatingSummary;
+import com.knowlink.api.tutors.data.projections.SubjectVerificationAggregate;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.models.Booking;
 import org.springframework.data.domain.Page;
@@ -225,4 +226,28 @@ public interface IRatingRepository extends JpaRepository<Rating, UUID> {
             @Param("fromDate") LocalDate fromDate,
             @Param("fromTime") LocalTime fromTime,
             Pageable pageable);
+
+    /**
+     * Aggregates per TutorSubject (not per Subject) for the verification
+     * recalculation: the ratings that count are the visible ones coming from a
+     * COMPLETED booking and given to the tutor (rated = booking tutor), which
+     * is exactly the set the rest of the rating queries use.
+     *
+     * Returns SUM/COUNT instead of AVG so the average is divided in memory
+     * with exact decimal arithmetic before comparing it to the thresholds.
+     */
+    @Query("""
+            SELECT ts.tutorSubjectId AS tutorSubjectId,
+                   SUM(r.score) AS totalScore,
+                   COUNT(r) AS ratingCount
+            FROM Rating r
+            JOIN r.booking b
+            JOIN b.tutorSubject ts
+            WHERE r.ratedUser.userId = :tutorUserId
+              AND b.tutor.userId = :tutorUserId
+              AND r.visible = true
+              AND b.bookingStatus = com.knowlink.api.bookings.data.enums.BookingStatus.COMPLETED
+            GROUP BY ts.tutorSubjectId
+            """)
+    List<SubjectVerificationAggregate> findSubjectAggregatesByTutorId(@Param("tutorUserId") UUID tutorUserId);
 }

@@ -86,7 +86,7 @@ public interface ITutorRankingRepository extends JpaRepository<TutorRankingEntry
             SELECT tp.user.userId AS tutorId, s.name AS subjectName
             FROM TutorSubject ts JOIN ts.tutorProfile tp JOIN ts.subject s
             WHERE tp.user.userId IN :tutorIds
-              AND ts.tutorSubjectStatus = com.knowlink.api.tutors.data.enums.TutorSubjectStatus.ACTIVE
+              AND ts.active = true
             ORDER BY s.name ASC
             """)
     List<TutorSubjectName> findActiveSubjectNames(@Param("tutorIds") Collection<UUID> tutorIds);

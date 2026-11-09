@@ -6,7 +6,6 @@ import com.knowlink.api.bookings.data.enums.RefundPolicy;
 import com.knowlink.api.payments.domain.FundsRecipient;
 import com.knowlink.api.payments.domain.FundsStatus;
 import com.knowlink.api.tutors.data.enums.CompensationType;
-import com.knowlink.api.tutors.data.enums.TutorSubjectStatus;
 import com.knowlink.api.tutors.data.models.TutorSubject;
 import com.knowlink.api.tutors.statistics.controllers.responses.FundsAmountResponse;
 import com.knowlink.api.tutors.statistics.controllers.responses.FundsStatusResponse;
@@ -143,7 +142,7 @@ public class TutorStatisticsCalculator {
     private FundsStatusResponse funds(TutorStatisticsInput input) {
         boolean offersPaidSubject = input.subjects().stream()
                 .anyMatch(subject -> subject.getCompensationType() == CompensationType.PAID
-                        && subject.getTutorSubjectStatus() == TutorSubjectStatus.ACTIVE);
+                        && subject.isActive());
         if (!offersPaidSubject) {
             return null;
         }
@@ -314,7 +313,7 @@ public class TutorStatisticsCalculator {
 
         return input.subjects().stream()
                 // Las materias desactivadas se incluyen solo si tuvieron actividad en el período.
-                .filter(subject -> subject.getTutorSubjectStatus() == TutorSubjectStatus.ACTIVE
+                .filter(subject -> subject.isActive()
                         || subjectsWithActivity.contains(subject.getTutorSubjectId()))
                 .map(subject -> subjectPerformance(
                         subject,
@@ -338,7 +337,7 @@ public class TutorStatisticsCalculator {
                 subject.getSubject().getName(),
                 subject.getCompensationType(),
                 subject.getPricePerHour(),
-                subject.getTutorSubjectStatus() != TutorSubjectStatus.ACTIVE,
+                !subject.isActive(),
                 completed.size(),
                 average(ratings),
                 ratings.size(),

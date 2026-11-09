@@ -112,7 +112,7 @@ public interface ITutorController {
                 @Parameter(description = "Tipo de compensación: FREE o PAID") @RequestParam(required = false) CompensationType compensation,
                 @Parameter(description = "Días de la semana con disponibilidad: MONDAY, TUESDAY, ..., SUNDAY. Se pueden repetir (?daysOfWeek=MONDAY&daysOfWeek=TUESDAY) o separar por coma") @RequestParam(required = false) List<DayOfWeek> daysOfWeek,
                 @Parameter(description = "Franja horaria de disponibilidad: MORNING (6-12), AFTERNOON (12-18) o EVENING (18-23:59)") @RequestParam(required = false) TimeFrame timeFrame,
-                @Parameter(description = "Solo tutores cuya materia buscada está verificada (validación académica aprobada)") @RequestParam(required = false) Boolean verifiedOnly,
+                @Parameter(description = "Solo tutores cuya materia buscada está verificada por promedio de calificaciones") @RequestParam(required = false) Boolean verifiedOnly,
                 @Parameter(description = "Calificación mínima del tutor (1-5; fuera de rango devuelve 400)") @RequestParam(required = false) Double minRating,
                 @AuthenticationPrincipal UserPrincipal principal);
 

@@ -6,6 +6,7 @@ import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.ratings.repositories.IRatingRepository;
 import com.knowlink.api.tutors.repositories.ITutorProfileRepository;
 import com.knowlink.api.ratings.services.interfaces.IRatingReputationService;
+import com.knowlink.api.tutors.services.interfaces.ISubjectVerificationService;
 import com.knowlink.api.ratings.utils.RatingConstants;
 import lombok.RequiredArgsConstructor;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -23,6 +24,7 @@ public class RatingReputationServiceImpl implements IRatingReputationService {
 
     private final IRatingRepository ratingRepository;
     private final ITutorProfileRepository tutorProfileRepository;
+    private final ISubjectVerificationService subjectVerificationService;
     private final Clock clock;
 
     @Scheduled(fixedDelay = 60_000)
@@ -63,6 +65,10 @@ public class RatingReputationServiceImpl implements IRatingReputationService {
         Double average = ratingRepository.calculateVisibleTutorAverage(tutorUserId);
         tutorProfile.setAverageRating(average);
         tutorProfileRepository.save(tutorProfile);
+
+        // Same transaction: the subject verification is derived from these
+        // ratings, so it has to be recalculated right after the tutor average.
+        subjectVerificationService.recalculateForTutor(tutorUserId);
     }
 
     private LocalDateTime visibleBefore() {

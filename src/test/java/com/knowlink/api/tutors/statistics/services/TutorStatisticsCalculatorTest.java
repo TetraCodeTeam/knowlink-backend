@@ -44,9 +44,9 @@ class TutorStatisticsCalculatorTest {
     private final UUID freeSubjectId = UUID.randomUUID();
     private final UUID deactivatedSubjectId = UUID.randomUUID();
     private final List<TutorSubject> subjects = List.of(
-            subject(paidSubjectId, "Análisis de Sistemas", CompensationType.PAID, TutorSubjectStatus.ACTIVE),
-            subject(freeSubjectId, "Física 1", CompensationType.FREE, TutorSubjectStatus.ACTIVE),
-            subject(deactivatedSubjectId, "Lean Ágil", CompensationType.FREE, TutorSubjectStatus.REJECTED));
+            subject(paidSubjectId, "Análisis de Sistemas", CompensationType.PAID, TutorSubjectStatus.ACTIVE, true),
+            subject(freeSubjectId, "Física 1", CompensationType.FREE, TutorSubjectStatus.ACTIVE, true),
+            subject(deactivatedSubjectId, "Lean Ágil", CompensationType.FREE, TutorSubjectStatus.REJECTED, false));
 
     @Test
     void fulfillmentRateExcludesCancellationsAndCountsUnheldSessions() {
@@ -170,7 +170,7 @@ class TutorStatisticsCalculatorTest {
     @Test
     void fundsSectionIsHiddenWhenTheTutorOnlyOffersFreeSubjects() {
         List<TutorSubject> onlyFree = List.of(
-                subject(freeSubjectId, "Física 1", CompensationType.FREE, TutorSubjectStatus.ACTIVE));
+                subject(freeSubjectId, "Física 1", CompensationType.FREE, TutorSubjectStatus.ACTIVE, true));
 
         TutorStatisticsResponse response = calculator.calculate(new TutorStatisticsInput(
                 PERIOD, 0, List.of(booking(BookingStatus.COMPLETED, MONDAY)), List.of(), List.of(), onlyFree));
@@ -327,12 +327,14 @@ class TutorStatisticsCalculatorTest {
                 .orElseThrow();
     }
 
-    private TutorSubject subject(UUID id, String name, CompensationType type, TutorSubjectStatus status) {
+    private TutorSubject subject(UUID id, String name, CompensationType type, TutorSubjectStatus status,
+            boolean active) {
         return TutorSubject.builder()
                 .tutorSubjectId(id)
                 .subject(Subject.builder().name(name).build())
                 .compensationType(type)
                 .tutorSubjectStatus(status)
+                .active(active)
                 .pricePerHour(type == CompensationType.PAID ? new BigDecimal("15000") : null)
                 .build();
     }

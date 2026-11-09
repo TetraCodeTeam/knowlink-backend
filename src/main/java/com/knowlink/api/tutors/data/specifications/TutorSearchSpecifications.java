@@ -4,7 +4,6 @@ import com.knowlink.api.tutors.availability.data.models.AvailabilityBlock;
 import com.knowlink.api.tutors.data.enums.CompensationType;
 import com.knowlink.api.tutors.data.enums.Modality;
 import com.knowlink.api.tutors.data.enums.TimeFrame;
-import com.knowlink.api.tutors.data.enums.TutorSubjectStatus;
 import com.knowlink.api.tutors.data.models.Subject;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.data.models.TutorSubject;
@@ -26,9 +25,9 @@ import java.util.UUID;
  *
  * Semántica:
  * - modality VIRTUAL/IN_PERSON matchea además subjects con modality BOTH.
- * - "verificado" (verifiedOnly) se evalúa sobre el estado de validación
- *   académica de la materia buscada ({@code tutorSubjectStatus == ACTIVE}),
- *   no sobre un flag global del tutor.
+ * - "verificado" (verifiedOnly) se evalúa sobre la verificación por promedio
+ *   de calificaciones de la materia buscada ({@code verified == true}), no
+ *   sobre un flag global del tutor.
  * - minRating se evalúa sobre el tutor del TutorSubject matcheado.
  * - Disponibilidad horaria NO se resuelve en SQL: extraer el día de la semana
  *   de una fecha requiere la función DAYOFWEEK, que devuelve base distinta en
@@ -89,12 +88,13 @@ public final class TutorSearchSpecifications {
     }
 
     /**
-     * "Tutor verificado" para la búsqueda: la materia debe estar en estado de
-     * validación académica ACTIVE (US-22/US-25). No confundir con
-     * {@code TutorSubject.active}, que es la visibilidad de la materia (US-12).
+     * "Tutor verificado" para la búsqueda: la materia debe estar verificada
+     * por promedio de calificaciones ({@code tutor_subject.verified}). No
+     * confundir con {@code TutorSubject.active}, que es la visibilidad de la
+     * materia (US-12).
      */
     public static Specification<TutorSubject> subjectValidated() {
-        return (root, cq, cb) -> cb.equal(root.get("tutorSubjectStatus"), TutorSubjectStatus.ACTIVE);
+        return (root, cq, cb) -> cb.isTrue(root.get("verified"));
     }
 
     public static Specification<TutorSubject> minAverageRating(double minRating) {

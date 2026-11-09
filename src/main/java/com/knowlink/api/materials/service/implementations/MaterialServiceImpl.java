@@ -255,7 +255,10 @@ public class MaterialServiceImpl implements IMaterialService {
                             .tutorProfile(tutorProfile)
                             .subject(subject)
                             .compensationType(CompensationType.PAID)
-                            .tutorSubjectStatus(TutorSubjectStatus.ACTIVE)
+                            // Never verified by creation: verification comes
+                            // only from the rating average (B1 fix).
+                            .tutorSubjectStatus(TutorSubjectStatus.PENDING)
+                            .verified(false)
                             .modality(Modality.VIRTUAL)
                             .build();
                     return tutorSubjectRepository.save(newTutorSubject);

@@ -126,6 +126,7 @@ class TutorSubjectUpdateControllerTest {
                 .pricePerHour(new BigDecimal("5000.00"))
                 .compensationType(CompensationType.PAID)
                 .tutorSubjectStatus(TutorSubjectStatus.ACTIVE)
+                .verified(true)
                 .modality(Modality.VIRTUAL)
                 .build());
 
@@ -156,6 +157,7 @@ class TutorSubjectUpdateControllerTest {
                 .pricePerHour(pricePerHour == null ? null : new BigDecimal(pricePerHour))
                 .compensationType(compensationType)
                 .tutorSubjectStatus(status)
+                .verified(status == TutorSubjectStatus.ACTIVE)
                 .modality(modality)
                 .build());
     }

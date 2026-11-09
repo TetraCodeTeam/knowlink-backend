@@ -5,6 +5,7 @@ import com.knowlink.api.ratings.data.models.Rating;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.ratings.repositories.IRatingRepository;
 import com.knowlink.api.tutors.repositories.ITutorProfileRepository;
+import com.knowlink.api.tutors.services.interfaces.ISubjectVerificationService;
 import com.knowlink.api.ratings.services.implementations.RatingReputationServiceImpl;
 import com.knowlink.api.users.data.models.User;
 import org.junit.jupiter.api.Test;
@@ -37,12 +38,14 @@ class RatingReputationServiceImplTest {
     private IRatingRepository ratingRepository;
     @Mock
     private ITutorProfileRepository tutorProfileRepository;
+    @Mock
+    private ISubjectVerificationService subjectVerificationService;
     private RatingReputationServiceImpl ratingReputationService;
 
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
         ratingReputationService = new RatingReputationServiceImpl(
-                ratingRepository, tutorProfileRepository, CLOCK);
+                ratingRepository, tutorProfileRepository, subjectVerificationService, CLOCK);
     }
 
     @Test
@@ -59,6 +62,7 @@ class RatingReputationServiceImplTest {
 
         assertEquals(4.5, tutorProfile.getAverageRating());
         verify(tutorProfileRepository).save(tutorProfile);
+        verify(subjectVerificationService).recalculateForTutor(tutor.getUserId());
     }
 
     @Test
@@ -78,6 +82,7 @@ class RatingReputationServiceImplTest {
         assertEquals(5.0, tutorProfile.getAverageRating());
         verify(ratingRepository).saveAll(anyList());
         verify(tutorProfileRepository).save(tutorProfile);
+        verify(subjectVerificationService).recalculateForTutor(tutor.getUserId());
     }
 
     private User tutor() {
