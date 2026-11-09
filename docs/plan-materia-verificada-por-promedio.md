@@ -176,4 +176,7 @@ Frontend: test de `isSubjectVerified` (prioridad de `verified`, fallback) y rend
 - [x] Tests de la sección 7 en verde: backend **797 tests, 0 fallos** (línea base Fase 0: 782) / frontend **582 tests, 0 fallos** (línea base: 573), `tsc -b` y `eslint` en verde.
       *Nota:* `PasswordRecoveryControllerTest#requestResetEmail_tokenExpiration` es un flake preexistente ajeno a este cambio
       (carrera de reloj entre `TokenServiceImpl` y el `@PrePersist` de `Token`: 2 de 3 corridas pasan). No se tocó por estar fuera de alcance.
+- [x] Ramas `feat/subject-verification-by-rating` pushadas a `origin` en ambos repos
+      (backend `f5562eb`, frontend `dbd6430`).
 - [ ] PR a `dev` en backend y frontend; nota en el PR del backend: ejecutar la migración antes de llegar a `main`.
+      Pendiente de `gh auth login` (no había sesión de GitHub CLI al momento del push).
