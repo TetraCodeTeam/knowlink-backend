@@ -159,6 +159,7 @@ class TutorSubjectActivationControllerTest {
                 .pricePerHour(new BigDecimal("2500.00"))
                 .compensationType(CompensationType.PAID)
                 .tutorSubjectStatus(TutorSubjectStatus.ACTIVE)
+                .verified(true)
                 .modality(Modality.VIRTUAL)
                 .active(active)
                 .build();

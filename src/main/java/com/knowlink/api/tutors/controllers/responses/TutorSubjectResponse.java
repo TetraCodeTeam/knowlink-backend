@@ -9,8 +9,9 @@ public record TutorSubjectResponse(
         String modality,
         String compensationType,
         BigDecimal pricePerHour,
-        String verificationStatus, // "PENDING" | "ACTIVE" | "REJECTED"
-        Double averageRating,      // null por ahora — pendiente de US de calificaciones por materia
-        Integer reviewCount,       // null por ahora, mismo motivo
-        boolean active             // US-12: materia ofrecida (true) o desactivada (false)
+        String verificationStatus, // derived: verified ? "ACTIVE" : "PENDING"
+        Double averageRating,      // average of the ratings that count for the subject
+        Integer reviewCount,       // how many ratings were counted
+        boolean active,            // US-12: subject offered (true) or deactivated (false)
+        boolean verified           // derived from the rating average (never set by hand)
 ) {}

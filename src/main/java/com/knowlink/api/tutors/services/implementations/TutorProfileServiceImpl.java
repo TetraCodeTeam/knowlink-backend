@@ -11,7 +11,6 @@ import com.knowlink.api.auth.controllers.requests.TutorSubjectRequest;
 import com.knowlink.api.tutors.controllers.requests.UpdateTutorProfileRequest;
 import com.knowlink.api.tutors.controllers.requests.UpdateTutorSubjectRequest;
 import com.knowlink.api.tutors.data.enums.CompensationType;
-import com.knowlink.api.tutors.data.enums.TutorSubjectStatus;
 import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.materials.service.interfaces.IProfileImageService;
@@ -289,14 +288,14 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
 
         /**
          * Materias mostrables de un tutor encontrado por nombre: solo las activas
-         * (visibilidad, US-12) y, con verifiedOnly, solo las aprobadas en su
-         * validación académica ({@link TutorSubjectStatus#ACTIVE}, US-22/US-25).
+         * (visibilidad, US-12) y, con verifiedOnly, solo las verificadas por
+         * promedio de calificaciones ({@link TutorSubject#isVerified()}).
          */
         private List<TutorSubject> subjectsVisibleForSearch(TutorProfile tutorProfile, TutorSearchFilters filters) {
                 boolean verifiedOnly = Boolean.TRUE.equals(filters.verifiedOnly());
                 return tutorProfile.getSubjects().stream()
                                 .filter(TutorSubject::isActive)
-                                .filter(ts -> !verifiedOnly || ts.getTutorSubjectStatus() == TutorSubjectStatus.ACTIVE)
+                                .filter(ts -> !verifiedOnly || ts.isVerified())
                                 .toList();
         }
 
@@ -402,6 +401,7 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
 
                 tutorSubject.setActive(false);
                 TutorSubject saved = tutorSubjectRepository.save(tutorSubject);
+                refreshVerifiedBadge(tutorSubject);
                 log.info("TutorSubject {} deactivated by tutor user {}", tutorSubjectId, tutorUserId);
                 return tutorProfileMapper.toSubjectResponse(saved);
         }
@@ -417,11 +417,29 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
 
                 tutorSubject.setActive(true);
                 TutorSubject saved = tutorSubjectRepository.save(tutorSubject);
+                refreshVerifiedBadge(tutorSubject);
                 log.info("TutorSubject {} reactivated by tutor user {}", tutorSubjectId, tutorUserId);
                 return tutorProfileMapper.toSubjectResponse(saved);
         }
 
+        /**
+         * The tutor badge is derived: at least one subject that is verified and
+         * still offered. Deactivating the last verified subject clears it.
+         */
+        private void refreshVerifiedBadge(TutorSubject tutorSubject) {
+                TutorProfile tutorProfile = tutorSubject.getTutorProfile();
+                boolean verifiedBadge = tutorProfile.getSubjects().stream()
+                                .anyMatch(subject -> subject.isVerified() && subject.isActive());
+                if (tutorProfile.isVerified() == verifiedBadge) {
+                        return;
+                }
+                tutorProfile.setVerified(verifiedBadge);
+                tutorProfileRepository.save(tutorProfile);
+                log.info("Tutor {} verified badge changed to {}", tutorProfile.getTutorProfileId(), verifiedBadge);
+        }
+
         private TutorSubject findOwnedTutorSubjectForUpdateOrThrow(UUID tutorUserId, UUID tutorSubjectId) {
+
                 TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
                 return tutorSubjectRepository
                                 .findOwnedByIdForUpdate(tutorSubjectId, tutorProfile.getTutorProfileId())

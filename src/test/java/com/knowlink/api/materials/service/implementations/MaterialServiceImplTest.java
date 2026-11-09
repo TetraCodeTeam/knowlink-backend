@@ -5,6 +5,7 @@ import com.knowlink.api.exceptions.custom_exceptions.ResourceNotFoundException;
 import com.knowlink.api.materials.exception.ResourceAccessDeniedException;
 import com.knowlink.api.materials.exception.StorageServiceException;
 import com.knowlink.api.materials.controller.responses.MaterialResponse;
+import com.knowlink.api.materials.controller.requests.MaterialUploadRequest;
 import com.knowlink.api.materials.data.enums.MaterialType;
 import com.knowlink.api.materials.data.models.AcademicMaterial;
 import com.knowlink.api.materials.repositories.IAcademicMaterialReportRepository;
@@ -12,6 +13,7 @@ import com.knowlink.api.materials.repositories.IAcademicMaterialRepository;
 import com.knowlink.api.materials.service.interfaces.IMaterialAccessService;
 import com.knowlink.api.materials.service.interfaces.ISupabaseStorageService;
 import com.knowlink.api.security.enums.Role;
+import com.knowlink.api.tutors.data.enums.TutorSubjectStatus;
 import com.knowlink.api.tutors.data.models.Subject;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.data.models.TutorSubject;
@@ -19,14 +21,19 @@ import com.knowlink.api.tutors.repositories.ISubjectRepository;
 import com.knowlink.api.tutors.repositories.ITutorProfileRepository;
 import com.knowlink.api.tutors.repositories.ITutorSubjectRepository;
 import com.knowlink.api.users.data.models.User;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -35,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -72,6 +80,38 @@ class MaterialServiceImplTest {
         );
     }
 
+    @Test
+    void upload_createsMissingTutorSubjectAsUnverifiedAndPending() {
+        UUID subjectId = UUID.randomUUID();
+        UUID tutorUserId = UUID.randomUUID();
+        Subject subject = Subject.builder().subjectId(subjectId).name("Algebra").build();
+        TutorProfile tutorProfile = TutorProfile.builder()
+                .user(User.builder().userId(tutorUserId).fullName("Ana Tutor").build())
+                .build();
+
+        when(subjectRepository.findById(subjectId)).thenReturn(Optional.of(subject));
+        when(tutorProfileRepository.findByUserId(tutorUserId)).thenReturn(Optional.of(tutorProfile));
+        when(tutorSubjectRepository.findByTutorProfileId(any())).thenReturn(List.of());
+        when(tutorSubjectRepository.save(any(TutorSubject.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(supabaseStorageService.upload(any(MultipartFile.class), any(UUID.class)))
+                .thenReturn("materiales/clase.pdf");
+        when(materialRepository.save(any(AcademicMaterial.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        MultipartFile file = new MockMultipartFile(
+                "file", "clase.pdf", "application/pdf", "contenido".getBytes(StandardCharsets.UTF_8));
+
+        service.upload(new MaterialUploadRequest("Clase 1", subjectId), file, tutorUserId);
+
+        ArgumentCaptor<TutorSubject> captor = ArgumentCaptor.forClass(TutorSubject.class);
+        verify(tutorSubjectRepository).save(captor.capture());
+        TutorSubject created = captor.getValue();
+        assertThat(created.getTutorSubjectStatus()).isEqualTo(TutorSubjectStatus.PENDING);
+        assertThat(created.isVerified()).isFalse();
+        assertThat(created.getRatingCount()).isZero();
+        assertThat(created.getAverageRating()).isNull();
+    }
     @Test
     void listBySubject_studentUsesMaterialAccessServiceForRealAccessValidation() {
         UUID subjectId = UUID.randomUUID();

@@ -167,6 +167,8 @@ class TutorProfileServiceImplTest {
                 .modality(modality)
                 .compensationType(compensation)
                 .tutorSubjectStatus(status)
+                // Approved subjects are the verified ones for these searches.
+                .verified(status == TutorSubjectStatus.ACTIVE)
                 .build();
         profile.getSubjects().add(tutorSubject);
         return tutorSubject;

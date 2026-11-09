@@ -19,6 +19,8 @@ import com.knowlink.api.users.data.models.User;
 import com.knowlink.api.users.utils.UserNameUtils;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
+
 import java.util.List;
 
 @Component
@@ -56,11 +58,17 @@ public class TutorProfileMapper {
                 tutorSubject.getModality().name(),
                 tutorSubject.getCompensationType().name(),
                 tutorSubject.getPricePerHour(),
-                tutorSubject.getTutorSubjectStatus().name(),
-                null, // averageRating por materia - pendiente
-                null, // reviewCount por materia - pendiente
-                tutorSubject.isActive()
+                tutorSubject.isVerified() ? "ACTIVE" : "PENDING",
+                toDouble(tutorSubject.getAverageRating()),
+                tutorSubject.getRatingCount(),
+                tutorSubject.isActive(),
+                tutorSubject.isVerified()
         );
+    }
+
+    /** The stored average is truncated; expose it as the API always did. */
+    private static Double toDouble(BigDecimal average) {
+        return average == null ? null : average.doubleValue();
     }
 
     public TutorReviewResponse toReviewResponse(Rating rating) {

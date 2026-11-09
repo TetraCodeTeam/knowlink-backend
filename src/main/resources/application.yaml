@@ -78,6 +78,10 @@ knowlink:
     max-attachment-mb: 5
   funds:
     retention-percentage: "3.00"
+  verification:
+    min-average: "4.5"
+    max-average: "5.0"
+    min-ratings: 1
 
 supabase:
   url: ${SUPABASE_URL}

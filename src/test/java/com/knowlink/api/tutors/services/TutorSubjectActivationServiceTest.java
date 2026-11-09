@@ -145,6 +145,7 @@ class TutorSubjectActivationServiceTest {
                 .compensationType(CompensationType.PAID)
                 .pricePerHour(new BigDecimal("2500.00"))
                 .tutorSubjectStatus(TutorSubjectStatus.ACTIVE)
+                .verified(true)
                 .build();
         tutorProfile.getSubjects().add(tutorSubject);
         lenient().when(userProfileLookupService.findInstitutionIdByUserId(any()))

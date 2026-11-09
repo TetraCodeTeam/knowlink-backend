@@ -19,6 +19,7 @@ import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.data.models.TutorSubject;
 import com.knowlink.api.tutors.data.projections.OverallRatingSummary;
 import com.knowlink.api.tutors.data.projections.SubjectRatingSummary;
+import com.knowlink.api.tutors.data.projections.SubjectVerificationAggregate;
 import com.knowlink.api.users.data.enums.AccountStatus;
 import com.knowlink.api.users.data.models.User;
 import jakarta.persistence.EntityManager;
@@ -51,6 +52,7 @@ class IRatingRepositoryTest {
     private IInstitutionRepository institutionRepository;
 
     private Institution institution;
+    private Career career;
     @Autowired
     private IBookingRepository bookingRepository;
     @PersistenceContext
@@ -67,7 +69,7 @@ class IRatingRepositoryTest {
     @BeforeEach
     void setUp() {
         institution = CatalogFixtures.saveInstitution(institutionRepository, "Test " + System.nanoTime());
-        Career career = persist(Career.builder().institution(institution).name("Test Career").build());
+        career = persist(Career.builder().institution(institution).name("Test Career").build());
         dualRoleUser = persistUser("dual-role", Role.TUTOR);
         student = persistUser("student", Role.STUDENT);
         otherTutor = persistUser("other-tutor", Role.TUTOR);
@@ -327,7 +329,62 @@ class IRatingRepositoryTest {
                 .containsExactly(first.getBookingId(), second.getBookingId());
     }
 
+    @Test
+    void findSubjectAggregatesByTutorId_groupsBySubjectAndAppliesCountingFilters() {
+        Subject secondSubject = persist(Subject.builder().institution(institution)
+                .name("Second Subject")
+                .career(career)
+                .build());
+        TutorSubject secondTutorSubject = persistTutorSubject(dualRoleProfile, secondSubject);
+
+        LocalDateTime completedAt = LocalDateTime.of(2026, 9, 30, 12, 0);
+        // One booking per date: every booking owns its own time slot.
+        Booking counts = persistBooking(student, dualRoleUser, dualRoleProfile, dualRoleSubject,
+                LocalDate.of(2026, 9, 20), completedAt);
+        Booking alsoCounts = persistBooking(otherTutor, dualRoleUser, dualRoleProfile, dualRoleSubject,
+                LocalDate.of(2026, 9, 21), completedAt);
+        Booking hidden = persistBooking(student, dualRoleUser, dualRoleProfile, dualRoleSubject,
+                LocalDate.of(2026, 9, 22), completedAt);
+        Booking notCompleted = persistBooking(student, dualRoleUser, dualRoleProfile, dualRoleSubject,
+                LocalDate.of(2026, 9, 23), completedAt);
+        notCompleted.setBookingStatus(BookingStatus.BOOKED);
+        Booking crossRated = persistBooking(student, dualRoleUser, dualRoleProfile, dualRoleSubject,
+                LocalDate.of(2026, 9, 24), completedAt);
+        Booking otherSubjectBooking = persistBooking(student, dualRoleUser, dualRoleProfile, secondTutorSubject,
+                LocalDate.of(2026, 9, 25), completedAt);
+
+        persistRating(counts, student, dualRoleUser, 5, true);
+        persistRating(alsoCounts, otherTutor, dualRoleUser, 4, true);
+        persistRating(hidden, student, dualRoleUser, 1, false);
+        persistRating(notCompleted, student, dualRoleUser, 1, true);
+        // The tutor rating the student never counts for the tutor's subjects.
+        persistRating(crossRated, dualRoleUser, student, 1, true);
+        persistRating(otherSubjectBooking, student, dualRoleUser, 5, true);
+        entityManager.flush();
+
+        List<SubjectVerificationAggregate> aggregates =
+                ratingRepository.findSubjectAggregatesByTutorId(dualRoleUser.getUserId());
+
+        assertThat(aggregates).hasSize(2);
+        SubjectVerificationAggregate firstSubject = aggregates.stream()
+                .filter(aggregate -> aggregate.getTutorSubjectId()
+                        .equals(dualRoleSubject.getTutorSubjectId()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(firstSubject.getTotalScore()).isEqualTo(9L);
+        assertThat(firstSubject.getRatingCount()).isEqualTo(2L);
+
+        SubjectVerificationAggregate otherSubject = aggregates.stream()
+                .filter(aggregate -> aggregate.getTutorSubjectId()
+                        .equals(secondTutorSubject.getTutorSubjectId()))
+                .findFirst()
+                .orElseThrow();
+        assertThat(otherSubject.getTotalScore()).isEqualTo(5L);
+        assertThat(otherSubject.getRatingCount()).isEqualTo(1L);
+    }
+
     private Booking persistGateBooking(User bookingStudent, User tutor, TutorProfile tutorProfile,
+
             TutorSubject tutorSubject, LocalDate sessionDate, LocalTime endTime, BookingStatus status) {
         Booking booking = persistBooking(bookingStudent, tutor, tutorProfile, tutorSubject, sessionDate,
                 sessionDate.atTime(endTime));
