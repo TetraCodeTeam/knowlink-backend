@@ -283,7 +283,7 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
     @Override
     @Transactional(readOnly = true)
     public boolean hasActiveClaim(UUID bookingId) {
-        return sessionClaimRepository.existsByBooking_BookingIdAndStatus(bookingId, ClaimStatus.OPEN);
+        return sessionClaimRepository.existsByBooking_BookingIdAndStatusIn(bookingId, ClaimStatus.ACTIVE_STATUSES);
     }
 
     /**

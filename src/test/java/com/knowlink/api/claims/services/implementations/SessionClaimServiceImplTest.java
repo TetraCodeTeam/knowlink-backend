@@ -28,7 +28,6 @@ import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.payments.services.FundsLedgerService;
 import com.knowlink.api.materials.exception.FormatNotAllowedException;
 import com.knowlink.api.materials.service.interfaces.ISupabaseStorageService;
-import com.knowlink.api.notifications.data.enums.NotificationType;
 import com.knowlink.api.notifications.services.interfaces.INotificationService;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.shared.utils.AppTimeZone;
@@ -705,8 +704,8 @@ class SessionClaimServiceImplTest {
     @Test
     @DisplayName("hasActiveClaim - delega en el repositorio por reserva (cualquiera de las partes)")
     void hasActiveClaim_delegatesToRepository() {
-        when(sessionClaimRepository.existsByBooking_BookingIdAndStatus(booking.getBookingId(), ClaimStatus.OPEN))
-                .thenReturn(true);
+        when(sessionClaimRepository.existsByBooking_BookingIdAndStatusIn(
+                booking.getBookingId(), ClaimStatus.ACTIVE_STATUSES)).thenReturn(true);
 
         assertThat(service.hasActiveClaim(booking.getBookingId())).isTrue();
     }
@@ -873,4 +872,5 @@ class SessionClaimServiceImplTest {
 
         verify(sessionClaimRepository, never()).save(any());
     }
+
 }

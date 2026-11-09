@@ -43,6 +43,7 @@ public class TutorSupportMapper {
                 booking.getStartTime(),
                 booking.getEndTime(),
                 claim.getReason(),
+                claim.getClaimantRole(),
                 claim.getStatus(),
                 claim.getCreatedAt(),
                 claim.getUpdatedAt());

@@ -27,6 +27,6 @@ public interface ISessionClaimService {
 
     Map<UUID, ClaimEligibilityResponse> evaluateForListing(UUID userId, Collection<Booking> bookings);
 
-    /** Indica si la reserva tiene algún reclamo abierto (de cualquiera de las partes). */
+    /** Indica si la reserva tiene algún reclamo activo, pendiente o en revisión (de cualquiera de las partes). */
     boolean hasActiveClaim(UUID bookingId);
 }
