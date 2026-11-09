@@ -33,10 +33,16 @@ public interface IAdminSupportController {
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable UUID materialId);
 
+    /**
+     * @deprecated claims of a session are managed as a single dispute through
+     * {@code /api/v1/admin/session-claims/{claimId}/assign} and {@code .../resolve}.
+     */
+    @Deprecated
     @PatchMapping("/session-claims/{claimId}")
     @Operation(summary = "Actualizar el estado de un reclamo")
     @ApiResponse(responseCode = "200", description = "Estado del reclamo actualizado")
     @ApiResponse(responseCode = "400", description = "La transición de estado no está permitida")
+    @ApiResponse(responseCode = "409", description = "El estado del reclamo se gestiona junto con el de la otra parte")
     @ApiResponse(responseCode = "404", description = "El reclamo no existe")
     @ApiResponse(responseCode = "403", description = "Operación exclusiva para administradores")
     @ResponseStatus(HttpStatus.OK)

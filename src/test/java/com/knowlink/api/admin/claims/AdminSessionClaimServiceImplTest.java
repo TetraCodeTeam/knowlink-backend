@@ -70,6 +70,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -495,6 +496,9 @@ class AdminSessionClaimServiceImplTest {
         verify(adminSessionClaimRepository).resolveDispute(
                 claimId, ClaimFavoredParty.TUTOR, "Resuelvo a favor del tutor", LocalDateTime.now(CLOCK));
         verify(adminAuditService).record(adminId, AdminAuditAction.CLAIM_RESOLVED, "SESSION_CLAIM", claimId);
+        verify(fundsResolutionService, times(1)).resolveByAdminDecision(
+                booking, ClaimFavoredParty.TUTOR, claimId);
+        verify(adminSessionClaimRepository, times(1)).resolveDispute(any(), any(), any(), any());
 
         ArgumentCaptor<SessionClaimResolvedEvent> eventCaptor =
                 ArgumentCaptor.forClass(SessionClaimResolvedEvent.class);
