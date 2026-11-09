@@ -98,11 +98,19 @@ class BookingCompletionNotificationJobTest {
     @Test
     @DisplayName("run - no procesa una sesión que todavía no terminó")
     void run_sessionStillRunning_doesNotProcess() {
+        // "now + 1h" crosses midnight between 23:00 and 00:00, which would move the session end
+        // to the past and make the job process it as if the session had already finished.
+        LocalTime now = LocalTime.now(AppTimeZone.ZONE);
+        LocalDate sessionDate = LocalDate.now(AppTimeZone.ZONE);
+        LocalTime endTime = now.plusHours(1);
+        if (endTime.isBefore(now)) {
+            sessionDate = sessionDate.plusDays(1);
+        }
         Booking booking = Booking.builder()
                 .bookingId(UUID.randomUUID())
-                .sessionDate(LocalDate.now(AppTimeZone.ZONE))
-                .startTime(LocalTime.now(AppTimeZone.ZONE).plusMinutes(1))
-                .endTime(LocalTime.now(AppTimeZone.ZONE).plusHours(1))
+                .sessionDate(sessionDate)
+                .startTime(now.plusMinutes(1))
+                .endTime(endTime)
                 .bookingStatus(BookingStatus.IN_PROGRESS)
                 .build();
         when(bookingRepository.findByCompletionNotificationSentFalseAndBookingStatusIn(CANDIDATE_STATUSES))
