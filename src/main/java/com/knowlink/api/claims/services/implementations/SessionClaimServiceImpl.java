@@ -18,6 +18,7 @@ import com.knowlink.api.claims.repositories.SessionClaimRepository;
 import com.knowlink.api.claims.services.interfaces.ISessionClaimService;
 import com.knowlink.api.claims.utils.ClaimDeadlineCalculator;
 import com.knowlink.api.claims.utils.ClaimSupportConstants;
+import com.knowlink.api.exceptions.custom_exceptions.BusinessConflictException;
 import com.knowlink.api.exceptions.custom_exceptions.ClaimDeadlineExceededException;
 import com.knowlink.api.exceptions.custom_exceptions.ClaimReasonNotAllowedException;
 import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
@@ -34,6 +35,7 @@ import com.knowlink.api.materials.utils.StorageConstants;
 import com.knowlink.api.notifications.data.enums.NotificationType;
 import com.knowlink.api.notifications.services.interfaces.INotificationService;
 import com.knowlink.api.security.enums.Role;
+import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.support.utils.FileFormatConstants;
 import com.knowlink.api.users.data.models.User;
 
@@ -52,6 +54,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -61,6 +64,7 @@ import java.util.stream.Collectors;
 public class SessionClaimServiceImpl implements ISessionClaimService {
 
     private static final String ACTIVE_CLAIM_MESSAGE = "Ya tenés un reclamo activo para esta sesión";
+    private static final String CLAIM_STATUS_MANAGED_BY_DISPUTE = "CLAIM_STATUS_MANAGED_BY_DISPUTE";
     private final IBookingRepository bookingRepository;
     private final SessionClaimRepository sessionClaimRepository;
     private final ClaimAttachmentRepository claimAttachmentRepository;
@@ -116,15 +120,34 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
         User claimant = claimantRole == Role.STUDENT ? booking.getStudent() : booking.getTutor();
         String activeKey = bookingId + ":" + userId;
 
+        // A late claim joins the dispute of the party that claimed first. When an admin already
+        // took that dispute, the new claim is born in review under the very same admin.
+        Optional<SessionClaim> representative = activeDisputeRepresentative(bookingId);
+        UUID disputeId = representative
+                .map(existing -> existing.getDisputeId() != null ? existing.getDisputeId() : existing.getClaimId())
+                .orElse(null);
+        ClaimStatus initialStatus = ClaimStatus.OPEN;
+        User inheritedAdmin = null;
+        LocalDateTime assignedAt = null;
+        if (representative.isPresent()
+                && representative.get().getStatus() == ClaimStatus.IN_REVIEW
+                && representative.get().getAssignedAdmin() != null) {
+            initialStatus = ClaimStatus.IN_REVIEW;
+            inheritedAdmin = representative.get().getAssignedAdmin();
+            assignedAt = LocalDateTime.now(AppTimeZone.ZONE);
+        }
+
         SessionClaim claim = SessionClaim.builder()
                 .booking(booking)
                 .claimant(claimant)
                 .claimantRole(claimantRole)
                 .reason(request.reason())
                 .comment(normalizeComment(request.comment()))
-                .status(ClaimStatus.OPEN)
+                .status(initialStatus)
                 .activeKey(activeKey)
-                .disputeId(existingDisputeId(bookingId))
+                .disputeId(disputeId)
+                .assignedAdmin(inheritedAdmin)
+                .assignedAt(assignedAt)
                 .automaticOutcome(deriveAutomaticOutcome(claimantRole, request.reason()))
                 .build();
 
@@ -204,30 +227,12 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
             return;
         }
 
-        claim.setStatus(status);
-        if (status == ClaimStatus.RESOLVED) {
-            claim.setActiveKey(null);
-        }
-        sessionClaimRepository.save(claim);
-
-        notificationService.createSupportNotification(
-                claim.getBooking().getTutor().getUserId(),
-                Role.TUTOR,
-                NotificationType.SESSION_CLAIM_UPDATE,
-                claim.getClaimId(),
-                "Actualización de reclamo",
-                "El estado de tu reclamo por la sesión de "
-                        + claim.getBooking().getTutorSubject().getSubject().getName()
-                        + " cambió a " + status.displayLabel() + ".");
-        notificationService.createSupportNotification(
-                claim.getBooking().getStudent().getUserId(),
-                Role.STUDENT,
-                NotificationType.SESSION_CLAIM_UPDATE,
-                claim.getClaimId(),
-                "Actualización de reclamo",
-                "El estado de tu reclamo por la sesión de "
-                        + claim.getBooking().getTutorSubject().getSubject().getName()
-                        + " cambió a " + status.displayLabel() + ".");
+        // Only IN_REVIEW and RESOLVED are left, and both belong to the dispute flow: one decision
+        // for every claim of the dispute, taken by AdminSessionClaimServiceImpl.assign / .resolve.
+        throw new BusinessConflictException(
+                CLAIM_STATUS_MANAGED_BY_DISPUTE,
+                "Este reclamo se gestiona junto con el de la otra parte. Usá la gestión de reclamos de administración.",
+                "Claim " + claimId + " status cannot be changed individually; use admin assign/resolve");
     }
 
     @Override
@@ -441,14 +446,13 @@ public class SessionClaimServiceImpl implements ISessionClaimService {
     }
 
     /**
-     * Claims of the same booking are grouped into a single dispute. When the counterparty already
-     * opened one, the new claim inherits its dispute id; otherwise the new claim opens the dispute.
+     * Oldest claim of the booking that still belongs to an open dispute. It represents the
+     * dispute for every claim created afterwards: either it opened the dispute
+     * (disputeId == claimId) or it inherited it from the claimant who opened it first.
      */
-    private UUID existingDisputeId(UUID bookingId) {
-        return sessionClaimRepository
-                .findFirstByBooking_BookingIdAndStatusInOrderByCreatedAtAsc(bookingId, ClaimStatus.ACTIVE_STATUSES)
-                .map(existing -> existing.getDisputeId() != null ? existing.getDisputeId() : existing.getClaimId())
-                .orElse(null);
+    private Optional<SessionClaim> activeDisputeRepresentative(UUID bookingId) {
+        return sessionClaimRepository.findFirstByBooking_BookingIdAndStatusInOrderByCreatedAtAsc(
+                bookingId, ClaimStatus.ACTIVE_STATUSES);
     }
 
     /**

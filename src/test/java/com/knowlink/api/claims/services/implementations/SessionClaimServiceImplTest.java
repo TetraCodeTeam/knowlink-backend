@@ -15,6 +15,7 @@ import com.knowlink.api.claims.data.models.SessionClaim;
 import com.knowlink.api.claims.repositories.ClaimAttachmentRepository;
 import com.knowlink.api.claims.repositories.SessionClaimRepository;
 import com.knowlink.api.claims.utils.ClaimDeadlineCalculator;
+import com.knowlink.api.exceptions.custom_exceptions.BusinessConflictException;
 import com.knowlink.api.exceptions.custom_exceptions.ClaimDeadlineExceededException;
 import com.knowlink.api.exceptions.custom_exceptions.ClaimReasonNotAllowedException;
 import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
@@ -524,6 +525,86 @@ class SessionClaimServiceImplTest {
     }
 
     @Test
+    @DisplayName("Crear - reclamo tardio sobre una disputa ya tomada: nace IN_REVIEW con el mismo admin")
+    void create_whenRepresentativeInReview_inheritsAdminAndStatus() {
+        stubNoActiveClaim();
+        stubSaveAndFlush();
+        User admin = User.builder().userId(UUID.randomUUID()).fullName("Admin Test").build();
+        UUID disputeId = UUID.randomUUID();
+        SessionClaim representative = SessionClaim.builder()
+                .claimId(UUID.randomUUID())
+                .booking(booking)
+                .status(ClaimStatus.IN_REVIEW)
+                .disputeId(disputeId)
+                .assignedAdmin(admin)
+                .build();
+        when(sessionClaimRepository.findFirstByBooking_BookingIdAndStatusInOrderByCreatedAtAsc(
+                booking.getBookingId(), ClaimStatus.ACTIVE_STATUSES))
+                .thenReturn(Optional.of(representative));
+
+        ClaimResponse response = service.create(studentId, booking.getBookingId(),
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null);
+
+        ArgumentCaptor<SessionClaim> captor = ArgumentCaptor.forClass(SessionClaim.class);
+        verify(sessionClaimRepository).saveAndFlush(captor.capture());
+        SessionClaim saved = captor.getValue();
+        assertThat(saved.getStatus()).isEqualTo(ClaimStatus.IN_REVIEW);
+        assertThat(saved.getAssignedAdmin()).isSameAs(admin);
+        assertThat(saved.getAssignedAt()).isNotNull();
+        assertThat(saved.getDisputeId()).isEqualTo(disputeId);
+        assertThat(response.status()).isEqualTo(ClaimStatus.IN_REVIEW);
+        verify(fundsLedgerService).markSuspendedByClaim(booking.getBookingId(), saved.getClaimId());
+    }
+
+    @Test
+    @DisplayName("Crear - reclamo sobre una disputa todavia OPEN: sigue OPEN y sin admin")
+    void create_whenRepresentativeOpen_staysOpenWithoutAdmin() {
+        stubNoActiveClaim();
+        stubSaveAndFlush();
+        UUID disputeId = UUID.randomUUID();
+        SessionClaim representative = SessionClaim.builder()
+                .claimId(UUID.randomUUID())
+                .booking(booking)
+                .status(ClaimStatus.OPEN)
+                .disputeId(disputeId)
+                .build();
+        when(sessionClaimRepository.findFirstByBooking_BookingIdAndStatusInOrderByCreatedAtAsc(
+                booking.getBookingId(), ClaimStatus.ACTIVE_STATUSES))
+                .thenReturn(Optional.of(representative));
+
+        service.create(studentId, booking.getBookingId(),
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null);
+
+        ArgumentCaptor<SessionClaim> captor = ArgumentCaptor.forClass(SessionClaim.class);
+        verify(sessionClaimRepository).saveAndFlush(captor.capture());
+        SessionClaim saved = captor.getValue();
+        assertThat(saved.getStatus()).isEqualTo(ClaimStatus.OPEN);
+        assertThat(saved.getAssignedAdmin()).isNull();
+        assertThat(saved.getAssignedAt()).isNull();
+        assertThat(saved.getDisputeId()).isEqualTo(disputeId);
+    }
+
+    @Test
+    @DisplayName("Crear - primer reclamo de la reserva: abre la disputa con su propio claimId")
+    void create_firstClaim_opensDisputeWithOwnId() {
+        stubNoActiveClaim();
+        stubSaveAndFlush();
+        when(sessionClaimRepository.findFirstByBooking_BookingIdAndStatusInOrderByCreatedAtAsc(
+                booking.getBookingId(), ClaimStatus.ACTIVE_STATUSES))
+                .thenReturn(Optional.empty());
+
+        service.create(studentId, booking.getBookingId(),
+                new CreateClaimRequest(ClaimReason.TUTOR_COULD_NOT_ATTEND, null), null);
+
+        ArgumentCaptor<SessionClaim> captor = ArgumentCaptor.forClass(SessionClaim.class);
+        verify(sessionClaimRepository).saveAndFlush(captor.capture());
+        SessionClaim saved = captor.getValue();
+        assertThat(saved.getStatus()).isEqualTo(ClaimStatus.OPEN);
+        assertThat(saved.getAssignedAdmin()).isNull();
+        assertThat(saved.getDisputeId()).isEqualTo(saved.getClaimId());
+    }
+
+    @Test
     @DisplayName("Elegibilidad - dentro del plazo sin reclamo: puede reclamar hasta la fecha limite")
     void getEligibility_canClaimTrue_returnsClaimableUntil() {
         stubNoActiveClaim();
@@ -724,22 +805,72 @@ class SessionClaimServiceImplTest {
     }
 
     @Test
-    @DisplayName("updateStatus - a RESOLVED: notifica a ambas partes y no emite FUNDS_RELEASED")
-    void updateStatus_resolved_notifiesPartiesWithoutFundsReleased() {
+    @DisplayName("updateStatus - a RESOLVED: 409 CLAIM_STATUS_MANAGED_BY_DISPUTE sin persistir")
+    void updateStatus_toResolved_throwsConflictAndDoesNotPersist() {
         SessionClaim claim = SessionClaim.builder()
                 .claimId(UUID.randomUUID())
                 .status(ClaimStatus.OPEN)
                 .booking(booking)
                 .build();
         when(sessionClaimRepository.findById(claim.getClaimId())).thenReturn(Optional.of(claim));
-        when(sessionClaimRepository.save(any(SessionClaim.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        assertThatThrownBy(() -> service.updateStatus(claim.getClaimId(), ClaimStatus.RESOLVED))
+                .isInstanceOf(BusinessConflictException.class)
+                .hasFieldOrPropertyWithValue("errorCode", "CLAIM_STATUS_MANAGED_BY_DISPUTE");
+
+        verify(sessionClaimRepository, never()).save(any());
+        verifyNoInteractions(fundsLedgerService);
+        verifyNoInteractions(notificationService);
+        assertThat(claim.getStatus()).isEqualTo(ClaimStatus.OPEN);
+    }
+
+    @Test
+    @DisplayName("updateStatus - a IN_REVIEW: 409 CLAIM_STATUS_MANAGED_BY_DISPUTE")
+    void updateStatus_toInReview_throwsConflict() {
+        SessionClaim claim = SessionClaim.builder()
+                .claimId(UUID.randomUUID())
+                .status(ClaimStatus.OPEN)
+                .booking(booking)
+                .build();
+        when(sessionClaimRepository.findById(claim.getClaimId())).thenReturn(Optional.of(claim));
+
+        assertThatThrownBy(() -> service.updateStatus(claim.getClaimId(), ClaimStatus.IN_REVIEW))
+                .isInstanceOf(BusinessConflictException.class)
+                .hasFieldOrPropertyWithValue("errorCode", "CLAIM_STATUS_MANAGED_BY_DISPUTE");
+
+        verify(sessionClaimRepository, never()).save(any());
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    @DisplayName("updateStatus - mismo estado: no cambia nada")
+    void updateStatus_sameStatus_returnsWithoutChanges() {
+        SessionClaim claim = SessionClaim.builder()
+                .claimId(UUID.randomUUID())
+                .status(ClaimStatus.RESOLVED)
+                .booking(booking)
+                .build();
+        when(sessionClaimRepository.findById(claim.getClaimId())).thenReturn(Optional.of(claim));
 
         service.updateStatus(claim.getClaimId(), ClaimStatus.RESOLVED);
 
-        verify(notificationService).createSupportNotification(eq(tutorId), eq(Role.TUTOR),
-                eq(NotificationType.SESSION_CLAIM_UPDATE), eq(claim.getClaimId()), anyString(), anyString());
-        verify(notificationService).createSupportNotification(eq(studentId), eq(Role.STUDENT),
-                eq(NotificationType.SESSION_CLAIM_UPDATE), eq(claim.getClaimId()), anyString(), anyString());
-        verify(notificationService, never()).notifyUser(any(), any(), any(), any(), any(), any(), any());
+        verify(sessionClaimRepository, never()).save(any());
+        verifyNoInteractions(notificationService);
+    }
+
+    @Test
+    @DisplayName("updateStatus - transicion invalida: 400 VALIDATION_ERROR")
+    void updateStatus_invalidTransition_throwsValidationException() {
+        SessionClaim claim = SessionClaim.builder()
+                .claimId(UUID.randomUUID())
+                .status(ClaimStatus.RESOLVED)
+                .booking(booking)
+                .build();
+        when(sessionClaimRepository.findById(claim.getClaimId())).thenReturn(Optional.of(claim));
+
+        assertThatThrownBy(() -> service.updateStatus(claim.getClaimId(), ClaimStatus.OPEN))
+                .isInstanceOf(ValidationException.class);
+
+        verify(sessionClaimRepository, never()).save(any());
     }
 }
