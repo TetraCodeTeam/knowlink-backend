@@ -117,7 +117,7 @@ public class TutorProfileValidationServiceImpl implements ITutorProfileValidatio
 
         if (careerChanged && !tutorProfile.getSubjects().isEmpty()) {
             throw new ValidationException(
-                    "No podés cambiar tu carrera mientras tengas materias registradas. Eliminá tus materias primero.");
+                    "No podés cambiar tu carrera mientras tengas materias registradas: tus materias dependen de ella.");
         }
     }
 

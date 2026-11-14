@@ -518,7 +518,7 @@ void ifAddressRequiredForInPersonSubjectsThrowException(TutorProfile tutorProfil
 ```
 
 `TutorProfileValidationServiceImpl`:
-- `ifCareerChangeBlockedBySubjectsThrowException`: si `!tutorProfile.getCareer().getCareerId().equals(newCareer.getCareerId())` y `!tutorProfile.getSubjects().isEmpty()` → `throw new ValidationException("No podés cambiar tu carrera mientras tengas materias registradas. Eliminá tus materias primero.")`. (Las materias pertenecen a la carrera del tutor.)
+- `ifCareerChangeBlockedBySubjectsThrowException`: si `!tutorProfile.getCareer().getCareerId().equals(newCareer.getCareerId())` y `!tutorProfile.getSubjects().isEmpty()` → `throw new ValidationException("No podés cambiar tu carrera mientras tengas materias registradas: tus materias dependen de ella.")`. (Las materias pertenecen a la carrera del tutor.)
 - `ifAddressRequiredForInPersonSubjectsThrowException`: si algún `TutorSubject` de `tutorProfile.getSubjects()` tiene `getModality()` igual a `Modality.IN_PERSON` o `Modality.BOTH` y `address == null || address.isBlank()` → `throw new ValidationException("La dirección es obligatoria para clases presenciales.")`.
 - Agregar imports (`Career`, `Modality`, `ValidationException`, `TutorSubject`) y no tocar los métodos existentes.
 
