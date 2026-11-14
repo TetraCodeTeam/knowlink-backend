@@ -12,10 +12,12 @@ import com.knowlink.api.community.controllers.responses.CommunityPostResponse;
 import com.knowlink.api.community.controllers.responses.CommunityReplyResponse;
 import com.knowlink.api.community.controllers.responses.CommunitySubjectResponse;
 import com.knowlink.api.community.controllers.responses.HelpfulMarkResponse;
+import com.knowlink.api.community.controllers.responses.PostHelpfulMarkResponse;
 import com.knowlink.api.community.data.enums.FeedPeriod;
 import com.knowlink.api.community.data.enums.PostStatus;
 import com.knowlink.api.community.data.enums.PostType;
 import com.knowlink.api.community.data.filters.CommunityFeedFilter;
+import com.knowlink.api.community.services.interfaces.ICommunityPostHelpfulService;
 import com.knowlink.api.community.services.interfaces.ICommunityPostService;
 import com.knowlink.api.community.services.interfaces.ICommunityReplyService;
 import com.knowlink.api.security.models.UserPrincipal;
@@ -34,6 +36,7 @@ public class CommunityControllerImpl implements ICommunityController {
 
     private final ICommunityPostService postService;
     private final ICommunityReplyService replyService;
+    private final ICommunityPostHelpfulService postHelpfulService;
 
     @Override
     public PagedResponse<CommunityPostResponse> getFeed(UserPrincipal principal, PostType type, FeedPeriod period,
@@ -108,6 +111,16 @@ public class CommunityControllerImpl implements ICommunityController {
     @Override
     public HelpfulMarkResponse unmarkHelpful(UserPrincipal principal, UUID postId, UUID replyId) {
         return replyService.unmarkHelpful(userId(principal), postId, replyId);
+    }
+
+    @Override
+    public PostHelpfulMarkResponse markPostHelpful(UserPrincipal principal, UUID postId) {
+        return postHelpfulService.markHelpful(userId(principal), postId);
+    }
+
+    @Override
+    public PostHelpfulMarkResponse unmarkPostHelpful(UserPrincipal principal, UUID postId) {
+        return postHelpfulService.unmarkHelpful(userId(principal), postId);
     }
 
     @Override

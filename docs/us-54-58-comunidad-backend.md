@@ -20,6 +20,7 @@ Módulo `com.knowlink.api.community`. Todos los endpoints requieren Bearer JWT y
 | PUT | `/posts/{postId}/replies/{replyId}` | 55 | Edita el texto; solo el autor. |
 | DELETE | `/posts/{postId}/replies/{replyId}` | 55 | Baja lógica; solo el autor. |
 | PUT / DELETE | `/posts/{postId}/replies/{replyId}/helpful` | 55 | Marca / quita "Esto me sirvió" (idempotente). 422 `OWN_REPLY_NOT_MARKABLE` si es propia. |
+| PUT / DELETE | `/posts/{postId}/helpful` | 56 | Marca / quita "Esto me sirvió" en un **aporte** (idempotente). Devuelve `{ postId, helpfulCount, markedByMe }`. 422 `POST_NOT_MARKABLE` si es una consulta (`HELP_REQUEST`) y 422 `OWN_POST_NOT_MARKABLE` si es propio. |
 | GET | `/subjects?careerId` | 54 / 59 | Materias del catálogo, por nombre. Con `careerId`: las de esa carrera más las básicas. |
 | GET | `/podium` | 58 | `{ periodStart, podium (1-3), ranking (4-10) }`. Cada tutor trae su desglose: `score`, `bestAnswers` y `helpfulMarks` (más `averageRating`), para mostrar de dónde sale el puntaje. |
 | GET | `/podium/me` | 58 | `{ eligible, position, positionsToTopTen, progressPercent, … }`. |
@@ -31,6 +32,12 @@ Módulo `com.knowlink.api.community`. Todos los endpoints requieren Bearer JWT y
 - **Adjunto opcional** (uno por publicación o respuesta): PDF, JPG, JPEG, PNG o XLSX, hasta
   `knowlink.community.max-attachment-mb` (5). Se sube al bucket de materiales bajo `community/{userId}/`. La URL del
   adjunto es firmada (1 h); si el storage falla, `attachment.url` viene `null` y el feed sigue funcionando.
+- **"Esto me sirvió" en aportes:** además de las respuestas, un aporte (`SHARED_CONTENT`, de cualquier autor) se marca ahí
+  mismo. Las consultas (`HELP_REQUEST`) no se marcan: se marcan sus respuestas. Una persona marca una vez cada aporte y no el
+  propio. En `CommunityPostResponse`, `helpfulCount` depende del tipo: en un aporte son las marcas del propio aporte
+  (`markedHelpfulByMe` dice si el usuario que consulta ya lo marcó); en una consulta siguen siendo las marcas de su mejor
+  respuesta y `markedHelpfulByMe` es siempre `false`. Estas marcas **no cuentan para el ranking** (ver abajo).
+  Se guardan en `community_post_helpful`; `removeHelpfulMarksByUser` las borra junto con las de respuestas al eliminar la cuenta.
 - **Resolver:** destaca la respuesta con más marcas (empate: la más antigua), ignorando las del propio autor y las que
   tienen 0 marcas. La respuesta destacada queda fijada en `featured_reply_id`. Después el hilo rechaza respuestas.
 - **Tarjeta de vinculación** (`bookingCard`): solo en respuestas hechas como `TUTOR`. `includeBookingCard` por defecto
@@ -73,7 +80,8 @@ eso el feed quedaba casi vacío durante las primeras horas de cada día).
 
 ## Despliegue
 
-- Las tablas `community_*` las crea `ddl-auto`.
+- Las tablas `community_*` las crea `ddl-auto` (incluida `community_post_helpful`, la de marcas sobre aportes; no hace falta
+  migración porque es una tabla nueva).
 - **Antes de desplegar en una base MySQL existente**, correr `src/main/resources/migration-community-notification-type.sql`:
   Hibernate puede haber creado `user_notification.notification_type` como `ENUM(...)` y `ddl-auto=update` no agrega
   valores nuevos (`COMMUNITY_REPLY`).

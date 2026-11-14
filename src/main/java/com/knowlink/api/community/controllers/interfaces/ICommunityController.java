@@ -11,6 +11,7 @@ import com.knowlink.api.community.controllers.responses.CommunityPostResponse;
 import com.knowlink.api.community.controllers.responses.CommunityReplyResponse;
 import com.knowlink.api.community.controllers.responses.CommunitySubjectResponse;
 import com.knowlink.api.community.controllers.responses.HelpfulMarkResponse;
+import com.knowlink.api.community.controllers.responses.PostHelpfulMarkResponse;
 import com.knowlink.api.community.data.enums.FeedPeriod;
 import com.knowlink.api.community.data.enums.PostStatus;
 import com.knowlink.api.community.data.enums.PostType;
@@ -239,6 +240,27 @@ public interface ICommunityController {
             @AuthenticationPrincipal UserPrincipal principal,
             @PathVariable UUID postId,
             @PathVariable UUID replyId);
+
+    @PutMapping("/posts/{postId}/helpful")
+    @Operation(summary = "Marcar un aporte como \"Esto me sirvió\"",
+            description = "Idempotente. Solo aplica a aportes (SHARED_CONTENT): las consultas se marcan por sus respuestas. "
+                    + "Un usuario no puede marcar su propio aporte.")
+    @ApiResponse(responseCode = "200", description = "Marca registrada con el total vigente")
+    @ApiResponse(responseCode = "404", description = "La publicación no existe")
+    @ApiResponse(responseCode = "422", description = "La publicación es una consulta o es del propio usuario")
+    @ResponseStatus(OK)
+    PostHelpfulMarkResponse markPostHelpful(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID postId);
+
+    @DeleteMapping("/posts/{postId}/helpful")
+    @Operation(summary = "Quitar la marca \"Esto me sirvió\" de un aporte", description = "Idempotente.")
+    @ApiResponse(responseCode = "200", description = "Marca retirada con el total vigente")
+    @ApiResponse(responseCode = "404", description = "La publicación no existe")
+    @ResponseStatus(OK)
+    PostHelpfulMarkResponse unmarkPostHelpful(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID postId);
 
     @GetMapping("/careers")
     @Operation(summary = "Listar las carreras de la institución del usuario",
