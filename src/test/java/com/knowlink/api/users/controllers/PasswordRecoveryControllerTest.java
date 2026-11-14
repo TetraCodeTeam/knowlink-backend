@@ -194,8 +194,10 @@ class PasswordRecoveryControllerTest {
         requestResetEmail(emailBody(activeUser.getEmail())).andExpect(status().isNoContent());
 
         Token resetToken = resetTokensOf(activeUser).get(0);
+        // La expiración del token de recuperación se calcula con now() + 30 min antes de guardar, y createdAt se
+        // fija después (@PrePersist): la diferencia es 30 min menos unos milisegundos, nunca exactamente 30 min.
         assertThat(Duration.between(resetToken.getCreatedAt(), resetToken.getTokenExpirationDate()))
-                .isEqualTo(Duration.ofMinutes(30));
+                .isBetween(Duration.ofMinutes(30).minusSeconds(1), Duration.ofMinutes(30));
 
         Token confirmationToken = tokenService.saveUserToken(activeUser);
         assertThat(Duration.between(confirmationToken.getCreatedAt(), confirmationToken.getTokenExpirationDate()))
