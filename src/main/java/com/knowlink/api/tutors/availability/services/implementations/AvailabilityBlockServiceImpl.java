@@ -51,21 +51,29 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
 
         availabilityBlockValidationService.validateWeekRequest(weekStart, weekEnd, blocks);
         availabilityBlockValidationService.validateBlocks(blocks);
-        availabilityBlockValidationService.validateNoActiveBookingsInRange(tutorUserId, weekStart, weekEnd);
-
-        List<AvailabilityBlockRequest> mergedBlocks = AvailabilityBlockMerger.mergeContiguous(blocks);
 
         TutorProfile tutorProfile = tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId);
         UUID tutorProfileId = tutorProfile.getTutorProfileId();
+        LocalDateTime now = LocalDateTime.now(AppTimeZone.ZONE);
+
+        // Los bloques con reservas asociadas no se pueden reemplazar (la reserva depende de ellos):
+        // deben volver sin cambios y se conservan tal cual. Todo lo demás de la semana — otros días,
+        // otros horarios, bloques cuyas reservas ya pasaron — se reemplaza con normalidad.
+        List<AvailabilityBlock> lockedBlocks = availabilityBlockRepository.findUpcomingLockedByBookings(
+                tutorProfileId, weekStart, weekEnd, now.toLocalDate(), now.toLocalTime());
+        List<AvailabilityBlockRequest> editableBlocks =
+                availabilityBlockValidationService.excludeLockedBlocks(lockedBlocks, blocks, now);
+
+        List<AvailabilityBlockRequest> mergedBlocks = AvailabilityBlockMerger.mergeContiguous(editableBlocks);
 
         boolean anyRepeat = mergedBlocks.stream().anyMatch(request -> Boolean.TRUE.equals(request.repeatWeekly()));
 
         List<Integer> protectedWeekOffsets = anyRepeat
-                ? clearNonProtectedFutureWeeks(tutorUserId, tutorProfileId, weekStart, weekEnd)
+                ? clearNonProtectedFutureWeeks(tutorProfileId, weekStart, weekEnd, now)
                 : List.of();
 
         timeSlotRepository.deleteAvailableInRange(tutorProfileId, weekStart, weekEnd);
-        availabilityBlockRepository.deleteInRange(tutorProfileId, weekStart, weekEnd);
+        availabilityBlockRepository.deleteWithoutSlotsInRange(tutorProfileId, weekStart, weekEnd);
 
         List<AvailabilityBlock> toSave = buildBlocksToSave(mergedBlocks, tutorProfile, protectedWeekOffsets);
         availabilityBlockRepository.saveAll(toSave);
@@ -81,7 +89,7 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
     }
 
     private List<Integer> clearNonProtectedFutureWeeks(
-            UUID tutorUserId, UUID tutorProfileId, LocalDate weekStart, LocalDate weekEnd) {
+            UUID tutorProfileId, LocalDate weekStart, LocalDate weekEnd, LocalDateTime now) {
         List<Integer> protectedWeekOffsets = new ArrayList<>();
 
         for (int i = 1; i <= AvailabilityConstants.REPEAT_WEEKS_AHEAD; i++) {
@@ -91,16 +99,20 @@ public class AvailabilityBlockServiceImpl implements IAvailabilityBlockService {
             boolean isCustomized = weekCustomizationRepository
                     .existsByTutorProfile_TutorProfileIdAndWeekStart(tutorProfileId, futureWeekStart);
 
-            if (isCustomized) {
+            // Una semana futura con reservas se salta, igual que una semana personalizada: la copia
+            // automática de la repetición es un efecto colateral, no una edición directa del tutor,
+            // así que no debe hacer fallar el guardado ni pisar bloques que respaldan una reserva.
+            boolean hasLockedBlocks = !availabilityBlockRepository.findUpcomingLockedByBookings(
+                    tutorProfileId, futureWeekStart, futureWeekEnd, now.toLocalDate(), now.toLocalTime())
+                    .isEmpty();
+
+            if (isCustomized || hasLockedBlocks) {
                 protectedWeekOffsets.add(i);
                 continue;
             }
 
-            availabilityBlockValidationService.validateNoActiveBookingsInRange(
-                    tutorUserId, futureWeekStart, futureWeekEnd);
-
             timeSlotRepository.deleteAvailableInRange(tutorProfileId, futureWeekStart, futureWeekEnd);
-            availabilityBlockRepository.deleteInRange(tutorProfileId, futureWeekStart, futureWeekEnd);
+            availabilityBlockRepository.deleteWithoutSlotsInRange(tutorProfileId, futureWeekStart, futureWeekEnd);
         }
 
         return protectedWeekOffsets;

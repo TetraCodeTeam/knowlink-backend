@@ -29,13 +29,50 @@ public interface IAvailabilityBlockRepository extends JpaRepository<Availability
                         @Param("today") LocalDate today,
                         @Param("nowTime") LocalTime nowTime);
 
+        /**
+         * Bloques del rango que todavía tienen tiempo por delante y que no se pueden
+         * reemplazar: respaldan algún slot que sobrevive al borrado de slots libres, es
+         * decir, un slot con reservas (de cualquier estado: la reserva apunta al slot por
+         * FK) o que no está AVAILABLE. Su fecha/hora la decide la reserva, no el tutor.
+         *
+         * <p>Los bloques ya vencidos no se incluyen: el editor nunca los muestra ni los
+         * reenvía (ver {@link #findInRange}), así que no pueden formar parte de la edición.
+         */
+        @Query("""
+                        SELECT ab FROM AvailabilityBlock ab
+                        WHERE ab.tutorProfile.tutorProfileId = :tutorProfileId
+                        AND ab.date BETWEEN :from AND :to
+                        AND (ab.date > :today OR (ab.date = :today AND ab.endTime > :nowTime))
+                        AND EXISTS (
+                                SELECT 1 FROM TimeSlot ts
+                                WHERE ts.assignedBlock = ab
+                                AND (ts.status <> com.knowlink.api.timeslot.data.enums.SlotStatus.AVAILABLE
+                                        OR EXISTS (SELECT 1 FROM Booking b WHERE b.timeSlot = ts)))
+                        ORDER BY ab.date, ab.startTime
+                        """)
+        List<AvailabilityBlock> findUpcomingLockedByBookings(
+                        @Param("tutorProfileId") UUID tutorProfileId,
+                        @Param("from") LocalDate from,
+                        @Param("to") LocalDate to,
+                        @Param("today") LocalDate today,
+                        @Param("nowTime") LocalTime nowTime);
+
+        /**
+         * Borra los bloques del rango que ya no respaldan ningún slot. Se ejecuta después
+         * de borrar los slots libres sin reservas: los slots que quedan son los que tienen
+         * una reserva asociada, y borrar su bloque violaría la FK
+         * {@code time_slot.availability_block_id} (además de dejar la reserva sin su origen).
+         * Esos bloques se conservan tal cual, sean futuros (ver
+         * {@link #findUpcomingLockedByBookings}) o ya vencidos (historial).
+         */
         @Modifying(clearAutomatically = true)
         @Query("""
                         DELETE FROM AvailabilityBlock ab
                         WHERE ab.tutorProfile.tutorProfileId = :tutorProfileId
                         AND ab.date BETWEEN :from AND :to
+                        AND NOT EXISTS (SELECT 1 FROM TimeSlot ts WHERE ts.assignedBlock = ab)
                         """)
-        void deleteInRange(
+        void deleteWithoutSlotsInRange(
                         @Param("tutorProfileId") UUID tutorProfileId,
                         @Param("from") LocalDate from,
                         @Param("to") LocalDate to);

@@ -46,19 +46,6 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
                         @Param("statuses") List<BookingStatus> statuses);
 
         @Query("""
-                        SELECT CASE WHEN COUNT(b) > 0 THEN true ELSE false END
-                        FROM Booking b
-                        WHERE b.tutor.userId = :tutorUserId
-                        AND b.sessionDate BETWEEN :from AND :to
-                        AND b.bookingStatus IN :activeStatuses
-                        """)
-        boolean existsActiveBookingInRange(
-                        @Param("tutorUserId") UUID tutorUserId,
-                        @Param("from") LocalDate from,
-                        @Param("to") LocalDate to,
-                        @Param("activeStatuses") List<BookingStatus> activeStatuses);
-
-        @Query("""
                         SELECT b FROM Booking b
                         WHERE b.tutor.userId = :tutorUserId
                         AND b.sessionDate BETWEEN :from AND :to

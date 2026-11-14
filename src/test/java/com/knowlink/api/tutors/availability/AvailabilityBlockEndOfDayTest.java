@@ -2,12 +2,10 @@ package com.knowlink.api.tutors.availability;
 
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.shared.utils.EndOfDay;
-import com.knowlink.api.bookings.repositories.IBookingRepository;
 import com.knowlink.api.tutors.availability.controllers.requests.AvailabilityBlockRequest;
 import com.knowlink.api.tutors.availability.utils.AvailabilityBlockMerger;
 import com.knowlink.api.tutors.availability.validations.AvailabilityBlockValidationServiceImpl;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -21,8 +19,7 @@ class AvailabilityBlockEndOfDayTest {
 
     private static final LocalDate DATE = LocalDate.of(2026, 10, 28);
 
-    private final AvailabilityBlockValidationServiceImpl validation =
-            new AvailabilityBlockValidationServiceImpl(Mockito.mock(IBookingRepository.class));
+    private final AvailabilityBlockValidationServiceImpl validation = new AvailabilityBlockValidationServiceImpl();
 
     @Test
     void aBlockEndingAtMidnightIsStoredAsEndOfDay() {
