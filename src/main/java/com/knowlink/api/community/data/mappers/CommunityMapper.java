@@ -7,10 +7,13 @@ import com.knowlink.api.community.controllers.responses.CommunityReplyResponse;
 import com.knowlink.api.community.controllers.responses.CommunitySubjectResponse;
 import com.knowlink.api.community.controllers.responses.FeaturedReplyResponse;
 import com.knowlink.api.community.data.enums.PostStatus;
+import com.knowlink.api.community.data.enums.PostType;
 import com.knowlink.api.community.data.models.CommunityPost;
 import com.knowlink.api.community.data.models.CommunityReply;
+import com.knowlink.api.community.data.projections.PostHelpfulCount;
 import com.knowlink.api.community.data.projections.PostReplyCount;
 import com.knowlink.api.community.data.projections.ReplyHelpfulCount;
+import com.knowlink.api.community.repositories.ICommunityPostHelpfulRepository;
 import com.knowlink.api.community.repositories.ICommunityReplyHelpfulRepository;
 import com.knowlink.api.community.repositories.ICommunityReplyRepository;
 import com.knowlink.api.community.services.interfaces.ICommunityAttachmentService;
@@ -53,6 +56,7 @@ public class CommunityMapper {
     private final IStudentProfileRepository studentProfileRepository;
     private final ICommunityReplyRepository replyRepository;
     private final ICommunityReplyHelpfulRepository helpfulRepository;
+    private final ICommunityPostHelpfulRepository postHelpfulRepository;
     private final ICommunityAttachmentService attachmentService;
 
     private record AuthorRef(User user, Role role) {
@@ -85,6 +89,19 @@ public class CommunityMapper {
         Map<UUID, Long> bestHelpfulByPost = new HashMap<>();
         helpfulRows.forEach(row -> bestHelpfulByPost.merge(row.getPostId(), row.getTotal(), Math::max));
 
+        // Los aportes se marcan ellos mismos (no por sus respuestas): conteo y marcas del usuario, en lote.
+        List<UUID> sharedPostIds = posts.stream()
+                .filter(post -> post.getType() == PostType.SHARED_CONTENT)
+                .map(CommunityPost::getPostId)
+                .toList();
+        Map<UUID, Long> helpfulByPost = sharedPostIds.isEmpty()
+                ? Map.of()
+                : postHelpfulRepository.countByPostIds(sharedPostIds).stream()
+                        .collect(Collectors.toMap(PostHelpfulCount::getPostId, PostHelpfulCount::getTotal));
+        Set<UUID> postsMarkedByViewer = sharedPostIds.isEmpty()
+                ? Set.of()
+                : new HashSet<>(postHelpfulRepository.findMarkedPostIds(viewerId, sharedPostIds));
+
         Set<UUID> featuredIds = posts.stream()
                 .map(CommunityPost::getFeaturedReplyId)
                 .filter(Objects::nonNull)
@@ -114,6 +131,10 @@ public class CommunityMapper {
                     featured.getCreatedAt());
 
             boolean ownedByViewer = post.getAuthor().getUserId().equals(viewerId);
+            boolean sharedContent = post.getType() == PostType.SHARED_CONTENT;
+            long postHelpfulCount = sharedContent
+                    ? helpfulByPost.getOrDefault(post.getPostId(), 0L)
+                    : helpfulCount;
 
             return new CommunityPostResponse(
                     post.getPostId(),
@@ -127,7 +148,8 @@ public class CommunityMapper {
                     post.getCreatedAt(),
                     post.getResolvedAt(),
                     replyCounts.getOrDefault(post.getPostId(), 0L).intValue(),
-                    helpfulCount,
+                    postHelpfulCount,
+                    sharedContent && postsMarkedByViewer.contains(post.getPostId()),
                     featuredResponse,
                     ownedByViewer,
                     post.getEditedAt() != null,

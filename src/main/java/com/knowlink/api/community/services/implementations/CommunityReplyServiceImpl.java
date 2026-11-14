@@ -11,6 +11,7 @@ import com.knowlink.api.community.data.models.CommunityPost;
 import com.knowlink.api.community.data.models.CommunityReply;
 import com.knowlink.api.community.data.models.CommunityReplyHelpful;
 import com.knowlink.api.community.events.CommunityReplyCreatedEvent;
+import com.knowlink.api.community.repositories.ICommunityPostHelpfulRepository;
 import com.knowlink.api.community.repositories.ICommunityPostRepository;
 import com.knowlink.api.community.repositories.ICommunityReplyHelpfulRepository;
 import com.knowlink.api.community.repositories.ICommunityReplyRepository;
@@ -47,6 +48,7 @@ public class CommunityReplyServiceImpl implements ICommunityReplyService {
     private final ICommunityPostRepository postRepository;
     private final ICommunityReplyRepository replyRepository;
     private final ICommunityReplyHelpfulRepository helpfulRepository;
+    private final ICommunityPostHelpfulRepository postHelpfulRepository;
     private final IUserRepository userRepository;
     private final ICommunityAttachmentService attachmentService;
     private final CommunityMapper mapper;
@@ -257,4 +259,5 @@ public class CommunityReplyServiceImpl implements ICommunityReplyService {
     @Transactional
     public void removeHelpfulMarksByUser(UUID userId) {
         helpfulRepository.deleteByUser_UserId(userId);
+        postHelpfulRepository.deleteByUser_UserId(userId);
     }}
