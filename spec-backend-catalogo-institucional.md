@@ -209,7 +209,7 @@ Pasos:
 2. Insertar "UTN FRVM" si no existe.
 3. `career`: agregar `institution_id BINARY(16) NULL` y `type VARCHAR(20) NOT NULL DEFAULT 'REGULAR'` (si no existen).
 4. `subjects`: agregar `institution_id BINARY(16) NULL`.
-5. Backfill: `UPDATE career/subjects SET institution_id = <UTN FRVM> WHERE institution_id IS NULL`.
+5. Backfill: `UPDATE career/subjects SET institution_id = <UTN FRVM> WHERE institution_id IS NULL OR institution_id = UNHEX(REPEAT('0', 32))`. El segundo caso cubre bases donde `ddl-auto=update` agregó la columna como `NOT NULL` antes de correr el script: MySQL rellena las filas previas con 16 bytes en cero en lugar de `NULL`.
 6. Crear la carrera `SHARED` de UTN FRVM ("Materias Compartidas") si no existe.
 7. **Reasignar** las materias con `is_basic = 1` a esa carrera `SHARED` (hoy cuelgan de una carrera arbitraria).
 8. **Huérfanos:** `subjects.career_id` no tiene FK (lo reconoce el comentario de `TutorSearchMapper.careerName`). Antes de endurecer, contar `subjects` con `career_id` inexistente; si hay, el script **imprime el listado y aborta** sin continuar (decisión humana).

@@ -81,15 +81,21 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 -- 5. Backfill existing data to UTN FRVM.
+--    Two states count as "not assigned yet":
+--      - NULL: the column was added by this script (step 3/4).
+--      - 16 zero bytes: the column was added first by Hibernate (ddl-auto=update)
+--        as NOT NULL, and MySQL filled the pre-existing rows with zeros instead
+--        of NULL. Without this, those rows never reach UTN FRVM and the foreign
+--        keys in step 10 fail AFTER the old unique indexes were already dropped.
 SET @ddl = IF(@career_exists = 1 AND @career_institution_exists = 1,
-    CONCAT('UPDATE career SET institution_id = UNHEX(''', HEX(@utn_id), ''') WHERE institution_id IS NULL'),
+    CONCAT('UPDATE career SET institution_id = UNHEX(''', HEX(@utn_id), ''') WHERE institution_id IS NULL OR institution_id = UNHEX(REPEAT(''0'', 32))'),
     'SELECT 1');
 PREPARE stmt FROM @ddl;
 EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 
 SET @ddl = IF(@subjects_exists = 1 AND @subjects_institution_exists = 1,
-    CONCAT('UPDATE subjects SET institution_id = UNHEX(''', HEX(@utn_id), ''') WHERE institution_id IS NULL'),
+    CONCAT('UPDATE subjects SET institution_id = UNHEX(''', HEX(@utn_id), ''') WHERE institution_id IS NULL OR institution_id = UNHEX(REPEAT(''0'', 32))'),
     'SELECT 1');
 PREPARE stmt FROM @ddl;
 EXECUTE stmt;
