@@ -21,7 +21,7 @@ Módulo `com.knowlink.api.community`. Todos los endpoints requieren Bearer JWT y
 | DELETE | `/posts/{postId}/replies/{replyId}` | 55 | Baja lógica; solo el autor. |
 | PUT / DELETE | `/posts/{postId}/replies/{replyId}/helpful` | 55 | Marca / quita "Esto me sirvió" (idempotente). 422 `OWN_REPLY_NOT_MARKABLE` si es propia. |
 | GET | `/subjects?careerId` | 54 / 59 | Materias del catálogo, por nombre. Con `careerId`: las de esa carrera más las básicas. |
-| GET | `/podium` | 58 | `{ periodStart, podium (1-3), ranking (4-10) }`. |
+| GET | `/podium` | 58 | `{ periodStart, podium (1-3), ranking (4-10) }`. Cada tutor trae su desglose: `score`, `bestAnswers` y `helpfulMarks` (más `averageRating`), para mostrar de dónde sale el puntaje. |
 | GET | `/podium/me` | 58 | `{ eligible, position, positionsToTopTen, progressPercent, … }`. |
 
 ## Reglas de negocio
