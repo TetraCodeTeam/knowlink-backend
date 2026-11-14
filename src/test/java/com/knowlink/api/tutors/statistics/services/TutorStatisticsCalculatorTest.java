@@ -27,6 +27,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -304,6 +305,73 @@ class TutorStatisticsCalculatorTest {
                 .doesNotContain("Lean Ágil");
     }
 
+    // ── Reclamo detrás de los fondos retenidos ───────────────────────────────
+
+    @Test
+    void withheldClaimIdsFollowTheWithheldSessionsMostRecentFirst() {
+        TutorBookingRow oldest = withheld(BookingStatus.NOT_CONFIRMED, MONDAY, LocalTime.of(9, 0));
+        TutorBookingRow newestMorning = withheld(BookingStatus.NOT_CONFIRMED, MONDAY.plusDays(3), LocalTime.of(9, 0));
+        TutorBookingRow newestAfternoon = withheld(BookingStatus.NOT_CONFIRMED, MONDAY.plusDays(3), LocalTime.of(15, 0));
+        // Una reserva cancelada con fondos suspendidos y una liberada no cuentan como retenidas.
+        TutorBookingRow cancelledWithClaim = withheld(BookingStatus.CANCELLED, MONDAY.plusDays(5), LocalTime.of(9, 0));
+        TutorBookingRow released = funded(BookingStatus.COMPLETED, FundsStatus.RELEASED_TO_TUTOR, "1000.00", "970.00");
+
+        UUID oldestClaim = UUID.randomUUID();
+        UUID morningClaim = UUID.randomUUID();
+        UUID afternoonClaim = UUID.randomUUID();
+        TutorStatisticsResponse response = calculator.calculate(new TutorStatisticsInput(
+                PERIOD, 0, List.of(oldest, newestMorning, newestAfternoon, cancelledWithClaim, released),
+                List.of(), List.of(), subjects,
+                Map.of(oldest.bookingId(), oldestClaim,
+                        newestMorning.bookingId(), morningClaim,
+                        newestAfternoon.bookingId(), afternoonClaim,
+                        cancelledWithClaim.bookingId(), UUID.randomUUID(),
+                        released.bookingId(), UUID.randomUUID())));
+
+        assertThat(response.funds().withheldByClaim().sessions()).isEqualTo(3);
+        assertThat(response.funds().withheldClaimIds())
+                .containsExactly(afternoonClaim, morningClaim, oldestClaim);
+    }
+
+    @Test
+    void withheldSessionsWithoutAnActiveClaimAreSkippedInTheIds() {
+        TutorBookingRow withClaim = withheld(BookingStatus.NOT_CONFIRMED, MONDAY, LocalTime.of(9, 0));
+        TutorBookingRow withoutClaim = withheld(BookingStatus.NOT_CONFIRMED, MONDAY.plusDays(1), LocalTime.of(9, 0));
+        UUID claim = UUID.randomUUID();
+
+        TutorStatisticsResponse response = calculator.calculate(new TutorStatisticsInput(
+                PERIOD, 0, List.of(withClaim, withoutClaim), List.of(), List.of(), subjects,
+                Map.of(withClaim.bookingId(), claim)));
+
+        // Los fondos siguen contando las dos sesiones; solo falta el reclamo de una.
+        assertThat(response.funds().withheldByClaim().sessions()).isEqualTo(2);
+        assertThat(response.funds().withheldClaimIds()).containsExactly(claim);
+    }
+
+    @Test
+    void withheldClaimIdsAreEmptyWhenThereIsNoClaimData() {
+        TutorStatisticsResponse response = calculate(
+                List.of(withheld(BookingStatus.NOT_CONFIRMED, MONDAY, LocalTime.of(9, 0))), List.of(), List.of());
+
+        assertThat(response.funds().withheldByClaim().sessions()).isEqualTo(1);
+        assertThat(response.funds().withheldClaimIds()).isEmpty();
+    }
+
+    @Test
+    void cancelledBookingsAreCountedWhateverTheirSessionDate() {
+        // El repositorio devuelve también las clases posteriores al fin del período que se cancelaron
+        // dentro de él: el calculador las cuenta sin volver a filtrar por la fecha de la clase.
+        LocalDate afterThePeriod = PERIOD.to().plusDays(1);
+        TutorBookingRow cancelledForTomorrow = new TutorBookingRow(UUID.randomUUID(), afterThePeriod,
+                LocalTime.of(9, 0), LocalTime.of(10, 0), BookingStatus.CANCELLED, UUID.randomUUID(), paidSubjectId,
+                CancellationRole.STUDENT, RefundPolicy.REFUND_TOTAL_STUDENT, null, null, null, null, null);
+
+        TutorStatisticsResponse response = calculate(List.of(cancelledForTomorrow), List.of(), List.of());
+
+        assertThat(response.unheldSessions().cancelledByStudent()).isEqualTo(1);
+        assertThat(response.hasActivity()).isTrue();
+    }
+
     @Test
     void previousPeriodCompletedCountIsPassedThrough() {
         TutorStatisticsResponse response = calculator.calculate(new TutorStatisticsInput(
@@ -356,6 +424,13 @@ class TutorStatisticsCalculatorTest {
     private TutorBookingRow cancelled(CancellationRole by, RefundPolicy policy) {
         return new TutorBookingRow(UUID.randomUUID(), MONDAY, LocalTime.of(9, 0), LocalTime.of(10, 0),
                 BookingStatus.CANCELLED, UUID.randomUUID(), paidSubjectId, by, policy, null, null, null, null, null);
+    }
+
+    /** Sesión con los fondos suspendidos por un reclamo, en la fecha y hora indicadas. */
+    private TutorBookingRow withheld(BookingStatus status, LocalDate date, LocalTime start) {
+        return new TutorBookingRow(UUID.randomUUID(), date, start, start.plusHours(1), status,
+                UUID.randomUUID(), paidSubjectId, null, null, FundsStatus.SUSPENDED_BY_CLAIM, FundsRecipient.TUTOR,
+                new BigDecimal("1000.00"), new BigDecimal("3.00"), new BigDecimal("0.00"));
     }
 
     private TutorBookingRow funded(BookingStatus status, FundsStatus fundsStatus, String original, String transferred) {

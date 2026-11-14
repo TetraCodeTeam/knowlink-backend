@@ -9,6 +9,9 @@ import com.knowlink.api.bookings.data.enums.RefundDestination;
 import com.knowlink.api.bookings.data.enums.RefundPolicy;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.bookings.data.models.BookingCancellation;
+import com.knowlink.api.claims.data.enums.ClaimReason;
+import com.knowlink.api.claims.data.enums.ClaimStatus;
+import com.knowlink.api.claims.data.models.SessionClaim;
 import com.knowlink.api.payments.data.models.FundsTransfer;
 import com.knowlink.api.payments.domain.FundsRecipient;
 import com.knowlink.api.payments.domain.FundsStatus;
@@ -24,6 +27,7 @@ import com.knowlink.api.tutors.data.models.Subject;
 import com.knowlink.api.tutors.data.models.TutorProfile;
 import com.knowlink.api.tutors.data.models.TutorSubject;
 import com.knowlink.api.tutors.statistics.data.models.OfferedSlotHistory;
+import com.knowlink.api.tutors.statistics.data.projections.ActiveClaimRow;
 import com.knowlink.api.tutors.statistics.data.projections.TutorBookingRow;
 import com.knowlink.api.tutors.statistics.data.projections.TutorRatingRow;
 import com.knowlink.api.tutors.statistics.data.projections.TutorSlotRow;
@@ -149,6 +153,98 @@ class TutorStatisticsRepositoryTest {
         assertThat(repository.findBookingRows(otherTutor.getUserId(), FROM, TO)).isEmpty();
     }
 
+    // ── Cancelaciones de clases posteriores al fin del período ───────────────
+
+    @Test
+    void cancellationMadeInThePeriodForALaterClassIsIncluded() {
+        // El período termina hoy: una clase de mañana cancelada hoy no puede quedar afuera.
+        Booking tomorrow = persist(booking(BookingStatus.CANCELLED, TO.plusDays(1)));
+        cancel(tomorrow, TO.atTime(12, 0));
+        entityManager.flush();
+
+        List<TutorBookingRow> rows = repository.findBookingRows(tutor.getUserId(), FROM, TO);
+
+        assertThat(rows).hasSize(1);
+        assertThat(rows.get(0).bookingId()).isEqualTo(tomorrow.getBookingId());
+        assertThat(rows.get(0).status()).isEqualTo(BookingStatus.CANCELLED);
+        assertThat(rows.get(0).cancelledBy()).isEqualTo(CancellationRole.STUDENT);
+    }
+
+    @Test
+    void cancellationMadeBeforeThePeriodForALaterClassIsNotIncluded() {
+        // Se canceló antes de que empiece el período: cuenta cuando llegue la fecha de la clase.
+        Booking later = persist(booking(BookingStatus.CANCELLED, TO.plusDays(1)));
+        cancel(later, FROM.minusDays(1).atTime(10, 0));
+        entityManager.flush();
+
+        assertThat(repository.findBookingRows(tutor.getUserId(), FROM, TO)).isEmpty();
+    }
+
+    @Test
+    void cancellationMadeAfterThePeriodForALaterClassIsNotIncluded() {
+        Booking later = persist(booking(BookingStatus.CANCELLED, TO.plusDays(3)));
+        cancel(later, TO.plusDays(1).atTime(8, 0));
+        entityManager.flush();
+
+        assertThat(repository.findBookingRows(tutor.getUserId(), FROM, TO)).isEmpty();
+    }
+
+    @Test
+    void aLaterClassThatIsNotCancelledIsNotIncluded() {
+        persist(booking(BookingStatus.BOOKED, TO.plusDays(1)));
+        persist(booking(BookingStatus.COMPLETED, TO.plusDays(1)));
+        entityManager.flush();
+
+        assertThat(repository.findBookingRows(tutor.getUserId(), FROM, TO)).isEmpty();
+    }
+
+    @Test
+    void cancelledClassesInsideThePeriodAreReturnedOnceWhateverWhenTheyWereCancelled() {
+        Booking cancelledInPeriod = persist(booking(BookingStatus.CANCELLED, IN_PERIOD));
+        cancel(cancelledInPeriod, IN_PERIOD.minusDays(1).atTime(9, 0));
+        // Cancelada antes del período, pero la clase cae adentro: cuenta por la fecha de la clase.
+        Booking cancelledEarlier = persist(booking(BookingStatus.CANCELLED, IN_PERIOD.plusDays(2)));
+        cancel(cancelledEarlier, FROM.minusDays(3).atTime(9, 0));
+        entityManager.flush();
+
+        List<TutorBookingRow> rows = repository.findBookingRows(tutor.getUserId(), FROM, TO);
+
+        assertThat(rows).extracting(TutorBookingRow::bookingId)
+                .containsExactlyInAnyOrder(cancelledInPeriod.getBookingId(), cancelledEarlier.getBookingId());
+    }
+
+    @Test
+    void lateCancellationsOfAnotherTutorAreNotIncluded() {
+        Booking mine = persist(booking(BookingStatus.CANCELLED, TO.plusDays(1)));
+        cancel(mine, TO.atTime(12, 0));
+        entityManager.flush();
+
+        assertThat(repository.findBookingRows(otherTutor.getUserId(), FROM, TO)).isEmpty();
+    }
+
+    // ── Reclamos activos detrás de los fondos retenidos ──────────────────────
+
+    @Test
+    void activeClaimRowsReturnOnlyOpenOrInReviewClaimsOldestFirst() {
+        Booking disputed = persist(booking(BookingStatus.NOT_CONFIRMED, IN_PERIOD));
+        Booking resolvedOnly = persist(booking(BookingStatus.NOT_CONFIRMED, IN_PERIOD.plusDays(1)));
+        Booking notAsked = persist(booking(BookingStatus.NOT_CONFIRMED, IN_PERIOD.plusDays(2)));
+        SessionClaim newer = claim(disputed, ClaimStatus.OPEN, IN_PERIOD.plusDays(3).atTime(10, 0));
+        SessionClaim older = claim(disputed, ClaimStatus.IN_REVIEW, IN_PERIOD.plusDays(2).atTime(10, 0));
+        claim(disputed, ClaimStatus.RESOLVED, IN_PERIOD.plusDays(1).atTime(10, 0));
+        claim(resolvedOnly, ClaimStatus.RESOLVED, IN_PERIOD.plusDays(2).atTime(11, 0));
+        claim(notAsked, ClaimStatus.OPEN, IN_PERIOD.plusDays(2).atTime(12, 0));
+        entityManager.flush();
+
+        List<ActiveClaimRow> rows = repository.findActiveClaimRows(
+                List.of(disputed.getBookingId(), resolvedOnly.getBookingId()), ClaimStatus.ACTIVE_STATUSES);
+
+        // El resuelto y la reserva que no se pidió quedan afuera; dentro de una reserva, el más antiguo primero.
+        assertThat(rows).containsExactly(
+                new ActiveClaimRow(disputed.getBookingId(), older.getClaimId()),
+                new ActiveClaimRow(disputed.getBookingId(), newer.getClaimId()));
+    }
+
     @Test
     void countByStatusOnlyCountsTheRequestedStatusInTheRange() {
         persist(booking(BookingStatus.COMPLETED, IN_PERIOD));
@@ -212,6 +308,45 @@ class TutorStatisticsRepositoryTest {
     private <T> T persist(T entity) {
         entityManager.persist(entity);
         return entity;
+    }
+
+    /**
+     * La fecha de la cancelación la fija @PrePersist con la hora actual y no es actualizable por la
+     * entidad: se corrige con una actualización masiva para poder probar los límites del período.
+     */
+    private BookingCancellation cancel(Booking booking, LocalDateTime cancelledAt) {
+        BookingCancellation cancellation = persist(BookingCancellation.builder()
+                .booking(booking)
+                .cancelledBy(CancellationRole.STUDENT)
+                .refundDestination(RefundDestination.STUDENT)
+                .refundPolicy(RefundPolicy.REFUND_TOTAL_STUDENT)
+                .amount(new BigDecimal("1000.00"))
+                .hoursInAdvance(30L)
+                .build());
+        entityManager.flush();
+        entityManager.createQuery(
+                        "UPDATE BookingCancellation bc SET bc.createdAt = :at WHERE bc.cancellationId = :id")
+                .setParameter("at", cancelledAt)
+                .setParameter("id", cancellation.getCancellationId())
+                .executeUpdate();
+        return cancellation;
+    }
+
+    /** Igual que {@link #cancel}: la fecha de creación se fija con una actualización masiva. */
+    private SessionClaim claim(Booking booking, ClaimStatus status, LocalDateTime createdAt) {
+        SessionClaim claim = persist(SessionClaim.builder()
+                .booking(booking)
+                .claimant(student)
+                .claimantRole(Role.STUDENT)
+                .reason(ClaimReason.TUTOR_COULD_NOT_ATTEND)
+                .status(status)
+                .build());
+        entityManager.flush();
+        entityManager.createQuery("UPDATE SessionClaim c SET c.createdAt = :at WHERE c.claimId = :id")
+                .setParameter("at", createdAt)
+                .setParameter("id", claim.getClaimId())
+                .executeUpdate();
+        return claim;
     }
 
     private User user(String name, Role role) {
