@@ -155,6 +155,9 @@ public class TutorRankingServiceImpl implements ITutorRankingService {
                 entry.getAverageRating(),
                 entry.getReviewsCount(),
                 entry.getCompletedClasses(),
+                entry.getScore(),
+                entry.getBestAnswers(),
+                entry.getHelpfulMarks(),
                 profile != null && profile.isVerified(),
                 badge,
                 subjects);
