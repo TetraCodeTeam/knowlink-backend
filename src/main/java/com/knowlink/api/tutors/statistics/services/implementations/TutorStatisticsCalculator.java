@@ -40,6 +40,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Predicate;
@@ -147,11 +148,25 @@ public class TutorStatisticsCalculator {
             return null;
         }
         List<TutorBookingRow> bookings = input.bookings();
+        List<TutorBookingRow> withheld = filter(bookings, this::isWithheldByClaim);
         return new FundsStatusResponse(
                 fundsAmount(filter(bookings, this::isReleased), row -> row.transferredAmount()),
                 fundsAmount(filter(bookings, this::isPendingRelease), this::netOfCommission),
-                fundsAmount(filter(bookings, this::isWithheldByClaim), this::netOfCommission),
+                fundsAmount(withheld, this::netOfCommission),
+                withheldClaimIds(withheld, input.activeClaimIdByBooking()),
                 commissionPercentage);
+    }
+
+    /** Reclamos detrás de los fondos retenidos, de la sesión más reciente a la más antigua. */
+    private List<UUID> withheldClaimIds(List<TutorBookingRow> withheld, Map<UUID, UUID> claimIdByBooking) {
+        return withheld.stream()
+                .sorted(Comparator.comparing(TutorBookingRow::sessionDate)
+                        .thenComparing(TutorBookingRow::startTime)
+                        .reversed())
+                .map(row -> claimIdByBooking.get(row.bookingId()))
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
     }
 
     private FundsAmountResponse fundsAmount(
