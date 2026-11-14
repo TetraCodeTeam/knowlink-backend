@@ -53,4 +53,23 @@ public interface ISubjectRepository extends JpaRepository<Subject, UUID> {
     List<Subject> findByCareer_CareerIdOrderByName(@Param("careerId") UUID careerId);
 
     List<Subject> findByInstitution_InstitutionIdOrderByName(UUID institutionId);
+
+    /**
+     * Subjects of an institution whose name contains the query, used by the
+     * unified search (US-06) to suggest catalog subjects that have no tutor yet.
+     *
+     * <p>The join to the career is a LEFT JOIN FETCH on purpose:
+     * subjects.career_id has no foreign key, so a career row that no longer
+     * exists must neither drop the subject nor break the mapping
+     * (spring.jpa.open-in-view is disabled). The ordering of the ranking is
+     * applied by the service, not by an ORDER BY.
+     */
+    @Query("""
+            SELECT s FROM Subject s
+            LEFT JOIN FETCH s.career
+            WHERE s.institution.institutionId = :institutionId
+              AND LOWER(s.name) LIKE LOWER(CONCAT('%', :query, '%'))
+            """)
+    List<Subject> searchByInstitutionAndNameContaining(
+            @Param("institutionId") UUID institutionId, @Param("query") String query);
 }
