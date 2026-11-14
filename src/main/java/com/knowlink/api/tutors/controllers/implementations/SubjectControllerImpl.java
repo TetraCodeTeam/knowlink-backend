@@ -1,7 +1,9 @@
 package com.knowlink.api.tutors.controllers.implementations;
 
+import com.knowlink.api.security.models.UserPrincipal;
 import com.knowlink.api.tutors.controllers.interfaces.ISubjectController;
 import com.knowlink.api.tutors.controllers.responses.SubjectResponse;
+import com.knowlink.api.tutors.data.models.SubjectSummary;
 import com.knowlink.api.tutors.services.interfaces.ISubjectService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,5 +29,10 @@ public class SubjectControllerImpl implements ISubjectController {
         return subjectService.findByCareerId(careerId).stream()
                 .map(subject -> new SubjectResponse(subject.getSubjectId(), subject.getName(), subject.isBasic()))
                 .toList();
+    }
+
+    @Override
+    public List<SubjectSummary> searchSubjects(String query, UserPrincipal principal) {
+        return subjectService.searchForStudent(principal.getUser().getUserId(), query);
     }
 }

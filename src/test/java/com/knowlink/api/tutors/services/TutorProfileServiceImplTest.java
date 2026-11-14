@@ -329,4 +329,49 @@ class TutorProfileServiceImplTest {
         assertThatThrownBy(() -> service.searchTutor("Algebra", UUID.randomUUID(), filters))
                 .isInstanceOf(ValidationException.class);
     }
+
+    @Test
+    @DisplayName("US-06: los tutores salen ordenados con prioridad a los que empiezan con el texto")
+    void searchTutor_ordersResultsWithPrefixPriorityThenAlphabetically() {
+        TutorProfile claudia = tutorProfile("Claudia Pereyra", 4.5);
+        TutorProfile elena = tutorProfile("Elena Ruiz", 4.5);
+        TutorProfile agustina = tutorProfile("Agustina Díaz", 4.5);
+        TutorProfile ana = tutorProfile("Ana López", 4.5);
+        tutorSubject(claudia, "Álgebra", Modality.VIRTUAL, CompensationType.PAID, TutorSubjectStatus.ACTIVE);
+        tutorSubject(elena, "Álgebra", Modality.VIRTUAL, CompensationType.PAID, TutorSubjectStatus.ACTIVE);
+        tutorSubject(agustina, "Álgebra", Modality.VIRTUAL, CompensationType.PAID, TutorSubjectStatus.ACTIVE);
+        tutorSubject(ana, "Álgebra", Modality.VIRTUAL, CompensationType.PAID, TutorSubjectStatus.ACTIVE);
+
+        when(tutorSubjectRepository.findAll(any(Specification.class))).thenReturn(List.of());
+        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCaseAndUser_AccountStatus(
+                "a", AccountStatus.ACTIVE)).thenReturn(List.of(claudia, elena, agustina, ana));
+
+        List<TutorSearchResponse> result = service.searchTutor("a", UUID.randomUUID(), NO_FILTERS);
+
+        assertThat(result).extracting(TutorSearchResponse::fullName)
+                .containsExactly("Agustina Díaz", "Ana López", "Claudia Pereyra", "Elena Ruiz");
+    }
+
+    @Test
+    @DisplayName("US-06: los que matchean solo por materia van despues, alfabeticos entre si")
+    void searchTutor_putsSubjectOnlyMatchesLast() {
+        TutorProfile claudia = tutorProfile("Claudia Pereyra", 4.5);
+        TutorProfile ana = tutorProfile("Ana López", 4.5);
+        TutorProfile miguel = tutorProfile("Miguel Salgado", 4.5);
+        TutorSubject claudiaAlgebra = tutorSubject(claudia, "Álgebra",
+                Modality.VIRTUAL, CompensationType.PAID, TutorSubjectStatus.ACTIVE);
+        TutorSubject anaAlgebra = tutorSubject(ana, "Álgebra",
+                Modality.VIRTUAL, CompensationType.PAID, TutorSubjectStatus.ACTIVE);
+        tutorSubject(miguel, "Álgebra", Modality.VIRTUAL, CompensationType.PAID, TutorSubjectStatus.ACTIVE);
+
+        when(tutorSubjectRepository.findAll(any(Specification.class)))
+                .thenReturn(List.of(claudiaAlgebra, anaAlgebra));
+        when(tutorProfileRepository.findByUser_FullNameContainingIgnoreCaseAndUser_AccountStatus(
+                "alg", AccountStatus.ACTIVE)).thenReturn(List.of(miguel));
+
+        List<TutorSearchResponse> result = service.searchTutor("alg", UUID.randomUUID(), NO_FILTERS);
+
+        assertThat(result).extracting(TutorSearchResponse::fullName)
+                .containsExactly("Miguel Salgado", "Ana López", "Claudia Pereyra");
+    }
 }

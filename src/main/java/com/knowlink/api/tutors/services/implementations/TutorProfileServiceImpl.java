@@ -28,6 +28,7 @@ import com.knowlink.api.tutors.services.interfaces.ICareerService;
 import com.knowlink.api.tutors.services.interfaces.ISubjectService;
 import com.knowlink.api.tutors.services.interfaces.ITutorProfileService;
 import com.knowlink.api.tutors.services.interfaces.ITutorSubjectAssemblyService;
+import com.knowlink.api.tutors.utils.SearchRanking;
 import com.knowlink.api.tutors.validations.ITutorProfileValidationService;
 import com.knowlink.api.ratings.repositories.*;
 import com.knowlink.api.users.data.enums.AccountStatus;
@@ -43,6 +44,7 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -275,8 +277,19 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                         retainTutorsWithAvailability(groupedResults, filters);
                 }
 
+                // US-06 QA: the contract does not change, only the order. Results now
+                // follow the shared ranking: names that start with the query first,
+                // then the ones that contain it, then the tutors that only matched by
+                // subject, alphabetically inside each rank. The id tie-break keeps the
+                // order deterministic. Sorting happens before the rating count so no
+                // extra query is made for tutors that are only reordered.
+                Comparator<List<TutorSubject>> ranking =
+                        SearchRanking.comparator(query, TutorProfileServiceImpl::tutorFullName);
+
                 return groupedResults.values()
                                 .stream()
+                                .sorted(ranking.thenComparing(
+                                        subjects -> subjects.get(0).getTutorProfile().getUser().getUserId()))
                                 .map(subjects -> {
                                         UUID tutorUserId = subjects.get(0).getTutorProfile().getUser().getUserId();
                                         int totalReviews = Math.toIntExact(
@@ -284,6 +297,11 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                         return TutorSearchMapper.from(subjects, totalReviews);
                                 })
                                 .toList();
+        }
+
+        /** Full name of the tutor behind a group of matched subjects. */
+        private static String tutorFullName(List<TutorSubject> subjects) {
+                return subjects.get(0).getTutorProfile().getUser().getFullName();
         }
 
         /**
