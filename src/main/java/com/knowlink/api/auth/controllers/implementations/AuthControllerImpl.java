@@ -9,6 +9,7 @@ import com.knowlink.api.auth.controllers.responses.AuthResponse;
 import com.knowlink.api.auth.services.interfaces.IAuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequiredArgsConstructor
@@ -27,13 +28,13 @@ public class AuthControllerImpl implements IAuthController {
     }
 
     @Override
-    public void registerStudent(StudentRegistrationRequest request) {
-        this.authService.registerStudent(request);
+    public void registerStudent(StudentRegistrationRequest request, MultipartFile profilePicture) {
+        this.authService.registerStudent(request, profilePicture);
     }
 
     @Override
-    public void registerTutor(TutorRegistrationRequest request) {
-        this.authService.registerTutor(request);
+    public void registerTutor(TutorRegistrationRequest request, MultipartFile profilePicture) {
+        this.authService.registerTutor(request, profilePicture);
     }
 
     @Override

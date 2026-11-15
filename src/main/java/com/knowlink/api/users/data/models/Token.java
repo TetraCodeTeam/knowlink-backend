@@ -45,7 +45,9 @@ public class Token {
 
     @PrePersist
     protected void onCreate() {
-        createdAt = LocalDateTime.now();
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
         if (tokenExpirationDate == null) {
             tokenExpirationDate = createdAt.plusHours(ACCOUNT_CONFIRMATION_TOKEN_HOURS);
         }

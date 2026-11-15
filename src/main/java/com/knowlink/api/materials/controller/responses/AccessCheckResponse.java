@@ -1,3 +1,5 @@
 package com.knowlink.api.materials.controller.responses;
 
-public record AccessCheckResponse(boolean accessEnabled) {}
+import java.util.List;
+
+public record AccessCheckResponse(boolean accessEnabled, List<String> accessibleSubjects) {}

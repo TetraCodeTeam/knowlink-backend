@@ -220,6 +220,16 @@ public interface IBookingRepository extends JpaRepository<Booking, UUID> {
                         @Param("studentId") UUID studentId,
                         @Param("tutorUserId") UUID tutorUserId);
 
+        @Query("""
+                        SELECT DISTINCT b.tutorSubject.subject.name FROM Booking b
+                        WHERE b.student.userId = :studentId
+                        AND b.tutor.userId = :tutorUserId
+                        AND b.bookingStatus = com.knowlink.api.bookings.data.enums.BookingStatus.COMPLETED
+                        """)
+        List<String> findCompletedSubjectNamesByStudentAndTutor(
+                        @Param("studentId") UUID studentId,
+                        @Param("tutorUserId") UUID tutorUserId);
+
         @Override
         @EntityGraph(attributePaths = { "student", "tutor", "tutorSubject.subject", "tutorSubject.tutorProfile" })
         Optional<Booking> findById(UUID bookingId);

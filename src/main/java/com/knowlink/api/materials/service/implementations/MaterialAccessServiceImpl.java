@@ -29,10 +29,8 @@ public class MaterialAccessServiceImpl implements IMaterialAccessService {
 
     @Override
     @Transactional(readOnly = true)
-    public boolean hasAccess(UUID studentId, UUID tutorUserId) {
-        List<UUID> completedSubjects = bookingRepository
-                .findCompletedSubjectIdsByStudentAndTutor(studentId, tutorUserId);
-        return !completedSubjects.isEmpty();
+    public List<String> getAccessibleSubjectNames(UUID studentId, UUID tutorUserId) {
+        return bookingRepository.findCompletedSubjectNamesByStudentAndTutor(studentId, tutorUserId);
     }
 
     @Override

@@ -1,13 +1,21 @@
 package com.knowlink.api.materials.service.implementations;
 
+import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
+import com.knowlink.api.materials.exception.FormatNotAllowedException;
+import com.knowlink.api.materials.exception.StorageServiceException;
 import com.knowlink.api.materials.service.interfaces.IProfileImageService;
+import com.knowlink.api.support.utils.FileNameSanitizer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -16,9 +24,14 @@ import java.util.UUID;
 @Slf4j
 public class ProfileImageServiceImpl implements IProfileImageService {
 
-    private static final String BUCKET = "profilePhotos";
+    private static final String STORAGE_ERROR_MESSAGE =
+            "No se pudo comunicar con el almacenamiento de fotos. Intentá nuevamente más tarde.";
+
     private static final long MAX_FILE_SIZE = 5 * 1024 * 1024;
     private static final Set<String> ALLOWED_TYPES = Set.of("image/jpeg", "image/png", "image/webp");
+
+    @Value("${supabase.storage.profile-photos-bucket:profilePhotos}")
+    private String bucket;
 
     @Value("${supabase.url}")
     private String supabaseUrl;
@@ -36,41 +49,46 @@ public class ProfileImageServiceImpl implements IProfileImageService {
     public String upload(MultipartFile file, UUID userId) {
         validateFile(file);
 
-        String path = userId + "/" + UUID.randomUUID() + "-" + file.getOriginalFilename();
-        String uploadUrl = supabaseUrl + "/storage/v1/object/" + BUCKET + "/" + path;
+        // Supabase rejects object keys containing spaces, accents or other symbols (InvalidKey).
+        String path = userId + "/" + UUID.randomUUID() + "-"
+                + FileNameSanitizer.toSafeFileName(file.getOriginalFilename());
+        String uploadUrl = supabaseUrl + "/storage/v1/object/" + bucket + "/" + path;
+
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException e) {
+            log.error("Failed to read profile picture bytes: {}", file.getOriginalFilename(), e);
+            throw new StorageServiceException("No se pudo leer la imagen enviada.", e);
+        }
 
         try {
             restClient.post()
                     .uri(uploadUrl)
                     .header("Authorization", "Bearer " + serviceRoleKey)
                     .header("Content-Type", file.getContentType())
-                    .body(file.getBytes())
+                    .body(bytes)
                     .retrieve()
                     .toBodilessEntity();
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to read file bytes", e);
+        } catch (RestClientResponseException e) {
+            log.error("Profile picture upload failed - bucket: {}, path: {}, status: {}, body: {}",
+                    bucket, path, e.getStatusCode(), e.getResponseBodyAsString(), e);
+            throw new StorageServiceException(STORAGE_ERROR_MESSAGE, e);
+        } catch (ResourceAccessException e) {
+            log.error("Profile picture upload unreachable - bucket: {}, path: {}", bucket, path, e);
+            throw new StorageServiceException(STORAGE_ERROR_MESSAGE, e);
         }
 
-        log.info("Profile image uploaded to Supabase Storage: {}", path);
+        log.info("Profile picture uploaded to Supabase Storage: {}/{}", bucket, path);
         return path;
     }
 
     @Override
-    public String generateSignedUrl(String path, int expirationSeconds) {
+    public String generatePublicUrl(String path) {
         if (path == null || path.isBlank()) {
             return null;
         }
-        String signUrl = supabaseUrl + "/storage/v1/object/sign/" + BUCKET + "/" + path;
-
-        SignedUrlResponse response = restClient.post()
-                .uri(signUrl)
-                .header("Authorization", "Bearer " + serviceRoleKey)
-                .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
-                .body(Map.of("expiresIn", expirationSeconds))
-                .retrieve()
-                .body(SignedUrlResponse.class);
-
-        return supabaseUrl + "/storage/v1" + response.signedURL();
+        return supabaseUrl + "/storage/v1/object/public/" + bucket + "/" + path;
     }
 
     @Override
@@ -78,7 +96,7 @@ public class ProfileImageServiceImpl implements IProfileImageService {
         if (path == null || path.isBlank()) {
             return;
         }
-        String deleteUrl = supabaseUrl + "/storage/v1/object/" + BUCKET + "/" + path;
+        String deleteUrl = supabaseUrl + "/storage/v1/object/" + bucket + "/" + path;
 
         try {
             restClient.delete()
@@ -86,22 +104,30 @@ public class ProfileImageServiceImpl implements IProfileImageService {
                     .header("Authorization", "Bearer " + serviceRoleKey)
                     .retrieve()
                     .toBodilessEntity();
-            log.info("Profile image deleted from Supabase Storage: {}", path);
-        } catch (Exception e) {
-            log.warn("Failed to delete profile image from Supabase: {}", path, e);
+            log.info("Profile picture deleted from Supabase Storage: {}/{}", bucket, path);
+        } catch (RestClientResponseException e) {
+            if (isObjectNotFound(e)) {
+                log.warn("Profile picture delete skipped, object already absent - bucket: {}, path: {}",
+                        bucket, path);
+                return;
+            }
+            log.warn("Profile picture delete failed - bucket: {}, path: {}, status: {}", bucket, path,
+                    e.getStatusCode(), e);
+        } catch (ResourceAccessException e) {
+            log.warn("Profile picture delete unreachable - bucket: {}, path: {}", bucket, path, e);
         }
     }
 
     @Override
     public void deleteByUserId(UUID userId) {
         String prefix = userId + "/";
-        String listUrl = supabaseUrl + "/storage/v1/object/list/" + BUCKET;
+        String listUrl = supabaseUrl + "/storage/v1/object/list/" + bucket;
 
         try {
             Object[] response = restClient.post()
                     .uri(listUrl)
                     .header("Authorization", "Bearer " + serviceRoleKey)
-                    .header("Content-Type", "application/json")
+                    .header("Content-Type", MediaType.APPLICATION_JSON_VALUE)
                     .body(new ListRequest(prefix, 100, 0))
                     .retrieve()
                     .body(Object[].class);
@@ -117,23 +143,40 @@ public class ProfileImageServiceImpl implements IProfileImageService {
                 }
             }
         } catch (Exception e) {
-            log.warn("Failed to list/delete profile images for user: {}", userId, e);
+            log.warn("Failed to list/delete profile pictures for user: {}", userId, e);
         }
     }
 
     private void validateFile(MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("El archivo de imagen es requerido.");
+            throw new ValidationException("El archivo de imagen es requerido.");
         }
         if (file.getSize() > MAX_FILE_SIZE) {
-            throw new IllegalArgumentException("La imagen no puede superar los 5MB.");
+            throw new ValidationException("La imagen no puede superar los 5MB.");
         }
         if (!ALLOWED_TYPES.contains(file.getContentType())) {
-            throw new IllegalArgumentException("Formato no válido. Se aceptan JPG, PNG y WebP.");
+            throw new FormatNotAllowedException("Formato no válido. Se aceptan JPG, PNG y WebP.");
         }
     }
 
-    private record ListRequest(String prefix, int limit, int offset) {}
+    /**
+     * Supabase Storage returns 404 (or a 400 with a "not found" body depending on the version)
+     * when the object is already absent. Deleting is idempotent, so both cases are treated as success.
+     */
+    private boolean isObjectNotFound(RestClientResponseException exception) {
+        if (exception.getStatusCode().value() == 404) {
+            return true;
+        }
+        if (exception.getStatusCode().value() != 400) {
+            return false;
+        }
+        String body = exception.getResponseBodyAsString();
+        if (body == null) {
+            return false;
+        }
+        String normalized = body.toLowerCase(Locale.ROOT);
+        return normalized.contains("not found") || normalized.contains("not_found");
+    }
 
-    private record SignedUrlResponse(String signedURL) {}
+    private record ListRequest(String prefix, int limit, int offset) {}
 }

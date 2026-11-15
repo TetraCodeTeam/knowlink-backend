@@ -483,6 +483,34 @@ class MaterialControllerImplTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    @DisplayName("US-26: access check returns the subjects with a completed session")
+    void studentAccessCheck_returnsAccessibleSubjects() throws Exception {
+        when(materialAccessService.getAccessibleSubjectNames(
+                eq(studentUser.getUserId()), eq(tutorUser.getUserId())))
+                .thenReturn(java.util.List.of(subject.getName()));
+
+        mockMvc.perform(get("/api/v1/materials/tutores/{tutorId}/acceso", tutorUser.getUserId())
+                        .with(studentAuth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessEnabled").value(true))
+                .andExpect(jsonPath("$.accessibleSubjects[0]").value(subject.getName()));
+    }
+
+    @Test
+    @DisplayName("US-26: access check without completed sessions disables access")
+    void studentAccessCheck_withoutCompletedSessions_returnsEmptySubjects() throws Exception {
+        when(materialAccessService.getAccessibleSubjectNames(
+                eq(studentUser.getUserId()), eq(tutorUser.getUserId())))
+                .thenReturn(java.util.List.of());
+
+        mockMvc.perform(get("/api/v1/materials/tutores/{tutorId}/acceso", tutorUser.getUserId())
+                        .with(studentAuth()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessEnabled").value(false))
+                .andExpect(jsonPath("$.accessibleSubjects").isEmpty());
+    }
+
     private RequestPostProcessor tutorAuth() {
         UserPrincipal principal = new UserPrincipal(tutorUser);
         return SecurityMockMvcRequestPostProcessors.authentication(

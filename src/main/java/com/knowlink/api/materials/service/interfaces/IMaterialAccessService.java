@@ -6,9 +6,9 @@ import java.util.List;
 import java.util.UUID;
 
 public interface IMaterialAccessService {
-    boolean hasAccess(UUID studentId, UUID tutorUserId);
-
     boolean hasAccess(UUID studentId, UUID tutorUserId, UUID subjectId);
+
+    List<String> getAccessibleSubjectNames(UUID studentId, UUID tutorUserId);
 
     List<MaterialResponse> listAccessibleMaterials(UUID studentId, UUID tutorUserId, UUID subjectId);
 

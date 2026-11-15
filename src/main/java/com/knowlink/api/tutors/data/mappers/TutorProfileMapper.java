@@ -31,7 +31,6 @@ public class TutorProfileMapper {
                 .user(user)
                 .career(career)
                 .biography(request.biography())
-                .profilePictureUrl(request.profilePictureUrl())
                 .institutionalId(request.institutionalId())
                 .address(request.address())
                 .mercadoPagoLinked(false)

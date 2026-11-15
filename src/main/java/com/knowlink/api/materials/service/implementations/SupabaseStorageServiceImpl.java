@@ -2,6 +2,7 @@ package com.knowlink.api.materials.service.implementations;
 
 import com.knowlink.api.materials.exception.StorageServiceException;
 import com.knowlink.api.materials.service.interfaces.ISupabaseStorageService;
+import com.knowlink.api.support.utils.FileNameSanitizer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
@@ -50,7 +51,10 @@ public class SupabaseStorageServiceImpl implements ISupabaseStorageService {
 
     @Override
     public String upload(MultipartFile file, String bucket, String folder) {
-        String path = folder + "/" + UUID.randomUUID() + "-" + file.getOriginalFilename();
+        // Supabase rejects object keys containing spaces, accents or other symbols (InvalidKey):
+        // the file name is sanitized here and callers keep the original name in their metadata.
+        String path = folder + "/" + UUID.randomUUID() + "-"
+                + FileNameSanitizer.toSafeFileName(file.getOriginalFilename());
         String uploadUrl = supabaseUrl + "/storage/v1/object/" + bucket + "/" + path;
 
         byte[] bytes;

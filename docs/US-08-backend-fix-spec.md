@@ -135,7 +135,7 @@ Feature: Reseñas cruzadas
 
 ## Advertencia (fuera de alcance, para revisar con el equipo)
 
-`profilePictureUrl` se guarda como **URL firmada con vencimiento de 7 días** (`generateSignedUrl(imagePath, 60 * 60 * 24 * 7)`). Pasada esa semana, el avatar de las reseñas puede devolver un error de acceso aunque el campo llegue bien. Si aparece "el avatar no carga" después de este arreglo, esa es la causa más probable. Una solución sería firmar la URL al momento de leer, o usar un bucket público, y debería decidirse aparte.
+`profilePictureUrl` se guardaba como **URL firmada con vencimiento de 7 días** (`generateSignedUrl(imagePath, 60 * 60 * 24 * 7)`), de modo que el avatar de las reseñas dejaba de cargar a la semana. **Resuelto:** ahora se guarda la **URL pública** (`IProfileImageService.generatePublicUrl`), que no vence. Requisito: el bucket `profilePhotos` debe existir y ser **público** (sobreescribible con `SUPABASE_PROFILE_PHOTOS_BUCKET`). `migration-profile-picture-public-url.sql` convierte las URLs firmadas existentes.
 
 ## Nota: criterio COMPLETED (fuera de alcance)
 

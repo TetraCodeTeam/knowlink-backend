@@ -247,8 +247,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler({ RuntimeException.class, Exception.class })
     public ResponseEntity<ApiError> handleAll(Exception ex, WebRequest request) {
         logger.error("Unexpected error: {}", ex.getMessage(), ex);
-        ApiError error = new ApiError(HttpStatus.INTERNAL_SERVER_ERROR.value(), "Unexpected error",
-                "Ocurrió un error inesperado. Intentá nuevamente más tarde.");
+        ApiError error = new ApiError(HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                "Ocurrió un error inesperado. Intentá nuevamente más tarde.", "UNEXPECTED_ERROR");
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
     }
 }

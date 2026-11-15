@@ -91,8 +91,10 @@ public class MaterialControllerImpl implements IMaterialController {
         UserPrincipal principal = (UserPrincipal) userDetails;
         UUID studentId = principal.getUser().getUserId();
 
-        boolean accessEnabled = materialAccessService.hasAccess(studentId, tutorId);
-        return ResponseEntity.ok(new AccessCheckResponse(accessEnabled));
+        List<String> accessibleSubjects =
+                materialAccessService.getAccessibleSubjectNames(studentId, tutorId);
+        boolean accessEnabled = !accessibleSubjects.isEmpty();
+        return ResponseEntity.ok(new AccessCheckResponse(accessEnabled, accessibleSubjects));
     }
 
     @Override
