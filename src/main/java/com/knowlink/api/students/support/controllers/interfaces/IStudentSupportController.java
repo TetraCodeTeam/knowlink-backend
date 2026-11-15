@@ -45,7 +45,7 @@ public interface IStudentSupportController {
 
     @GetMapping("/session-claims/{claimId}")
     @Operation(summary = "Consultar el detalle de una disputa de sesión propia")
-    @ApiResponse(responseCode = "200", description = "Detalle de la disputa, fondos, seguimiento y evidencias")
+    @ApiResponse(responseCode = "200", description = "Detalle de la disputa, fondos, seguimiento, evidencias y resolución cuando corresponde")
     @ApiResponse(responseCode = "404", description = "El reclamo no existe o no pertenece al alumno")
     @ResponseStatus(OK)
     StudentSessionClaimDetailResponse getSessionClaimDetails(

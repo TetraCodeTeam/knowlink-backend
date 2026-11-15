@@ -3,6 +3,7 @@ package com.knowlink.api.students.support.controllers.responses;
 import com.knowlink.api.claims.controllers.responses.ClaimAttachmentUrlResponse;
 import com.knowlink.api.claims.controllers.responses.ClaimCommentResponse;
 import com.knowlink.api.claims.controllers.responses.ClaimFundsSummaryResponse;
+import com.knowlink.api.claims.controllers.responses.ClaimResolutionResponse;
 import com.knowlink.api.claims.controllers.responses.ClaimReviewProgressResponse;
 import com.knowlink.api.claims.data.enums.ClaimReason;
 import com.knowlink.api.claims.data.enums.ClaimStatus;
@@ -36,7 +37,8 @@ public record StudentSessionClaimDetailResponse(
         ClaimFundsSummaryResponse funds,
         ClaimReviewProgressResponse reviewProgress,
         List<ClaimAttachmentUrlResponse> attachments,
-        List<ClaimCommentResponse> comments) {
+        List<ClaimCommentResponse> comments,
+        ClaimResolutionResponse resolution) {
 
     public record TutorSummary(String fullName, String profilePictureUrl) {}
 }

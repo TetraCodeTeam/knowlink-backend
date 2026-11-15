@@ -49,7 +49,7 @@ public interface ITutorSupportController {
 
     @GetMapping("/session-claims/{claimId}")
     @Operation(summary = "Consultar el detalle de un reclamo de sesión")
-    @ApiResponse(responseCode = "200", description = "Detalle del reclamo, fondos, avance y evidencias")
+    @ApiResponse(responseCode = "200", description = "Detalle del reclamo, fondos, avance, evidencias y resolución cuando corresponde")
     @ApiResponse(responseCode = "403", description = "Operación exclusiva para tutores")
     @ApiResponse(responseCode = "404", description = "El reclamo no existe o no pertenece al tutor")
     @ResponseStatus(OK)

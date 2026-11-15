@@ -60,7 +60,8 @@ public class StudentSessionSupportService implements IStudentSessionSupportServi
                 claimSupportDetailsService.getFundsSummary(booking, claim.getStatus()),
                 claimSupportDetailsService.getReviewProgress(claim),
                 attachments,
-                comments);
+                comments,
+                claimSupportDetailsService.getResolution(claim, Role.STUDENT));
     }
 
     @Override

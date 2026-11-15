@@ -65,7 +65,8 @@ public class TutorSessionSupportService implements ITutorSessionSupportService {
                 claimSupportDetailsService.getFundsSummary(booking, claim.getStatus()),
                 claimSupportDetailsService.getReviewProgress(claim),
                 claimSupportDetailsService.getAttachments(claimId),
-                claimSupportDetailsService.getComments(claimId));
+                claimSupportDetailsService.getComments(claimId),
+                claimSupportDetailsService.getResolution(claim, Role.TUTOR));
     }
 
     @Override
