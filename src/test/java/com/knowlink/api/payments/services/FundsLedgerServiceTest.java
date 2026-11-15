@@ -18,7 +18,6 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
 
-import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.UUID;
@@ -95,11 +94,10 @@ class FundsLedgerServiceTest {
     }
 
     @Test
-    @DisplayName("Liberacion con alumno presente - concepto de sesion completada y evento con retencion")
-    void releaseToTutor_studentPresent_publishesCompletedConcept() throws Exception {
+    @DisplayName("Liberacion con alumno presente - concepto de sesion completada y evento sin retencion")
+    void releaseToTutor_studentPresent_publishesCompletedConcept() {
         fundsLedgerService = new FundsLedgerService(fundsTransferRepository, applicationEventPublisher);
-        injectRetention(new BigDecimal("3.00"));
-        Booking booking = Booking.builder().bookingId(bookingId).amount(new BigDecimal("2100.00")).build();
+        Booking booking = Booking.builder().bookingId(bookingId).amount(new BigDecimal("2060.00")).build();
         when(fundsTransferRepository.findByBooking_BookingId(bookingId)).thenReturn(Optional.empty());
 
         fundsLedgerService.releaseToTutor(booking, BookingStatus.COMPLETED, true);
@@ -109,18 +107,17 @@ class FundsLedgerServiceTest {
         FundsTransferProcessedEvent event = captor.getValue();
         assertThat(event.bookingId()).isEqualTo(bookingId);
         assertThat(event.recipient()).isEqualTo(FundsRecipient.TUTOR);
-        assertThat(event.originalAmount()).isEqualByComparingTo("2100.00");
-        assertThat(event.transferredAmount()).isEqualByComparingTo("2037.00");
-        assertThat(event.retentionPercentage()).isEqualByComparingTo("3.00");
+        assertThat(event.originalAmount()).isEqualByComparingTo("2060.00");
+        assertThat(event.transferredAmount()).isEqualByComparingTo("2000.00");
+        assertThat(event.retentionPercentage()).isEqualByComparingTo("0");
         assertThat(event.concept()).isEqualTo(FundsConcept.RELEASED_SESSION_COMPLETED);
     }
 
     @Test
     @DisplayName("Liberacion con alumno ausente - concepto de alumno ausente")
-    void releaseToTutor_studentAbsent_publishesAbsentStudentConcept() throws Exception {
+    void releaseToTutor_studentAbsent_publishesAbsentStudentConcept() {
         fundsLedgerService = new FundsLedgerService(fundsTransferRepository, applicationEventPublisher);
-        injectRetention(new BigDecimal("3.00"));
-        Booking booking = Booking.builder().bookingId(bookingId).amount(new BigDecimal("2100.00")).build();
+        Booking booking = Booking.builder().bookingId(bookingId).amount(new BigDecimal("2060.00")).build();
         when(fundsTransferRepository.findByBooking_BookingId(bookingId)).thenReturn(Optional.empty());
 
         fundsLedgerService.releaseToTutor(booking, BookingStatus.COMPLETED, false);
@@ -132,10 +129,9 @@ class FundsLedgerServiceTest {
 
     @Test
     @DisplayName("Liberacion - la fila HELD existente se actualiza en lugar de duplicarse")
-    void releaseToTutor_existingHeldRow_updatesInPlace() throws Exception {
+    void releaseToTutor_existingHeldRow_updatesInPlace() {
         fundsLedgerService = new FundsLedgerService(fundsTransferRepository, applicationEventPublisher);
-        injectRetention(new BigDecimal("3.00"));
-        Booking booking = Booking.builder().bookingId(bookingId).amount(new BigDecimal("2100.00")).build();
+        Booking booking = Booking.builder().bookingId(bookingId).amount(new BigDecimal("2060.00")).build();
         FundsTransfer held = FundsTransfer.builder()
                 .fundsTransferId(UUID.randomUUID())
                 .booking(booking)
@@ -149,14 +145,14 @@ class FundsLedgerServiceTest {
         verify(fundsTransferRepository).save(held);
         assertThat(held.getFundsStatus()).isEqualTo(FundsStatus.RELEASED_TO_TUTOR);
         assertThat(held.getConcept()).isEqualTo("Liberacion por sesion completada");
-        assertThat(held.getTransferredAmount()).isEqualByComparingTo("2037.00");
+        assertThat(held.getTransferredAmount()).isEqualByComparingTo("2000.00");
     }
 
     @Test
     @DisplayName("Devolucion - publica FundsTransferProcessedEvent con el monto devuelto al alumno")
     void refundToStudent_publishesFundsTransferProcessedEvent() {
         fundsLedgerService = new FundsLedgerService(fundsTransferRepository, applicationEventPublisher);
-        Booking booking = Booking.builder().bookingId(bookingId).amount(new BigDecimal("2100.00")).build();
+        Booking booking = Booking.builder().bookingId(bookingId).amount(new BigDecimal("2060.00")).build();
         when(fundsTransferRepository.findByBooking_BookingId(bookingId)).thenReturn(Optional.empty());
 
         fundsLedgerService.refundToStudent(booking, BookingStatus.SESSION_NOT_HELD);
@@ -166,8 +162,8 @@ class FundsLedgerServiceTest {
         FundsTransferProcessedEvent event = captor.getValue();
         assertThat(event.bookingId()).isEqualTo(bookingId);
         assertThat(event.recipient()).isEqualTo(FundsRecipient.STUDENT);
-        assertThat(event.originalAmount()).isEqualByComparingTo("2100.00");
-        assertThat(event.transferredAmount()).isEqualByComparingTo("2100.00");
+        assertThat(event.originalAmount()).isEqualByComparingTo("2060.00");
+        assertThat(event.transferredAmount()).isEqualByComparingTo("2060.00");
         assertThat(event.retentionPercentage()).isNull();
         assertThat(event.concept()).isEqualTo(FundsConcept.REFUNDED_SESSION_NOT_HELD);
     }
@@ -176,7 +172,7 @@ class FundsLedgerServiceTest {
     @DisplayName("Devolucion por tutor ausente - concepto especifico")
     void refundToStudent_absentTutor_publishesAbsentTutorConcept() {
         fundsLedgerService = new FundsLedgerService(fundsTransferRepository, applicationEventPublisher);
-        Booking booking = Booking.builder().bookingId(bookingId).amount(new BigDecimal("2100.00")).build();
+        Booking booking = Booking.builder().bookingId(bookingId).amount(new BigDecimal("2060.00")).build();
         when(fundsTransferRepository.findByBooking_BookingId(bookingId)).thenReturn(Optional.empty());
 
         fundsLedgerService.refundToStudent(booking, BookingStatus.NOT_FULFILLED_BY_TUTOR);
@@ -190,7 +186,7 @@ class FundsLedgerServiceTest {
     @DisplayName("Retencion inicial - createHeldTransfer guarda la fila y publica el evento")
     void createHeldTransfer_savesRowAndPublishesEvent() {
         fundsLedgerService = new FundsLedgerService(fundsTransferRepository, applicationEventPublisher);
-        Booking booking = Booking.builder().bookingId(bookingId).amount(new BigDecimal("2100.00")).build();
+        Booking booking = Booking.builder().bookingId(bookingId).amount(new BigDecimal("2060.00")).build();
 
         fundsLedgerService.createHeldTransfer(booking);
 
@@ -199,14 +195,8 @@ class FundsLedgerServiceTest {
         verify(applicationEventPublisher).publishEvent(captor.capture());
         FundsTransferProcessedEvent event = captor.getValue();
         assertThat(event.bookingId()).isEqualTo(bookingId);
-        assertThat(event.originalAmount()).isEqualByComparingTo("2100.00");
+        assertThat(event.originalAmount()).isEqualByComparingTo("2060.00");
         assertThat(event.transferredAmount()).isEqualByComparingTo("0");
         assertThat(event.concept()).isEqualTo(FundsConcept.HELD);
-    }
-
-    private void injectRetention(BigDecimal retention) throws Exception {
-        Field field = FundsLedgerService.class.getDeclaredField("systemRetentionPercentage");
-        field.setAccessible(true);
-        field.set(fundsLedgerService, retention);
     }
 }

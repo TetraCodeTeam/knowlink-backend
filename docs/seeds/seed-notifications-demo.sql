@@ -66,10 +66,10 @@ VALUES
    'Contanos cómo fue tu experiencia con Juan Perez. Tenés 24 horas para calificar.',
    CONCAT('RATING_ENABLED:', @booking_tutor), NOW() - INTERVAL 69 HOUR, NOW() - INTERVAL 67 HOUR),
 
-  -- 8. Fondos acreditados al tutor por sesion completada (3% de retencion)
+  -- 8. Fondos acreditados al tutor por sesion completada (sin retencion: la tarifa la paga el alumno)
   (UNHEX(REPLACE(UUID(), '-', '')), @tutor_id, @tutor_role, 'FUNDS_TRANSFERRED', @booking_tutor,
    'Pago acreditado. Sesión completada',
-   'Recibiste $9.991,00 por la sesión de Física con Juan Perez. (3 de retención aplicada)',
+   'Recibiste $10.000,00 por la sesión de Física con Juan Perez.',
    CONCAT('FUNDS_TRANSFERRED:Liberacion por sesion completada:', @booking_tutor),
    NOW() - INTERVAL 60 HOUR, NOW() - INTERVAL 58 HOUR),
 

@@ -33,6 +33,8 @@ public class SessionClaimNotificationListener {
     private static final String EMAIL_SUBJECT = "Reclamo de sesión resuelto — KnowLink";
     private static final String EMAIL_HEADING = "Tu reclamo fue resuelto";
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    /** Column length of Notification.message: the in-app text must always fit in it. */
+    private static final int IN_APP_MESSAGE_MAX_LENGTH = 500;
 
     private final INotificationService notificationService;
     private final IEmailService emailService;
@@ -48,7 +50,8 @@ public class SessionClaimNotificationListener {
         if (userId == null) {
             return;
         }
-        String message = buildMessage(event);
+        String inAppMessage = truncateToInAppLimit(buildInAppMessage(event));
+        String emailMessage = buildEmailMessage(event);
         String dedupeKey = "session-claim-resolved:" + event.claimId() + ":" + userId;
 
         try {
@@ -57,7 +60,7 @@ public class SessionClaimNotificationListener {
                     role,
                     NotificationType.SESSION_CLAIM_UPDATE,
                     "Reclamo resuelto",
-                    message,
+                    inAppMessage,
                     event.claimId(),
                     dedupeKey);
         } catch (Exception ex) {
@@ -71,19 +74,36 @@ public class SessionClaimNotificationListener {
                 log.warn("Recipient {} of claim {} not found, email skipped", userId, event.claimId());
                 return;
             }
-            emailService.sendAdminNotificationEmail(recipient, EMAIL_SUBJECT, EMAIL_HEADING, message);
+            emailService.sendAdminNotificationEmail(recipient, EMAIL_SUBJECT, EMAIL_HEADING, emailMessage);
         } catch (Exception ex) {
             log.error("Failed to send the resolution email of claim {} to user {}: {}",
                     event.claimId(), userId, ex.getMessage(), ex);
         }
     }
 
-    private String buildMessage(SessionClaimResolvedEvent event) {
+    /**
+     * In-app message: always short, it invites the user to open the detail where the complete
+     * justification lives. Kept under the 500 chars of Notification.message as a safety net.
+     */
+    private String buildInAppMessage(SessionClaimResolvedEvent event) {
+        return baseMessage(event) + fundsOutcome(event) + " Abrí el detalle para leer la justificación.";
+    }
+
+    /** Email message: keeps the complete resolution justification. */
+    private String buildEmailMessage(SessionClaimResolvedEvent event) {
+        return baseMessage(event) + "Justificación: " + event.justification() + ". " + fundsOutcome(event);
+    }
+
+    private String baseMessage(SessionClaimResolvedEvent event) {
         String favoredParty = event.favoredParty() == ClaimFavoredParty.TUTOR ? "del tutor" : "del alumno";
         return "El reclamo por la sesión de " + event.subjectName() + " del " + formatDate(event.sessionDate())
-                + " se resolvió a favor " + favoredParty + ". "
-                + "Justificación: " + event.justification() + ". "
-                + fundsOutcome(event);
+                + " se resolvió a favor " + favoredParty + ". ";
+    }
+
+    private String truncateToInAppLimit(String message) {
+        return message.length() <= IN_APP_MESSAGE_MAX_LENGTH
+                ? message
+                : message.substring(0, IN_APP_MESSAGE_MAX_LENGTH);
     }
 
     private String fundsOutcome(SessionClaimResolvedEvent event) {

@@ -938,13 +938,13 @@ WHERE b.status = 'CANCELLED';
 
 -- ---------------------------------------------------------------------------
 -- 9. Fondos (estadisticas del tutor y estado de cada clase)
---    El tutor recibe el importe menos el 3 % de retencion; si hay devolucion, el alumno recupera el 100 %.
+--    El tutor recibe el precio de la clase (importe / 1.03, sin comision); si hay devolucion, el alumno recupera el 100 %.
 -- ---------------------------------------------------------------------------
 INSERT INTO funds_transfer (funds_transfer_id, booking_id, original_amount, system_retention_percentage,
                             transferred_amount, recipient, concept, funds_status, processed_at, blocking_claim_id)
 SELECT UUID_TO_BIN(UUID()), b.booking_id, b.amount,
-       IF(b.fund = 'REFUNDED', 0, 3),
-       CASE b.fund WHEN 'RELEASED' THEN ROUND(b.amount * 0.97, 2) WHEN 'REFUNDED' THEN b.amount ELSE 0 END,
+       0,
+       CASE b.fund WHEN 'RELEASED' THEN ROUND(b.amount / 1.03, 2) WHEN 'REFUNDED' THEN b.amount ELSE 0 END,
        IF(b.fund = 'REFUNDED', 'STUDENT', 'TUTOR'),
        CASE WHEN b.fund = 'RELEASED' THEN 'Liberacion por sesion completada'
             WHEN b.fund = 'REFUNDED' AND b.status = 'NOT_FULFILLED_BY_TUTOR' THEN 'Devolucion por tutor ausente'

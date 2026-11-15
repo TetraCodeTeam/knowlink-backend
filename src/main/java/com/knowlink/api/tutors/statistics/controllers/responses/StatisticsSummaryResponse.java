@@ -13,6 +13,5 @@ public record StatisticsSummaryResponse(
         int eligibleSessions,
         Double averageRating,
         int reviewsCount,
-        BigDecimal netIncome,
-        BigDecimal commissionPercentage) {
+        BigDecimal netIncome) {
 }

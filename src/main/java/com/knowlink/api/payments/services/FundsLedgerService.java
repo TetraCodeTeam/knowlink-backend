@@ -6,6 +6,7 @@ import com.knowlink.api.payments.data.models.FundsTransfer;
 import com.knowlink.api.payments.domain.FundsConcept;
 import com.knowlink.api.payments.domain.FundsRecipient;
 import com.knowlink.api.payments.domain.FundsStatus;
+import com.knowlink.api.payments.domain.TutorPayout;
 import com.knowlink.api.payments.events.FundsSuspendedByClaimEvent;
 import com.knowlink.api.payments.events.FundsTransferProcessedEvent;
 import com.knowlink.api.payments.repositories.IFundsTransferRepository;
@@ -13,12 +14,10 @@ import com.knowlink.api.payments.repositories.IFundsTransferRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -30,22 +29,17 @@ public class FundsLedgerService {
     private final IFundsTransferRepository fundsTransferRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
 
-    @Value("${knowlink.funds.retention-percentage:3.00}")
-    private BigDecimal systemRetentionPercentage;
-
     @Transactional
     public void releaseToTutor(Booking booking, BookingStatus finalStatus, boolean studentPresent) {
         BigDecimal originalAmount = booking.getAmount();
-        BigDecimal retentionAmount = originalAmount.multiply(systemRetentionPercentage)
-                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-        BigDecimal transferredAmount = originalAmount.subtract(retentionAmount);
+        BigDecimal transferredAmount = TutorPayout.fromStudentPayment(originalAmount);
         FundsConcept concept = studentPresent
                 ? FundsConcept.RELEASED_SESSION_COMPLETED
                 : FundsConcept.RELEASED_STUDENT_ABSENT;
 
         FundsTransfer transfer = findOrCreateRow(booking);
         transfer.setOriginalAmount(originalAmount);
-        transfer.setSystemRetentionPercentage(systemRetentionPercentage);
+        transfer.setSystemRetentionPercentage(BigDecimal.ZERO);
         transfer.setTransferredAmount(transferredAmount);
         transfer.setRecipient(FundsRecipient.TUTOR);
         transfer.setConcept(concept.label());
@@ -58,10 +52,9 @@ public class FundsLedgerService {
                 FundsRecipient.TUTOR,
                 originalAmount,
                 transferredAmount,
-                systemRetentionPercentage,
+                BigDecimal.ZERO,
                 concept));
-        log.info("Funds released to tutor for booking {}: {} (retention: {})",
-                booking.getBookingId(), transferredAmount, retentionAmount);
+        log.info("Funds released to tutor for booking {}: {}", booking.getBookingId(), transferredAmount);
     }
 
     @Transactional
@@ -115,7 +108,7 @@ public class FundsLedgerService {
         FundsTransfer transfer = FundsTransfer.builder()
                 .booking(booking)
                 .originalAmount(booking.getAmount())
-                .systemRetentionPercentage(systemRetentionPercentage)
+                .systemRetentionPercentage(BigDecimal.ZERO)
                 .transferredAmount(BigDecimal.ZERO)
                 .recipient(FundsRecipient.TUTOR)
                 .concept(FundsConcept.HELD.label())
@@ -134,15 +127,11 @@ public class FundsLedgerService {
     }
 
     /**
-     * Amount the tutor receives for an amount held in the ledger, after the configured retention.
+     * Amount the tutor receives for an amount held in the ledger: the service fee is paid only by
+     * the student, so the tutor gets the full class price back.
      */
     public BigDecimal calculateTutorTransferredAmount(BigDecimal originalAmount) {
-        if (originalAmount == null) {
-            return BigDecimal.ZERO;
-        }
-        BigDecimal retentionAmount = originalAmount.multiply(systemRetentionPercentage)
-                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-        return originalAmount.subtract(retentionAmount);
+        return TutorPayout.fromStudentPayment(originalAmount);
     }
 
 

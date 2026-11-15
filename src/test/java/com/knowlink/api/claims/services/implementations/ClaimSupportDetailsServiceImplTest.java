@@ -1,5 +1,7 @@
 package com.knowlink.api.claims.services.implementations;
 
+import com.knowlink.api.admin.claims.data.enums.ClaimFavoredParty;
+import com.knowlink.api.claims.controllers.responses.ClaimResolutionResponse;
 import com.knowlink.api.claims.controllers.responses.ClaimReviewProgressResponse;
 import com.knowlink.api.claims.data.enums.ClaimStatus;
 import com.knowlink.api.claims.data.models.SessionClaim;
@@ -8,6 +10,7 @@ import com.knowlink.api.claims.repositories.SessionClaimCommentRepository;
 import com.knowlink.api.claims.repositories.SessionClaimRepository;
 import com.knowlink.api.materials.service.interfaces.ISupabaseStorageService;
 import com.knowlink.api.payments.repositories.IFundsTransferRepository;
+import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.support.config.SupportProperties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -30,6 +33,7 @@ import static org.mockito.Mockito.when;
 class ClaimSupportDetailsServiceImplTest {
 
     private static final LocalDateTime CREATED_AT = LocalDateTime.of(2026, 10, 20, 10, 0);
+    private static final LocalDateTime RESOLVED_AT = LocalDateTime.of(2026, 10, 25, 16, 30);
 
     @Mock
     private SessionClaimRepository sessionClaimRepository;
@@ -151,6 +155,57 @@ class ClaimSupportDetailsServiceImplTest {
 
         assertThat(progress.queuePosition()).isEqualTo(1);
         assertThat(progress.queueTotal()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("getResolution - un reclamo no resuelto no expone resolución")
+    void getResolution_claimNotResolved_returnsNull() {
+        assertThat(service.getResolution(claim(ClaimStatus.OPEN, null), Role.STUDENT)).isNull();
+        assertThat(service.getResolution(claim(ClaimStatus.IN_REVIEW, null), Role.TUTOR)).isNull();
+    }
+
+    @Test
+    @DisplayName("getResolution - sin justificación o sin partido favorecido no expone resolución")
+    void getResolution_missingResolutionData_returnsNull() {
+        SessionClaim withoutJustification = resolvedClaim(ClaimFavoredParty.STUDENT, null);
+        SessionClaim withoutFavoredParty = resolvedClaim(null, "X");
+
+        assertThat(service.getResolution(withoutJustification, Role.STUDENT)).isNull();
+        assertThat(service.getResolution(withoutFavoredParty, Role.STUDENT)).isNull();
+    }
+
+    @Test
+    @DisplayName("getResolution - inMyFavor se calcula según la parte que consulta")
+    void getResolution_inMyFavorDependsOnViewerRole() {
+        SessionClaim studentFavored = resolvedClaim(ClaimFavoredParty.STUDENT, "X");
+        SessionClaim tutorFavored = resolvedClaim(ClaimFavoredParty.TUTOR, "Y");
+
+        ClaimResolutionResponse forStudent = service.getResolution(studentFavored, Role.STUDENT);
+        ClaimResolutionResponse forTutor = service.getResolution(studentFavored, Role.TUTOR);
+        ClaimResolutionResponse tutorView = service.getResolution(tutorFavored, Role.TUTOR);
+        ClaimResolutionResponse studentView = service.getResolution(tutorFavored, Role.STUDENT);
+
+        assertThat(forStudent).isNotNull();
+        assertThat(forStudent.favoredParty()).isEqualTo(ClaimFavoredParty.STUDENT);
+        assertThat(forStudent.inMyFavor()).isTrue();
+        assertThat(forStudent.justification()).isEqualTo("X");
+        assertThat(forStudent.resolvedAt()).isEqualTo(RESOLVED_AT);
+
+        assertThat(forTutor).isNotNull();
+        assertThat(forTutor.favoredParty()).isEqualTo(ClaimFavoredParty.STUDENT);
+        assertThat(forTutor.inMyFavor()).isFalse();
+        assertThat(forTutor.justification()).isEqualTo("X");
+
+        assertThat(tutorView.inMyFavor()).isTrue();
+        assertThat(studentView.inMyFavor()).isFalse();
+    }
+
+    private SessionClaim resolvedClaim(ClaimFavoredParty favoredParty, String justification) {
+        SessionClaim claim = claim(ClaimStatus.RESOLVED, null);
+        claim.setFavoredParty(favoredParty);
+        claim.setResolutionJustification(justification);
+        claim.setResolvedAt(RESOLVED_AT);
+        return claim;
     }
 
     private SessionClaim claim(ClaimStatus status, UUID disputeId) {

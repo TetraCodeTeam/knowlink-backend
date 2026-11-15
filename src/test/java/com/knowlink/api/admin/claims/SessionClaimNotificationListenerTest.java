@@ -80,8 +80,21 @@ class SessionClaimNotificationListenerTest {
                 movedAmount);
     }
 
+    private SessionClaimResolvedEvent eventWithJustification(String justification) {
+        return new SessionClaimResolvedEvent(
+                claimId,
+                UUID.randomUUID(),
+                tutorId,
+                studentId,
+                ClaimFavoredParty.STUDENT,
+                justification,
+                "Algoritmos",
+                LocalDate.of(2026, 10, 20),
+                new BigDecimal("1000.00"));
+    }
+
     @Test
-    @DisplayName("Ambas partes reciben notificación in-app y mail sin datos de contacto de la contraparte")
+    @DisplayName("Ambas partes reciben un mensaje in-app corto y un mail con la justificación completa")
     void notifiesBothParties() {
         listener.handleSessionClaimResolved(event(ClaimFavoredParty.STUDENT, new BigDecimal("1000.00")));
 
@@ -95,18 +108,21 @@ class SessionClaimNotificationListenerTest {
                 anyString(), anyString(), eq(claimId),
                 eq("session-claim-resolved:" + claimId + ":" + studentId));
 
-        String message = messageCaptor.getValue();
-        assertThat(message).contains("Algoritmos");
-        assertThat(message).contains("20/10/2026");
-        assertThat(message).contains("a favor del alumno");
-        assertThat(message).contains("El tutor no se conectó");
-        assertThat(message).contains("reintegrados al alumno");
-        assertThat(message).doesNotContain("tutor@test.com");
-        assertThat(message).doesNotContain("alumno@test.com");
+        String inAppMessage = messageCaptor.getValue();
+        assertThat(inAppMessage).contains("Algoritmos");
+        assertThat(inAppMessage).contains("20/10/2026");
+        assertThat(inAppMessage).contains("a favor del alumno");
+        assertThat(inAppMessage).contains("reintegrados al alumno");
+        assertThat(inAppMessage).contains("Abrí el detalle para leer la justificación");
+        assertThat(inAppMessage).doesNotContain("El tutor no se conectó");
+        assertThat(inAppMessage).hasSizeLessThan(500);
+        assertThat(inAppMessage).doesNotContain("tutor@test.com");
+        assertThat(inAppMessage).doesNotContain("alumno@test.com");
 
         ArgumentCaptor<String> emailBodyCaptor = ArgumentCaptor.forClass(String.class);
         verify(emailService).sendAdminNotificationEmail(eq(tutor), anyString(), anyString(), emailBodyCaptor.capture());
         verify(emailService).sendAdminNotificationEmail(eq(student), anyString(), anyString(), any());
+        assertThat(emailBodyCaptor.getValue()).contains("Justificación: El tutor no se conectó");
         assertThat(emailBodyCaptor.getValue()).doesNotContain("alumno@test.com");
     }
 
@@ -132,5 +148,30 @@ class SessionClaimNotificationListenerTest {
         assertThatCode(() -> listener.handleSessionClaimResolved(
                 event(ClaimFavoredParty.TUTOR, new BigDecimal("970.00"))))
                 .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("Justificación de 1000 caracteres: la notificación in-app se crea corta y el mail la incluye completa")
+    void longJustification_keepsShortInAppNotificationAndFullEmail() {
+        String longJustification = "x".repeat(1000);
+
+        listener.handleSessionClaimResolved(eventWithJustification(longJustification));
+
+        ArgumentCaptor<String> messageCaptor = ArgumentCaptor.forClass(String.class);
+        verify(notificationService).notifyUser(
+                eq(tutorId), eq(Role.TUTOR), eq(NotificationType.SESSION_CLAIM_UPDATE),
+                anyString(), messageCaptor.capture(), eq(claimId), anyString());
+        verify(notificationService).notifyUser(
+                eq(studentId), eq(Role.STUDENT), eq(NotificationType.SESSION_CLAIM_UPDATE),
+                anyString(), anyString(), eq(claimId), anyString());
+
+        String inAppMessage = messageCaptor.getValue();
+        assertThat(inAppMessage).hasSizeLessThan(500);
+        assertThat(inAppMessage).doesNotContain(longJustification);
+        assertThat(inAppMessage).contains("Abrí el detalle para leer la justificación");
+
+        ArgumentCaptor<String> emailBodyCaptor = ArgumentCaptor.forClass(String.class);
+        verify(emailService).sendAdminNotificationEmail(eq(tutor), anyString(), anyString(), emailBodyCaptor.capture());
+        assertThat(emailBodyCaptor.getValue()).contains(longJustification);
     }
 }

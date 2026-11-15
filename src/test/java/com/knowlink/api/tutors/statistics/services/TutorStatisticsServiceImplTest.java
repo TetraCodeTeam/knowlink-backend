@@ -68,7 +68,7 @@ class TutorStatisticsServiceImplTest {
                 statisticsRepository,
                 tutorProfileRepository,
                 tutorSubjectRepository,
-                new TutorStatisticsCalculator(new BigDecimal("3.00")));
+                new TutorStatisticsCalculator());
 
         UUID tutorProfileId = UUID.randomUUID();
         when(tutorProfileRepository.findByUserId(tutorUserId))
@@ -154,8 +154,7 @@ class TutorStatisticsServiceImplTest {
         return new TutorBookingRow(UUID.randomUUID(), date, LocalTime.of(9, 0), LocalTime.of(10, 0), status,
                 UUID.randomUUID(), paidSubjectId, null, null, fundsStatus,
                 hasFunds ? FundsRecipient.TUTOR : null,
-                hasFunds ? new BigDecimal("1000.00") : null,
-                hasFunds ? new BigDecimal("3.00") : null,
-                hasFunds ? new BigDecimal("970.00") : null);
+                hasFunds ? new BigDecimal("1030.00") : null,
+                hasFunds ? new BigDecimal("1000.00") : null);
     }
 }

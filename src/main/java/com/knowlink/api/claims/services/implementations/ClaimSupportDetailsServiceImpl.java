@@ -1,8 +1,10 @@
 package com.knowlink.api.claims.services.implementations;
 
+import com.knowlink.api.admin.claims.data.enums.ClaimFavoredParty;
 import com.knowlink.api.claims.controllers.responses.ClaimAttachmentUrlResponse;
 import com.knowlink.api.claims.controllers.responses.ClaimCommentResponse;
 import com.knowlink.api.claims.controllers.responses.ClaimFundsSummaryResponse;
+import com.knowlink.api.claims.controllers.responses.ClaimResolutionResponse;
 import com.knowlink.api.claims.controllers.responses.ClaimReviewProgressResponse;
 import com.knowlink.api.claims.data.enums.ClaimStatus;
 import com.knowlink.api.claims.data.models.SessionClaim;
@@ -18,6 +20,7 @@ import com.knowlink.api.materials.utils.StorageConstants;
 import com.knowlink.api.payments.data.models.FundsTransfer;
 import com.knowlink.api.payments.domain.FundsStatus;
 import com.knowlink.api.payments.repositories.IFundsTransferRepository;
+import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.shared.utils.AppTimeZone;
 import com.knowlink.api.support.config.SupportProperties;
 import lombok.RequiredArgsConstructor;
@@ -98,6 +101,23 @@ public class ClaimSupportDetailsServiceImpl implements IClaimSupportDetailsServi
             return claim;
         }
         return sessionClaimRepository.findById(disputeId).orElse(claim);
+    }
+
+    @Override
+    public ClaimResolutionResponse getResolution(SessionClaim claim, Role viewerRole) {
+        ClaimFavoredParty favoredParty = claim.getFavoredParty();
+        if (claim.getStatus() != ClaimStatus.RESOLVED
+                || favoredParty == null
+                || claim.getResolutionJustification() == null) {
+            return null;
+        }
+        boolean inMyFavor = (viewerRole == Role.TUTOR && favoredParty == ClaimFavoredParty.TUTOR)
+                || (viewerRole == Role.STUDENT && favoredParty == ClaimFavoredParty.STUDENT);
+        return new ClaimResolutionResponse(
+                favoredParty,
+                inMyFavor,
+                claim.getResolutionJustification(),
+                claim.getResolvedAt());
     }
 
     @Override

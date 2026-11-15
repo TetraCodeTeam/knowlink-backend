@@ -5,6 +5,7 @@ import com.knowlink.api.tutors.repositories.IInstitutionRepository;
 import com.knowlink.api.testsupport.CatalogFixtures;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.knowlink.api.admin.claims.data.enums.ClaimFavoredParty;
 import com.knowlink.api.bookings.data.enums.BookingHistoryCategory;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.bookings.data.models.Booking;
@@ -12,6 +13,7 @@ import com.knowlink.api.bookings.repositories.IBookingRepository;
 import com.knowlink.api.claims.controllers.requests.CreateClaimRequest;
 import com.knowlink.api.claims.data.enums.ClaimReason;
 import com.knowlink.api.claims.data.enums.ClaimStatus;
+import com.knowlink.api.claims.data.models.SessionClaim;
 import com.knowlink.api.claims.repositories.SessionClaimRepository;
 import com.knowlink.api.claims.services.interfaces.ISessionClaimService;
 import com.knowlink.api.exceptions.custom_exceptions.DuplicateResourceException;
@@ -76,6 +78,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -777,5 +780,63 @@ class ClaimControllerIntegrationTest {
                         .header(HttpHeaders.AUTHORIZATION, "Bearer " + token))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.blockReason").value("ACTIVE_CLAIM_EXISTS"));
+    }
+
+    private void resolveClaim(UUID claimId, ClaimFavoredParty favoredParty, String justification) {
+        SessionClaim claim = sessionClaimRepository.findById(claimId).orElseThrow();
+        claim.setStatus(ClaimStatus.RESOLVED);
+        claim.setFavoredParty(favoredParty);
+        claim.setResolutionJustification(justification);
+        claim.setResolvedAt(LocalDateTime.now(AppTimeZone.ZONE));
+        sessionClaimRepository.save(claim);
+    }
+
+    @Test
+    @DisplayName("CP-29 - detalle de un reclamo abierto: resolution null")
+    void detail_openClaim_returnsNullResolution() throws Exception {
+        Booking booking = withinDeadlineBooking();
+        String studentToken = login(student);
+        MvcResult created = mockMvc.perform(postClaim(studentToken, booking.getBookingId(),
+                        "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String claimId = objectMapper.readTree(created.getResponse().getContentAsString()).get("id").asText();
+
+        mockMvc.perform(get("/api/v1/students/support/session-claims/{claimId}", claimId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("OPEN"))
+                .andExpect(jsonPath("$.resolution").value(nullValue()));
+    }
+
+    @Test
+    @DisplayName("CP-30 - detalle de un reclamo resuelto: resolution para el alumno y para el tutor")
+    void detail_resolvedClaim_returnsResolutionForBothParties() throws Exception {
+        Booking booking = withinDeadlineBooking();
+        String studentToken = login(student);
+        String tutorToken = login(tutor);
+        String justification = "El tutor no se conectó a la sesión.";
+        MvcResult created = mockMvc.perform(postClaim(studentToken, booking.getBookingId(),
+                        "{\"reason\":\"TUTOR_COULD_NOT_ATTEND\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        UUID claimId = UUID.fromString(objectMapper.readTree(created.getResponse().getContentAsString())
+                .get("id").asText());
+        resolveClaim(claimId, ClaimFavoredParty.STUDENT, justification);
+
+        mockMvc.perform(get("/api/v1/students/support/session-claims/{claimId}", claimId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + studentToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resolution.favoredParty").value("STUDENT"))
+                .andExpect(jsonPath("$.resolution.inMyFavor").value(true))
+                .andExpect(jsonPath("$.resolution.justification").value(justification))
+                .andExpect(jsonPath("$.resolution.resolvedAt").isNotEmpty());
+
+        mockMvc.perform(get("/api/v1/tutors/support/session-claims/{claimId}", claimId)
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer " + tutorToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.resolution.favoredParty").value("STUDENT"))
+                .andExpect(jsonPath("$.resolution.inMyFavor").value(false))
+                .andExpect(jsonPath("$.resolution.justification").value(justification));
     }
 }

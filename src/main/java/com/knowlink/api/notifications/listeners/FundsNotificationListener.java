@@ -44,7 +44,7 @@ public class FundsNotificationListener {
                         "Pago acreditado. Sesión completada",
                         "Recibiste " + NotificationTextFormats.amount(event.transferredAmount())
                                 + " por la sesión de " + snapshot.subjectName() + " con " + snapshot.studentName()
-                                + ". (" + retentionLabel(event) + "% de retención aplicada)",
+                                + ".",
                         event);
                 case RELEASED_STUDENT_ABSENT -> notifyQuietly(snapshot.tutorUserId(), Role.TUTOR,
                         NotificationType.FUNDS_TRANSFERRED,
@@ -103,13 +103,6 @@ public class FundsNotificationListener {
             log.error("Failed to create funds suspension notifications for booking {}: {}", event.bookingId(),
                     e.getMessage(), e);
         }
-    }
-
-    private static String retentionLabel(FundsTransferProcessedEvent event) {
-        if (event.retentionPercentage() == null) {
-            return "0";
-        }
-        return event.retentionPercentage().stripTrailingZeros().toPlainString();
     }
 
     private void notifyQuietly(UUID recipientUserId, Role recipientRole, NotificationType type, String title,

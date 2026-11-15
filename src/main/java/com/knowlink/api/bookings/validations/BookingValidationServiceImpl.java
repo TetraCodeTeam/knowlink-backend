@@ -7,6 +7,7 @@ import com.knowlink.api.shared.utils.EndOfDay;
 import com.knowlink.api.timeslot.data.models.TimeSlot;
 import com.knowlink.api.bookings.data.enums.BookingStatus;
 import com.knowlink.api.tutors.data.enums.Modality;
+import com.knowlink.api.tutors.availability.data.enums.BookingStatusGroups;
 import com.knowlink.api.bookings.utils.BookingConstants;
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.tutors.data.models.TutorProfile;
@@ -80,7 +81,7 @@ public class BookingValidationServiceImpl implements IBookingValidationService {
     @Override
     public void validateNoOverlap(UUID timeSlotId, LocalTime startTime, LocalTime endTime) {
         List<Booking> activeBookings = bookingRepository.findActiveByTimeSlotId(timeSlotId,
-                BookingConstants.ACTIVE_STATUSES);
+                BookingStatusGroups.OCCUPYING);
 
         boolean overlaps = activeBookings.stream()
                 .anyMatch(b -> startTime.isBefore(b.getEndTime()) && endTime.isAfter(b.getStartTime()));
@@ -95,7 +96,7 @@ public class BookingValidationServiceImpl implements IBookingValidationService {
             User student, UUID tutorSubjectId, LocalDate date, LocalTime startTime, LocalTime endTime) {
 
         List<Booking> sameDaySubjectBookings = bookingRepository.findActiveByStudentSubjectAndDate(
-                student.getUserId(), tutorSubjectId, date, BookingConstants.ACTIVE_STATUSES);
+                student.getUserId(), tutorSubjectId, date, BookingStatusGroups.OCCUPYING);
 
         Duration existing = sameDaySubjectBookings.stream()
                 .map(b -> EndOfDay.between(b.getStartTime(), b.getEndTime()))

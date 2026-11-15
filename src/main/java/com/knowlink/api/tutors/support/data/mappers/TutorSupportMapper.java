@@ -3,6 +3,7 @@ package com.knowlink.api.tutors.support.data.mappers;
 import com.knowlink.api.claims.controllers.responses.ClaimAttachmentUrlResponse;
 import com.knowlink.api.claims.controllers.responses.ClaimCommentResponse;
 import com.knowlink.api.claims.controllers.responses.ClaimFundsSummaryResponse;
+import com.knowlink.api.claims.controllers.responses.ClaimResolutionResponse;
 import com.knowlink.api.claims.controllers.responses.ClaimReviewProgressResponse;
 import com.knowlink.api.claims.data.models.SessionClaim;
 import com.knowlink.api.materials.data.enums.MaterialReportStatus;
@@ -56,7 +57,8 @@ public class TutorSupportMapper {
             ClaimFundsSummaryResponse funds,
             ClaimReviewProgressResponse progress,
             List<ClaimAttachmentUrlResponse> attachments,
-            List<ClaimCommentResponse> comments) {
+            List<ClaimCommentResponse> comments,
+            ClaimResolutionResponse resolution) {
         var booking = claim.getBooking();
         return new TutorSupportClaimDetailResponse(
                 claim.getClaimId(),
@@ -78,7 +80,8 @@ public class TutorSupportMapper {
                 funds,
                 progress,
                 attachments,
-                comments);
+                comments,
+                resolution);
     }
 
     public List<TutorReportedMaterialResponse> toReportedMaterials(List<AcademicMaterialReport> reports) {

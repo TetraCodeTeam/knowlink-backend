@@ -34,7 +34,7 @@ public class FundsTransfer {
 
     @Column(name = "system_retention_percentage", nullable = false, precision = 5, scale = 2)
     @Builder.Default
-    private BigDecimal systemRetentionPercentage = new BigDecimal("3.00");
+    private BigDecimal systemRetentionPercentage = BigDecimal.ZERO;
 
     @Column(name = "transferred_amount", nullable = false, precision = 10, scale = 2)
     private BigDecimal transferredAmount;

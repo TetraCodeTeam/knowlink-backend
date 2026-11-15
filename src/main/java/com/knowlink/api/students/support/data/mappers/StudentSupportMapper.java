@@ -3,6 +3,7 @@ package com.knowlink.api.students.support.data.mappers;
 import com.knowlink.api.claims.controllers.responses.ClaimAttachmentUrlResponse;
 import com.knowlink.api.claims.controllers.responses.ClaimCommentResponse;
 import com.knowlink.api.claims.controllers.responses.ClaimFundsSummaryResponse;
+import com.knowlink.api.claims.controllers.responses.ClaimResolutionResponse;
 import com.knowlink.api.claims.controllers.responses.ClaimReviewProgressResponse;
 import com.knowlink.api.security.enums.Role;
 import com.knowlink.api.claims.data.enums.ClaimStatus;
@@ -57,7 +58,8 @@ public class StudentSupportMapper {
             ClaimFundsSummaryResponse funds,
             ClaimReviewProgressResponse progress,
             List<ClaimAttachmentUrlResponse> attachments,
-            List<ClaimCommentResponse> comments) {
+            List<ClaimCommentResponse> comments,
+            ClaimResolutionResponse resolution) {
         var booking = claim.getBooking();
         var tutor = booking.getTutor();
         var tutorProfile = booking.getTutorSubject().getTutorProfile();
@@ -87,7 +89,8 @@ public class StudentSupportMapper {
                 funds,
                 progress,
                 attachments,
-                comments);
+                comments,
+                resolution);
     }
 
     public StudentMaterialReportResponse toMaterialReportResponse(AcademicMaterialReport report) {

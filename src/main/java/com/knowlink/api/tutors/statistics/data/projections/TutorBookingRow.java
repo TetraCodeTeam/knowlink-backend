@@ -25,6 +25,5 @@ public record TutorBookingRow(
         FundsStatus fundsStatus,
         FundsRecipient fundsRecipient,
         BigDecimal originalAmount,
-        BigDecimal retentionPercentage,
         BigDecimal transferredAmount) {
 }

@@ -82,7 +82,7 @@ public class HoldValidationServiceImpl implements IHoldValidationService {
         }
 
         List<Booking> overlappingBookings = bookingRepository
-                .findActiveByTimeSlotId(timeSlotId, BookingStatusGroups.ACTIVE)
+                .findActiveByTimeSlotId(timeSlotId, BookingStatusGroups.OCCUPYING)
                 .stream()
                 .filter(b -> startTime.isBefore(b.getEndTime()) && endTime.isAfter(b.getStartTime()))
                 .toList();
