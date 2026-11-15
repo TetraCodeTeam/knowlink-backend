@@ -61,18 +61,17 @@ class FundsNotificationListenerTest {
     }
 
     @Test
-    @DisplayName("Liberacion por sesion completada - solo el tutor recibe el pago con la retencion")
-    void releaseCompleted_notifiesTutorOnlyWithRetention() {
+    @DisplayName("Liberacion por sesion completada - solo el tutor recibe el pago, sin retencion")
+    void releaseCompleted_notifiesTutorWithAmountReceived() {
         stubSnapshot();
 
         listener.handleFundsTransferProcessed(new FundsTransferProcessedEvent(bookingId, FundsRecipient.TUTOR,
-                new BigDecimal("2100.00"), new BigDecimal("2037.00"), new BigDecimal("3.00"),
+                new BigDecimal("2060.00"), new BigDecimal("2000.00"), BigDecimal.ZERO,
                 FundsConcept.RELEASED_SESSION_COMPLETED));
 
         verify(notificationService).notifyUser(eq(tutorId), eq(Role.TUTOR), eq(NotificationType.FUNDS_TRANSFERRED),
                 eq("Pago acreditado. Sesión completada"),
-                eq("Recibiste $2.037,00 por la sesión de Sistemas Operativos con Ana Estudiante."
-                        + " (3% de retención aplicada)"),
+                eq("Recibiste $2.000,00 por la sesión de Sistemas Operativos con Ana Estudiante."),
                 eq(bookingId), eq("FUNDS_TRANSFERRED:Liberacion por sesion completada:" + bookingId));
         verify(notificationService, never()).notifyUser(eq(studentId), any(), any(), any(), any(), any(), any());
     }
@@ -83,12 +82,12 @@ class FundsNotificationListenerTest {
         stubSnapshot();
 
         listener.handleFundsTransferProcessed(new FundsTransferProcessedEvent(bookingId, FundsRecipient.TUTOR,
-                new BigDecimal("2100.00"), new BigDecimal("2037.00"), new BigDecimal("3.00"),
+                new BigDecimal("2060.00"), new BigDecimal("2000.00"), BigDecimal.ZERO,
                 FundsConcept.RELEASED_STUDENT_ABSENT));
 
         verify(notificationService).notifyUser(eq(tutorId), eq(Role.TUTOR), eq(NotificationType.FUNDS_TRANSFERRED),
                 eq("Pago acreditado. Alumno ausente"),
-                eq("Recibiste $2.037,00 por la sesión del Martes 20/10."
+                eq("Recibiste $2.000,00 por la sesión del Martes 20/10."
                         + " El alumno no confirmó asistencia pero cumpliste tu parte."),
                 eq(bookingId), eq("FUNDS_TRANSFERRED:Liberacion por alumno ausente:" + bookingId));
     }

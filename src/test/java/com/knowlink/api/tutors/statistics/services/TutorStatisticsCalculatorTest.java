@@ -39,7 +39,7 @@ class TutorStatisticsCalculatorTest {
     // 2026-10-05 es lunes.
     private static final LocalDate MONDAY = LocalDate.of(2026, 10, 5);
 
-    private final TutorStatisticsCalculator calculator = new TutorStatisticsCalculator(new BigDecimal("3.00"));
+    private final TutorStatisticsCalculator calculator = new TutorStatisticsCalculator();
 
     private final UUID paidSubjectId = UUID.randomUUID();
     private final UUID freeSubjectId = UUID.randomUUID();
@@ -130,17 +130,17 @@ class TutorStatisticsCalculatorTest {
     @Test
     void netIncomeAddsReleasedAndPendingButNotWithheldFunds() {
         List<TutorBookingRow> bookings = List.of(
-                funded(BookingStatus.COMPLETED, FundsStatus.RELEASED_TO_TUTOR, "1000.00", "970.00"),
-                funded(BookingStatus.COMPLETED, FundsStatus.HELD, "2000.00", "0.00"),
-                funded(BookingStatus.COMPLETED, FundsStatus.SUSPENDED_BY_CLAIM, "4000.00", "0.00"));
+                funded(BookingStatus.COMPLETED, FundsStatus.RELEASED_TO_TUTOR, "1030.00", "1000.00"),
+                funded(BookingStatus.COMPLETED, FundsStatus.HELD, "2060.00", "0.00"),
+                funded(BookingStatus.COMPLETED, FundsStatus.SUSPENDED_BY_CLAIM, "4120.00", "0.00"));
 
         TutorStatisticsResponse response = calculate(bookings, List.of(), List.of());
 
-        assertThat(response.summary().netIncome()).isEqualByComparingTo("2910.00");
-        assertThat(response.funds().released().amount()).isEqualByComparingTo("970.00");
+        assertThat(response.summary().netIncome()).isEqualByComparingTo("3000.00");
+        assertThat(response.funds().released().amount()).isEqualByComparingTo("1000.00");
         assertThat(response.funds().released().sessions()).isEqualTo(1);
-        assertThat(response.funds().pendingRelease().amount()).isEqualByComparingTo("1940.00");
-        assertThat(response.funds().withheldByClaim().amount()).isEqualByComparingTo("3880.00");
+        assertThat(response.funds().pendingRelease().amount()).isEqualByComparingTo("2000.00");
+        assertThat(response.funds().withheldByClaim().amount()).isEqualByComparingTo("4000.00");
         assertThat(response.funds().withheldByClaim().sessions()).isEqualTo(1);
     }
 
@@ -364,7 +364,7 @@ class TutorStatisticsCalculatorTest {
         LocalDate afterThePeriod = PERIOD.to().plusDays(1);
         TutorBookingRow cancelledForTomorrow = new TutorBookingRow(UUID.randomUUID(), afterThePeriod,
                 LocalTime.of(9, 0), LocalTime.of(10, 0), BookingStatus.CANCELLED, UUID.randomUUID(), paidSubjectId,
-                CancellationRole.STUDENT, RefundPolicy.REFUND_TOTAL_STUDENT, null, null, null, null, null);
+                CancellationRole.STUDENT, RefundPolicy.REFUND_TOTAL_STUDENT, null, null, null, null);
 
         TutorStatisticsResponse response = calculate(List.of(cancelledForTomorrow), List.of(), List.of());
 
@@ -378,7 +378,6 @@ class TutorStatisticsCalculatorTest {
                 PERIOD, 7, List.of(), List.of(), List.of(), subjects));
 
         assertThat(response.summary().completedSessionsPreviousPeriod()).isEqualTo(7);
-        assertThat(response.summary().commissionPercentage()).isEqualByComparingTo("3.00");
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
@@ -413,30 +412,30 @@ class TutorStatisticsCalculatorTest {
 
     private TutorBookingRow booking(BookingStatus status, LocalDate date, LocalTime start, LocalTime end) {
         return new TutorBookingRow(UUID.randomUUID(), date, start, end, status, UUID.randomUUID(),
-                paidSubjectId, null, null, null, null, null, null, null);
+                paidSubjectId, null, null, null, null, null, null);
     }
 
     private TutorBookingRow completedFor(UUID studentId, UUID subjectId) {
         return new TutorBookingRow(UUID.randomUUID(), MONDAY, LocalTime.of(9, 0), LocalTime.of(10, 0),
-                BookingStatus.COMPLETED, studentId, subjectId, null, null, null, null, null, null, null);
+                BookingStatus.COMPLETED, studentId, subjectId, null, null, null, null, null, null);
     }
 
     private TutorBookingRow cancelled(CancellationRole by, RefundPolicy policy) {
         return new TutorBookingRow(UUID.randomUUID(), MONDAY, LocalTime.of(9, 0), LocalTime.of(10, 0),
-                BookingStatus.CANCELLED, UUID.randomUUID(), paidSubjectId, by, policy, null, null, null, null, null);
+                BookingStatus.CANCELLED, UUID.randomUUID(), paidSubjectId, by, policy, null, null, null, null);
     }
 
     /** Sesión con los fondos suspendidos por un reclamo, en la fecha y hora indicadas. */
     private TutorBookingRow withheld(BookingStatus status, LocalDate date, LocalTime start) {
         return new TutorBookingRow(UUID.randomUUID(), date, start, start.plusHours(1), status,
                 UUID.randomUUID(), paidSubjectId, null, null, FundsStatus.SUSPENDED_BY_CLAIM, FundsRecipient.TUTOR,
-                new BigDecimal("1000.00"), new BigDecimal("3.00"), new BigDecimal("0.00"));
+                new BigDecimal("1000.00"), new BigDecimal("0.00"));
     }
 
     private TutorBookingRow funded(BookingStatus status, FundsStatus fundsStatus, String original, String transferred) {
         return new TutorBookingRow(UUID.randomUUID(), MONDAY, LocalTime.of(9, 0), LocalTime.of(10, 0), status,
                 UUID.randomUUID(), paidSubjectId, null, null, fundsStatus,
                 fundsStatus == FundsStatus.REFUNDED_TO_STUDENT ? FundsRecipient.STUDENT : FundsRecipient.TUTOR,
-                new BigDecimal(original), new BigDecimal("3.00"), new BigDecimal(transferred));
+                new BigDecimal(original), new BigDecimal(transferred));
     }
 }

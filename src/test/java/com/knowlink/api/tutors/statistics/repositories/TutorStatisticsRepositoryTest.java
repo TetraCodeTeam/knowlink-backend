@@ -100,9 +100,9 @@ class TutorStatisticsRepositoryTest {
         Booking completed = persist(booking(BookingStatus.COMPLETED, IN_PERIOD));
         persist(FundsTransfer.builder()
                 .booking(completed)
-                .originalAmount(new BigDecimal("1000.00"))
-                .systemRetentionPercentage(new BigDecimal("3.00"))
-                .transferredAmount(new BigDecimal("970.00"))
+                .originalAmount(new BigDecimal("1030.00"))
+                .systemRetentionPercentage(BigDecimal.ZERO)
+                .transferredAmount(new BigDecimal("1000.00"))
                 .recipient(FundsRecipient.TUTOR)
                 .concept("Liberacion por sesion completada")
                 .fundsStatus(FundsStatus.RELEASED_TO_TUTOR)
@@ -126,8 +126,7 @@ class TutorStatisticsRepositoryTest {
         TutorBookingRow completedRow = row(rows, completed);
         assertThat(completedRow.fundsStatus()).isEqualTo(FundsStatus.RELEASED_TO_TUTOR);
         assertThat(completedRow.fundsRecipient()).isEqualTo(FundsRecipient.TUTOR);
-        assertThat(completedRow.transferredAmount()).isEqualByComparingTo("970.00");
-        assertThat(completedRow.retentionPercentage()).isEqualByComparingTo("3.00");
+        assertThat(completedRow.transferredAmount()).isEqualByComparingTo("1000.00");
         assertThat(completedRow.cancelledBy()).isNull();
         assertThat(completedRow.studentId()).isEqualTo(student.getUserId());
         assertThat(completedRow.tutorSubjectId()).isEqualTo(tutorSubject.getTutorSubjectId());

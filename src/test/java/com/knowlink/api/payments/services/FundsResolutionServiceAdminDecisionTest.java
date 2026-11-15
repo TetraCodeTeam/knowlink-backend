@@ -72,7 +72,7 @@ class FundsResolutionServiceAdminDecisionTest {
                 .fundsTransferId(UUID.randomUUID())
                 .booking(booking)
                 .originalAmount(new BigDecimal("1000.00"))
-                .systemRetentionPercentage(new BigDecimal("3.00"))
+                .systemRetentionPercentage(BigDecimal.ZERO)
                 .transferredAmount(BigDecimal.ZERO)
                 .recipient(FundsRecipient.TUTOR)
                 .concept("Fondos retenidos para reserva")
@@ -80,7 +80,7 @@ class FundsResolutionServiceAdminDecisionTest {
                 .blockingClaimId(claimId)
                 .build();
         when(fundsLedgerService.calculateTutorTransferredAmount(new BigDecimal("1000.00")))
-                .thenReturn(new BigDecimal("970.00"));
+                .thenReturn(new BigDecimal("970.87"));
     }
 
     @Test
@@ -134,18 +134,18 @@ class FundsResolutionServiceAdminDecisionTest {
     }
 
     @Test
-    @DisplayName("A favor del tutor: actualiza la fila existente con la retención del sistema")
+    @DisplayName("A favor del tutor: actualiza la fila existente con el monto que recibe el tutor")
     void favoredTutorUpdatesExistingRow() {
         when(fundsTransferRepository.findByBooking_BookingId(bookingId)).thenReturn(Optional.of(transfer));
 
         BigDecimal moved = fundsResolutionService.resolveByAdminDecision(
                 booking, ClaimFavoredParty.TUTOR, claimId);
 
-        assertThat(moved).isEqualByComparingTo("970.00");
+        assertThat(moved).isEqualByComparingTo("970.87");
         verify(fundsTransferRepository).save(transfer);
         assertThat(transfer.getRecipient()).isEqualTo(FundsRecipient.TUTOR);
         assertThat(transfer.getFundsStatus()).isEqualTo(FundsStatus.RELEASED_TO_TUTOR);
-        assertThat(transfer.getTransferredAmount()).isEqualByComparingTo("970.00");
+        assertThat(transfer.getTransferredAmount()).isEqualByComparingTo("970.87");
         assertThat(transfer.getConcept()).isEqualTo("Liberación por resolución de reclamo a favor del tutor");
         assertThat(transfer.getProcessedAt()).isNotNull();
         assertThat(transfer.getBlockingClaimId()).isEqualTo(claimId);

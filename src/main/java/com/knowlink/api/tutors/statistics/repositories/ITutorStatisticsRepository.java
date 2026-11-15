@@ -40,8 +40,7 @@ public interface ITutorStatisticsRepository extends Repository<Booking, UUID> {
                     b.bookingId, b.sessionDate, b.startTime, b.endTime, b.bookingStatus,
                     b.student.userId, b.tutorSubject.tutorSubjectId,
                     bc.cancelledBy, bc.refundPolicy,
-                    ft.fundsStatus, ft.recipient, ft.originalAmount,
-                    ft.systemRetentionPercentage, ft.transferredAmount)
+                    ft.fundsStatus, ft.recipient, ft.originalAmount, ft.transferredAmount)
             FROM Booking b
             LEFT JOIN BookingCancellation bc ON bc.booking.bookingId = b.bookingId
             LEFT JOIN FundsTransfer ft ON ft.booking.bookingId = b.bookingId

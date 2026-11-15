@@ -588,7 +588,7 @@ Efectos (todo en una transacción):
 
 | `favoredParty` | Fondos | Estado final de la reserva |
 |---|---|---|
-| `TUTOR` | `RELEASED_TO_TUTOR` (el tutor recibe el 97 %; retención del 3 %) | `COMPLETED` |
+| `TUTOR` | `RELEASED_TO_TUTOR` (el tutor recibe el importe íntegro de la clase; la tarifa de servicio la paga solo el alumno) | `COMPLETED` |
 | `STUDENT` y la denuncia del alumno fue `TUTOR_COULD_NOT_ATTEND` | `REFUNDED_TO_STUDENT` (100 %) | `NOT_FULFILLED_BY_TUTOR` |
 | `STUDENT` en cualquier otro caso | `REFUNDED_TO_STUDENT` (100 %) | `SESSION_NOT_HELD` |
 

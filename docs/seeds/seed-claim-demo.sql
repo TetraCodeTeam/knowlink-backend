@@ -54,7 +54,7 @@ WHERE @ya_existe = 0;
 INSERT INTO funds_transfer (funds_transfer_id, booking_id, original_amount, system_retention_percentage,
                             transferred_amount, recipient, concept, funds_status, processed_at,
                             blocking_claim_id)
-SELECT @transfer_id, b.booking_id, b.amount, 3.00, 0.00, 'TUTOR', 'Fondos retenidos para reserva',
+SELECT @transfer_id, b.booking_id, b.amount, 0.00, 0.00, 'TUTOR', 'Fondos retenidos para reserva',
        'HELD', NULL, NULL
 FROM booking b
 WHERE b.booking_id = @booking_id

@@ -94,7 +94,7 @@ Feature: Resolución de reclamos de sesión por el administrador
   Scenario: Resolver a favor del tutor
     Given un reclamo IN_REVIEW asignado a mí
     When resuelvo a favor del tutor con una justificación
-    Then se transfieren los fondos retenidos al tutor (con la retención del sistema)
+    Then se transfieren los fondos retenidos al tutor (sin comisión: recibe el importe íntegro de la clase)
     And el reclamo pasa a RESOLVED con favoredParty = TUTOR, la justificación y resolvedAt
     And el booking pasa a COMPLETED
     And se notifica a ambas partes con el resultado y la justificación
@@ -324,10 +324,10 @@ resolve(claimId, adminUserId, request):
 | No hay `FundsTransfer` para la reserva (sesión gratuita) | No mueve fondos; retorna sin error |
 | Hay fila y su estado es terminal (`RELEASED_TO_TUTOR`/`REFUNDED_TO_STUDENT`) | `ImmutableBookingException` → no se duplica (cubre el reintento) |
 | Hay fila y no está en `SUSPENDED_BY_CLAIM`, o su `blockingClaimId` no es `claimId` | `BusinessConflictException("FUNDS_STATE_MISMATCH")` |
-| `favored == TUTOR` | **Actualizar la fila existente**: `recipient = TUTOR`, `transferredAmount = originalAmount − retención%`, `fundsStatus = RELEASED_TO_TUTOR`, `concept = "Liberación por resolución de reclamo a favor del tutor"`, `processedAt = now` |
+| `favored == TUTOR` | **Actualizar la fila existente**: `recipient = TUTOR`, `transferredAmount = TutorPayout.fromStudentPayment(originalAmount)``, `fundsStatus = RELEASED_TO_TUTOR`, `concept = "Liberación por resolución de reclamo a favor del tutor"`, `processedAt = now` |
 | `favored == STUDENT` | **Actualizar la fila existente**: `recipient = STUDENT`, `systemRetentionPercentage = 0`, `transferredAmount = originalAmount`, `fundsStatus = REFUNDED_TO_STUDENT`, `concept = "Devolución por resolución de reclamo a favor del alumno"`, `processedAt = now` |
 
-- Reutilizar el cálculo de retención de `FundsLedgerService` (extraerlo a un método privado/compartido; no duplicar el porcentaje).
+- Reutilizar el cálculo del monto del tutor (`TutorPayout.fromStudentPayment`): no duplicar la regla.
 - **No** llamar a `releaseToTutor`/`refundToStudent` tal como están (insertan una fila nueva y chocarían con `uk_funds_transfer_booking`), salvo que se verifique que ya actualizan la fila existente.
 - Conservar `blockingClaimId` como referencia de auditoría (no limpiarlo) al resolver; la consulta de suspensión se hace por estado, no por este campo.
 - **Pasarela (Mercado Pago):** si en la rama de integración la liberación/reintegro real se ordena a la pasarela, la llamada va **dentro de este método** (o detrás del puerto que ya use US-15/US-44), con **clave de idempotencia = `claimId`**. Si la pasarela falla: lanzar `FundsExecutionException` → rollback → `502 FUNDS_EXECUTION_FAILED`, el reclamo sigue `IN_REVIEW`.
@@ -430,14 +430,14 @@ La entidad `SessionClaim`, su repositorio y `SessionClaimStatus` **permanecen do
 - No incluir datos de contacto en el listado, el detalle ni los mails; solo en `/contact-info`.
 - No loguear ni cachear datos personales (DNI, teléfono, email).
 - No calcular montos ni retenciones en el frontend.
-- No duplicar el porcentaje de retención: reutilizar el de `FundsLedgerService`.
+- No duplicar la regla del monto del tutor: reutilizar `TutorPayout.fromStudentPayment`.
 - No exponer detalles de la pasarela ni `technicalMessage` en las respuestas.
 
 ## 10. Tests
 
 - `AdminSessionClaimServiceTest`: listado (rango por defecto, `assignedToMe`, orden OPEN→IN_REVIEW→RESOLVED), `statusCounts` ignorando `status`, permisos por estado y por asignación.
 - Concurrencia: dos admins hacen `assign` a la vez → un solo ganador.
-- `resolve` a favor del tutor: fondos `RELEASED_TO_TUTOR` con 97 % (retención configurada), booking `COMPLETED`, claim `RESOLVED` con justificación y fecha, evento publicado.
+- `resolve` a favor del tutor: fondos `RELEASED_TO_TUTOR` con el importe íntegro para el tutor (sin comisión), booking `COMPLETED`, claim `RESOLVED` con justificación y fecha, evento publicado.
 - `resolve` a favor del alumno: fondos `REFUNDED_TO_STUDENT` con 100 %, booking según tabla, evento publicado.
 - Validaciones: sin `favoredParty`, justificación vacía/espacios/> 1000, reclamo `OPEN`, asignado a otro, ya `RESOLVED` → códigos correctos y **sin cambios** en claim, fondos ni booking.
 - Falla de fondos: `FundsExecutionException` → rollback; claim sigue `IN_REVIEW`; reintento exitoso no duplica movimientos (`ImmutableBookingException` no se dispara en el primer intento válido).

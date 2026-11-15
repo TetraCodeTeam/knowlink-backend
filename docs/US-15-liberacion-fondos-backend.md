@@ -38,7 +38,7 @@ US-15 **no crea** la retención ni el flujo de reclamos: **consume** sus resulta
 Feature: Liberación o devolución de fondos según resultado de sesión
 
   Background:
-    Given una reserva "R" con un monto retenido "M" y retención del sistema del 3%
+    Given una reserva "R" con un monto retenido "M" (precio de la clase + tarifa de servicio)
     And la sesión asociada a "R" ya finalizó (horario de fin transcurrido)
 
   Scenario: Tutor presente, alumno presente
@@ -46,7 +46,7 @@ Feature: Liberación o devolución de fondos según resultado de sesión
     And el alumno confirmó asistencia
     And no existe un reclamo activo sobre "R"
     When se ejecuta la resolución de fondos
-    Then se transfiere el 97% de "M" al tutor (3% de retención del sistema)
+    Then se transfiere al tutor el precio de la clase ("M" / 1.03, escala 2, HALF_UP), sin comisión
     And la reserva "R" cambia a estado "Completada"
     And el estado de fondos de "R" pasa a "Liberado al tutor"
     And no puede volver a modificarse el estado de "R"
@@ -56,7 +56,7 @@ Feature: Liberación o devolución de fondos según resultado de sesión
     And el alumno confirmó ausencia
     And no existe un reclamo activo sobre "R"
     When se ejecuta la resolución de fondos
-    Then se transfiere el 97% de "M" al tutor, dado que cumplió con su parte
+    Then se transfiere al tutor el precio de la clase ("M" / 1.03), dado que cumplió con su parte
     And la reserva "R" cambia a estado "Completada"
     And el estado de fondos de "R" pasa a "Liberado al tutor"
 
@@ -154,7 +154,7 @@ Registro de auditoría, uno por reserva, inmutable una vez creado con estado fin
 | `id` | Long | PK |
 | `bookingId` | Long | FK a Booking, único |
 | `originalAmount` | BigDecimal | monto retenido en US-44 |
-| `systemRetentionPercentage` | BigDecimal | 3% fijo, parametrizable en config |
+| `systemRetentionPercentage` | BigDecimal | siempre `0`: la tarifa de servicio la paga solo el alumno y el tutor recibe el precio íntegro de la clase |
 | `transferredAmount` | BigDecimal | calculado |
 | `recipient` | `FundsRecipient` | |
 | `concept` | String | texto **en español** para la notificación, ej. `"Liberación por sesión completada"` |

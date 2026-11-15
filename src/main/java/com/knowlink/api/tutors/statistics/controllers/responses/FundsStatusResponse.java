@@ -12,6 +12,5 @@ public record FundsStatusResponse(
         FundsAmountResponse released,
         FundsAmountResponse pendingRelease,
         FundsAmountResponse withheldByClaim,
-        List<UUID> withheldClaimIds,
-        BigDecimal commissionPercentage) {
+        List<UUID> withheldClaimIds) {
 }

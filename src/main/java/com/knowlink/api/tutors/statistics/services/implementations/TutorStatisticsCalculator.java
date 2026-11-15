@@ -5,6 +5,7 @@ import com.knowlink.api.bookings.data.enums.CancellationRole;
 import com.knowlink.api.bookings.data.enums.RefundPolicy;
 import com.knowlink.api.payments.domain.FundsRecipient;
 import com.knowlink.api.payments.domain.FundsStatus;
+import com.knowlink.api.payments.domain.TutorPayout;
 import com.knowlink.api.tutors.data.enums.CompensationType;
 import com.knowlink.api.tutors.data.models.TutorSubject;
 import com.knowlink.api.tutors.statistics.controllers.responses.FundsAmountResponse;
@@ -27,7 +28,6 @@ import com.knowlink.api.tutors.statistics.data.projections.TutorSlotRow;
 import com.knowlink.api.tutors.statistics.data.projections.TutorStatisticsInput;
 import com.knowlink.api.tutors.statistics.utils.StatisticsPeriod;
 import com.knowlink.api.tutors.statistics.utils.TutorStatisticsConstants;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -57,13 +57,6 @@ public class TutorStatisticsCalculator {
     private static final int MAX_STARS = 5;
     private static final int DAYS = DayOfWeek.values().length;
     private static final int BANDS = AvailabilityBand.values().length;
-
-    private final BigDecimal commissionPercentage;
-
-    public TutorStatisticsCalculator(
-            @Value("${knowlink.funds.retention-percentage:3.00}") BigDecimal commissionPercentage) {
-        this.commissionPercentage = commissionPercentage;
-    }
 
     public TutorStatisticsResponse calculate(TutorStatisticsInput input) {
         StatisticsPeriod period = input.period();
@@ -107,8 +100,7 @@ public class TutorStatisticsCalculator {
                 eligible,
                 average(ratings),
                 ratings.size(),
-                money(netIncome),
-                commissionPercentage);
+                money(netIncome));
     }
 
     private List<MonthlySessionsResponse> monthlySessions(StatisticsPeriod period, List<TutorBookingRow> completed) {
@@ -151,10 +143,9 @@ public class TutorStatisticsCalculator {
         List<TutorBookingRow> withheld = filter(bookings, this::isWithheldByClaim);
         return new FundsStatusResponse(
                 fundsAmount(filter(bookings, this::isReleased), row -> row.transferredAmount()),
-                fundsAmount(filter(bookings, this::isPendingRelease), this::netOfCommission),
-                fundsAmount(withheld, this::netOfCommission),
-                withheldClaimIds(withheld, input.activeClaimIdByBooking()),
-                commissionPercentage);
+                fundsAmount(filter(bookings, this::isPendingRelease), this::tutorPayout),
+                fundsAmount(withheld, this::tutorPayout),
+                withheldClaimIds(withheld, input.activeClaimIdByBooking()));
     }
 
     /** Reclamos detrás de los fondos retenidos, de la sesión más reciente a la más antigua. */
@@ -198,12 +189,9 @@ public class TutorStatisticsCalculator {
                 && row.status() != BookingStatus.CANCELLED;
     }
 
-    /** Mismo redondeo que FundsLedgerService al liberar: se redondea la comisión y se resta. */
-    private BigDecimal netOfCommission(TutorBookingRow row) {
-        BigDecimal percentage = row.retentionPercentage() != null ? row.retentionPercentage() : commissionPercentage;
-        BigDecimal commission = row.originalAmount().multiply(percentage)
-                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-        return row.originalAmount().subtract(commission);
+    /** Lo que el tutor recibiría: la tarifa de servicio la paga solo el alumno (sin comisión). */
+    private BigDecimal tutorPayout(TutorBookingRow row) {
+        return TutorPayout.fromStudentPayment(row.originalAmount());
     }
 
     /** Ingreso neto de una reserva: lo ya liberado más lo pendiente de liberación. */
@@ -212,7 +200,7 @@ public class TutorStatisticsCalculator {
             return row.transferredAmount();
         }
         if (isPendingRelease(row)) {
-            return netOfCommission(row);
+            return tutorPayout(row);
         }
         return BigDecimal.ZERO;
     }
