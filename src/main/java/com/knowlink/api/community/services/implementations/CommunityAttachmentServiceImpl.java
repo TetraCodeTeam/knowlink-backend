@@ -13,10 +13,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.text.Normalizer;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -24,7 +20,6 @@ import java.util.UUID;
 @Slf4j
 public class CommunityAttachmentServiceImpl implements ICommunityAttachmentService {
 
-    private static final int MAX_SAFE_BASE_LENGTH = 100;
     private static final String FORMAT_NOT_ALLOWED_MESSAGE = "El formato del archivo no está permitido";
 
     private final ISupabaseStorageService storageService;
@@ -58,11 +53,9 @@ public class CommunityAttachmentServiceImpl implements ICommunityAttachmentServi
             return null;
         }
         validate(file);
-        // Supabase rechaza claves con espacios o tildes (InvalidKey): se sube con un nombre seguro y la
-        // metadata conserva el nombre original para mostrarlo.
-        String storagePath = storageService.upload(
-                new StorageSafeMultipartFile(file, toSafeFileName(file.getOriginalFilename())),
-                CommunityConstants.STORAGE_FOLDER + "/" + ownerId);
+        // The storage service sanitizes the object key (Supabase rejects spaces, accents and
+        // other symbols); the original file name is kept here so it can still be displayed.
+        String storagePath = storageService.upload(file, CommunityConstants.STORAGE_FOLDER + "/" + ownerId);
         return CommunityAttachment.builder()
                 .storagePath(storagePath)
                 .originalFileName(file.getOriginalFilename())
@@ -93,7 +86,7 @@ public class CommunityAttachmentServiceImpl implements ICommunityAttachmentServi
             url = storageService.generateSignedUrl(
                     attachment.getStoragePath(), CommunityConstants.SIGNED_URL_EXPIRATION_SECONDS);
         } catch (RuntimeException ex) {
-            // Un storage caído no debe tirar abajo el feed: el adjunto se muestra sin enlace.
+            // A storage outage must not take the feed down: the attachment is shown without a link.
             log.warn("Failed to sign community attachment {}: {}", attachment.getStoragePath(), ex.getMessage());
         }
         return new CommunityAttachmentResponse(
@@ -101,81 +94,6 @@ public class CommunityAttachmentServiceImpl implements ICommunityAttachmentServi
                 attachment.getContentType(),
                 attachment.getSizeInBytes() == null ? 0L : attachment.getSizeInBytes(),
                 url);
-    }
-
-    /** "Logotipo UTN Villa María en azul.png" -> "Logotipo_UTN_Villa_Maria_en_azul.png". */
-    static String toSafeFileName(String originalFileName) {
-        String name = originalFileName == null ? "" : originalFileName;
-        int dot = name.lastIndexOf('.');
-        String base = dot < 0 ? name : name.substring(0, dot);
-        String extension = dot < 0 ? "" : name.substring(dot + 1);
-
-        String safeBase = sanitize(base);
-        if (safeBase.length() > MAX_SAFE_BASE_LENGTH) {
-            safeBase = safeBase.substring(0, MAX_SAFE_BASE_LENGTH);
-        }
-        if (safeBase.isEmpty()) {
-            safeBase = "archivo";
-        }
-        String safeExtension = sanitize(extension).toLowerCase(Locale.ROOT);
-        return safeExtension.isEmpty() ? safeBase : safeBase + "." + safeExtension;
-    }
-
-    private static String sanitize(String value) {
-        String withoutAccents = Normalizer.normalize(value, Normalizer.Form.NFD).replaceAll("\\p{M}+", "");
-        return withoutAccents.replaceAll("[^A-Za-z0-9_-]+", "_").replaceAll("^_+|_+$", "");
-    }
-
-    /** Vista del archivo original con otro nombre: solo cambia getOriginalFilename(), que arma la clave en storage. */
-    private static final class StorageSafeMultipartFile implements MultipartFile {
-
-        private final MultipartFile delegate;
-        private final String fileName;
-
-        private StorageSafeMultipartFile(MultipartFile delegate, String fileName) {
-            this.delegate = delegate;
-            this.fileName = fileName;
-        }
-
-        @Override
-        public String getName() {
-            return delegate.getName();
-        }
-
-        @Override
-        public String getOriginalFilename() {
-            return fileName;
-        }
-
-        @Override
-        public String getContentType() {
-            return delegate.getContentType();
-        }
-
-        @Override
-        public boolean isEmpty() {
-            return delegate.isEmpty();
-        }
-
-        @Override
-        public long getSize() {
-            return delegate.getSize();
-        }
-
-        @Override
-        public byte[] getBytes() throws IOException {
-            return delegate.getBytes();
-        }
-
-        @Override
-        public InputStream getInputStream() throws IOException {
-            return delegate.getInputStream();
-        }
-
-        @Override
-        public void transferTo(File dest) throws IOException, IllegalStateException {
-            delegate.transferTo(dest);
-        }
     }
 
     private void validateFormat(MultipartFile file) {

@@ -16,7 +16,6 @@ public class StudentProfileMapper {
         return StudentProfile.builder()
                 .user(user)
                 .career(career)
-                .profilePictureUrl(request.profilePictureUrl())
                 .institutionalId(request.institutionalId())
                 .build();
     }

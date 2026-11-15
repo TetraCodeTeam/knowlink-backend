@@ -19,7 +19,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 public interface ITutorProfileService {
 
-    TutorProfile createProfile(User user, TutorRegistrationRequest request);
+    TutorProfile createProfile(User user, TutorRegistrationRequest request, MultipartFile profilePicture);
 
     TutorProfileResponse getTutorProfile(UUID tutorUserId, UUID studentUserId);
 

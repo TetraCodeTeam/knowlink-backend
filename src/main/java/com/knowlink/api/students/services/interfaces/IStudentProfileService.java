@@ -13,7 +13,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.util.UUID;
 
 public interface IStudentProfileService {
-    StudentProfile createProfile(User user, StudentRegistrationRequest request);
+    StudentProfile createProfile(User user, StudentRegistrationRequest request, MultipartFile profilePicture);
 
     StudentSelfProfileResponse getSelfProfile(UUID userId);
 

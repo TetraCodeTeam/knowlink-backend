@@ -5,11 +5,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
@@ -59,6 +61,24 @@ class SupabaseStorageServiceImplTest {
 
         storageService.generateSignedUrl("claimEvidence", "booking/file.pdf", 3600);
 
+        server.verify();
+    }
+
+    @Test
+    @DisplayName("Upload - file names with accents/spaces are sanitized before reaching Supabase")
+    void upload_withUnsafeFileName_sanitizesObjectKey() {
+        server.expect(requestTo(matchesPattern(
+                        SUPABASE_URL + "/storage/v1/object/materiales/subject-1/"
+                                + "[0-9a-fA-F-]{36}-Apuntes_de_Fisica_1\\.pdf")))
+                .andExpect(method(HttpMethod.POST))
+                .andRespond(withSuccess());
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "Apuntes de Física 1.pdf", MediaType.APPLICATION_PDF_VALUE, "content".getBytes());
+
+        String path = storageService.upload(file, "subject-1");
+
+        assertThat(path).matches("subject-1/[0-9a-fA-F-]{36}-Apuntes_de_Fisica_1\\.pdf");
         server.verify();
     }
 }

@@ -11,11 +11,14 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.multipart.MultipartFile;
 
 import static org.springframework.http.HttpStatus.CREATED;
 import static org.springframework.http.HttpStatus.NO_CONTENT;
@@ -42,16 +45,33 @@ public interface IAuthController {
     @ResponseStatus(OK)
     AuthResponse reactivate(@RequestBody @Valid ReactivateAccountRequest request);
 
-    @PostMapping("/register/student")
-    @Operation(summary = "Registrar nuevo usuario (alumno)")
+    @PostMapping(value = "/register/student", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(
+            summary = "Registrar nuevo usuario (alumno)",
+            description = "Los datos del registro viajan en la parte 'data' (JSON) y la foto de perfil, "
+                    + "opcional, en la parte 'file' (JPG, PNG o WebP, máx. 5 MB).")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Alumno registrado"),
+            @ApiResponse(responseCode = "400", description = "Datos o archivo inválidos")
+    })
     @ResponseStatus(CREATED)
-    void registerStudent(@RequestBody @Valid StudentRegistrationRequest request);
+    void registerStudent(
+            @RequestPart("data") @Valid StudentRegistrationRequest request,
+            @RequestPart(value = "file", required = false) MultipartFile profilePicture);
 
-    @PostMapping("/register/tutor")
-    @Operation(summary = "Registrar nuevo usuario (tutor)")
-    @ApiResponse(responseCode = "201", description = "Tutor registered successfully")
+    @PostMapping(value = "/register/tutor", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(
+            summary = "Registrar nuevo usuario (tutor)",
+            description = "Los datos del registro viajan en la parte 'data' (JSON) y la foto de perfil, "
+                    + "opcional, en la parte 'file' (JPG, PNG o WebP, máx. 5 MB).")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Tutor registrado"),
+            @ApiResponse(responseCode = "400", description = "Datos o archivo inválidos")
+    })
     @ResponseStatus(CREATED)
-    void registerTutor(@RequestBody @Valid TutorRegistrationRequest request);
+    void registerTutor(
+            @RequestPart("data") @Valid TutorRegistrationRequest request,
+            @RequestPart(value = "file", required = false) MultipartFile profilePicture);
 
     @PostMapping("/logout")
     @Operation(summary = "Cerrar sesión", description = "Invalida el token JWT actual del usuario autenticado. "

@@ -75,6 +75,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -83,7 +84,10 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import org.springframework.mock.web.MockMultipartFile;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -250,9 +254,10 @@ class UserAccountDeletionIntegrationTest {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.detail").value("USER_NOT_FOUND"));
 
-        mockMvc.perform(post(REGISTER_STUDENT_PATH)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(registrationBody(originalEmail, originalDni)))
+        mockMvc.perform(multipart(REGISTER_STUDENT_PATH)
+                        .file(new MockMultipartFile("data", "", MediaType.APPLICATION_JSON_VALUE,
+                                        registrationBody(originalEmail, originalDni)
+                                                        .getBytes(StandardCharsets.UTF_8))))
                 .andExpect(status().isCreated());
 
         assertThat(userRepository.findByEmail(originalEmail)).isPresent();

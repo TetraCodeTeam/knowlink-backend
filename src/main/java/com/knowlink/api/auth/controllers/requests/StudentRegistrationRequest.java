@@ -48,7 +48,5 @@ public record StudentRegistrationRequest(
         UUID institutionId,
 
         @Size(max = 50, message = "Institutional ID cannot exceed 50 characters")
-        String institutionalId,
-
-        String profilePictureUrl
+        String institutionalId
 ) {}

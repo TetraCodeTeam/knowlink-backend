@@ -88,6 +88,7 @@ supabase:
   service-role-key: ${SUPABASE_SERVICE_ROLE_KEY}
   storage:
     materials-bucket: ${SUPABASE_MATERIALS_BUCKET:materiales}
+    profile-photos-bucket: ${SUPABASE_PROFILE_PHOTOS_BUCKET:profilePhotos}
 
 management:
   endpoints:

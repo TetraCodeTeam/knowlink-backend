@@ -107,7 +107,8 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
 
         @Override
         @Transactional
-        public TutorProfile createProfile(User user, TutorRegistrationRequest request) {
+        public TutorProfile createProfile(User user, TutorRegistrationRequest request,
+                        MultipartFile profilePicture) {
                 tutorProfileValidationService.ifTutorProfileAlreadyExistsThrowException(user);
 
                 Career career = careerService.findRegularByNameAndInstitutionOrThrowException(
@@ -118,7 +119,26 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                                 tutorSubjectAssemblyService.buildTutorSubjects(tutorProfile, career,
                                                 request.subjects()));
 
+                attachProfilePicture(user, tutorProfile, profilePicture);
+
                 return tutorProfileRepository.save(tutorProfile);
+        }
+
+        /**
+         * Uploads the optional registration picture and keeps the user row in sync, so the avatar
+         * is available as soon as the account is confirmed. No-op when no file was given.
+         */
+        private void attachProfilePicture(User user, TutorProfile profile, MultipartFile profilePicture) {
+                if (profilePicture == null || profilePicture.isEmpty()) {
+                        return;
+                }
+
+                String path = profileImageService.upload(profilePicture, user.getUserId());
+                String pictureUrl = profileImageService.generatePublicUrl(path);
+
+                profile.setProfilePictureUrl(pictureUrl);
+                user.setProfilePictureUrl(pictureUrl);
+                userRepository.save(user);
         }
 
         @Override
@@ -166,19 +186,19 @@ public class TutorProfileServiceImpl implements ITutorProfileService {
                 profileImageService.deleteByUserId(tutorUserId);
 
                 String imagePath = profileImageService.upload(file, tutorUserId);
-                String signedUrl = profileImageService.generateSignedUrl(imagePath, 60 * 60 * 24 * 7);
+                String pictureUrl = profileImageService.generatePublicUrl(imagePath);
 
                 User user = userRepository.findById(tutorUserId)
                         .orElseThrow(() -> new ResourceNotFoundException(
                                 "USER_NOT_FOUND", "Usuario no encontrado.",
                                 String.format("User con id '%s' no existe", tutorUserId)));
-                user.setProfilePictureUrl(signedUrl);
+                user.setProfilePictureUrl(pictureUrl);
                 userRepository.save(user);
 
-                tutorProfile.setProfilePictureUrl(signedUrl);
+                tutorProfile.setProfilePictureUrl(pictureUrl);
                 tutorProfile = tutorProfileRepository.save(tutorProfile);
 
-                studentProfileService.syncProfilePicture(tutorUserId, signedUrl);
+                studentProfileService.syncProfilePicture(tutorUserId, pictureUrl);
 
                 boolean hasStudentProfile = userProfileLookupService.hasStudentProfile(tutorUserId);
                 return tutorProfileMapper.toSelfProfileResponse(tutorProfile, hasStudentProfile);

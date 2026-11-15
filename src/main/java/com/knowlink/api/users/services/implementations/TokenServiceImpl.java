@@ -33,10 +33,12 @@ public class TokenServiceImpl implements ITokenService {
 
     @Override
     public Token savePasswordResetToken(User user) {
+        LocalDateTime createdAt = LocalDateTime.now();
         Token token = Token.builder()
                 .user(user)
                 .tokenType(TokenType.PASSWORD_RESET)
-                .tokenExpirationDate(LocalDateTime.now().plusMinutes(PASSWORD_RESET_TOKEN_MINUTES))
+                .createdAt(createdAt)
+                .tokenExpirationDate(createdAt.plusMinutes(PASSWORD_RESET_TOKEN_MINUTES))
                 .build();
         return tokenRepository.save(token);
     }

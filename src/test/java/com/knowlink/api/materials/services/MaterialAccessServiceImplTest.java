@@ -72,4 +72,16 @@ class MaterialAccessServiceImplTest {
             assertThat(response.reportsCount()).isZero();
         });
     }
+
+    @Test
+    void getAccessibleSubjectNames_returnsCompletedSubjectNames() {
+        UUID studentId = UUID.randomUUID();
+        UUID tutorId = UUID.randomUUID();
+        when(bookingRepository.findCompletedSubjectNamesByStudentAndTutor(studentId, tutorId))
+                .thenReturn(List.of("Algebra", "Fisica"));
+
+        List<String> names = service.getAccessibleSubjectNames(studentId, tutorId);
+
+        assertThat(names).containsExactly("Algebra", "Fisica");
+    }
 }

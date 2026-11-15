@@ -48,8 +48,6 @@ public record TutorRegistrationRequest(
         @Size(max = 50, message = "Institutional ID cannot exceed 50 characters")
         String institutionalId,
 
-        String profilePictureUrl,
-
         @Size(max = 300, message = "Biography cannot exceed 300 characters")
         String biography,
 

@@ -52,14 +52,33 @@ public class StudentProfileServiceImpl implements IStudentProfileService {
 
     @Override
     @Transactional
-    public StudentProfile createProfile(User user, StudentRegistrationRequest request) {
+    public StudentProfile createProfile(User user, StudentRegistrationRequest request,
+            MultipartFile profilePicture) {
         studentProfileValidationService.ifStudentProfileAlreadyExistsThrowException(user);
 
         Career career = careerService.findRegularByNameAndInstitutionOrThrowException(
                 request.career(), request.institutionId());
         StudentProfile studentProfile = studentProfileMapper.toEntity(user, career, request);
+        attachProfilePicture(user, studentProfile, profilePicture);
 
         return studentProfileRepository.save(studentProfile);
+    }
+
+    /**
+     * Uploads the optional registration picture and keeps the user row in sync, so the avatar
+     * is available as soon as the account is confirmed. No-op when no file was given.
+     */
+    private void attachProfilePicture(User user, StudentProfile profile, MultipartFile profilePicture) {
+        if (profilePicture == null || profilePicture.isEmpty()) {
+            return;
+        }
+
+        String path = profileImageService.upload(profilePicture, user.getUserId());
+        String pictureUrl = profileImageService.generatePublicUrl(path);
+
+        profile.setProfilePictureUrl(pictureUrl);
+        user.setProfilePictureUrl(pictureUrl);
+        userRepository.save(user);
     }
 
     @Override
@@ -103,21 +122,21 @@ public class StudentProfileServiceImpl implements IStudentProfileService {
         profileImageService.deleteByUserId(userId);
 
         String imagePath = profileImageService.upload(file, userId);
-        String signedUrl = profileImageService.generateSignedUrl(imagePath, 60 * 60 * 24 * 7);
+        String pictureUrl = profileImageService.generatePublicUrl(imagePath);
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "USER_NOT_FOUND", "Usuario no encontrado.",
                         String.format("User con id '%s' no existe", userId)));
-        user.setProfilePictureUrl(signedUrl);
+        user.setProfilePictureUrl(pictureUrl);
         user = userRepository.save(user);
 
-        studentProfile.setProfilePictureUrl(signedUrl);
+        studentProfile.setProfilePictureUrl(pictureUrl);
         studentProfile = studentProfileRepository.save(studentProfile);
 
         if (userProfileLookupService.hasTutorProfile(userId)) {
             tutorProfileRepository.findByUserId(userId).ifPresent(tutorProfile -> {
-                tutorProfile.setProfilePictureUrl(signedUrl);
+                tutorProfile.setProfilePictureUrl(pictureUrl);
                 tutorProfileRepository.save(tutorProfile);
             });
         }

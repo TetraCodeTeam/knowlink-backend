@@ -24,6 +24,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -93,9 +94,9 @@ public class AuthServiceImpl implements IAuthService {
 
     @Override
     @Transactional
-    public void registerStudent(StudentRegistrationRequest request) {
+    public void registerStudent(StudentRegistrationRequest request, MultipartFile profilePicture) {
         User student = userService.saveStudentUser(request);
-        studentProfileService.createProfile(student, request);
+        studentProfileService.createProfile(student, request, profilePicture);
     }
 
     @Override
@@ -111,8 +112,8 @@ public class AuthServiceImpl implements IAuthService {
 
     @Override
     @Transactional
-    public void registerTutor(TutorRegistrationRequest request) {
+    public void registerTutor(TutorRegistrationRequest request, MultipartFile profilePicture) {
         User tutor = userService.saveTutorUser(request);
-        tutorProfileService.createProfile(tutor, request);
+        tutorProfileService.createProfile(tutor, request, profilePicture);
     }
 }
