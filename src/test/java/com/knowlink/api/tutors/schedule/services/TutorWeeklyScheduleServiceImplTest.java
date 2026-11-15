@@ -232,8 +232,8 @@ class TutorWeeklyScheduleServiceImplTest {
     }
 
     @Test
-    @DisplayName("CP-052.06 - PENDING e IN_PROGRESS no cuentan como confirmadas")
-    void getWeeklySchedule_onlyBookedCountAsConfirmed() {
+    @DisplayName("CP-052.06 - PENDING no cuenta como confirmada; IN_PROGRESS y BOOKED si")
+    void getWeeklySchedule_pendingDoesNotCountAsConfirmed() {
         when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId))
                 .thenReturn(buildTutorProfile());
 
@@ -251,7 +251,7 @@ class TutorWeeklyScheduleServiceImplTest {
         WeeklyScheduleResponse result = service.getWeeklySchedule(tutorUserId, monday, sunday);
 
         assertThat(result.bookings()).hasSize(3);
-        assertThat(result.summary().confirmedBookingsCount()).isEqualTo(1);
+        assertThat(result.summary().confirmedBookingsCount()).isEqualTo(2);
     }
     @Test
     @DisplayName("CP-052.16 - Una reserva COMPLETED aparece en la grilla y cuenta como confirmada")

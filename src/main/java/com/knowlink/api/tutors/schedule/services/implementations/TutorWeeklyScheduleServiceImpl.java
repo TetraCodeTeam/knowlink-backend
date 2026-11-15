@@ -58,10 +58,12 @@ public class TutorWeeklyScheduleServiceImpl implements ITutorWeeklyScheduleServi
                 .map(bookingMapper::toResponse)
                 .toList();
 
-        // COMPLETED counts as confirmed: attendance was already confirmed, even if
-        // it happened while the class was still running.
+        // A class counts as confirmed once it is booked: BOOKED is scheduled to happen,
+        // IN_PROGRESS is running right now and COMPLETED already happened with the
+        // attendance confirmed. PENDING is only a hold, so it does not count.
         List<Booking> confirmedBookings = occupyingBookings.stream()
                 .filter(b -> b.getBookingStatus() == BookingStatus.BOOKED
+                        || b.getBookingStatus() == BookingStatus.IN_PROGRESS
                         || b.getBookingStatus() == BookingStatus.COMPLETED)
                 .toList();
 

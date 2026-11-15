@@ -78,7 +78,7 @@ Esto no se reimplementa, se invoca:
 | Resolver `TutorProfile` desde el `userId` autenticado | `ITutorProfileValidationService.findTutorProfileOrThrowException(UUID tutorUserId)` |
 | Bloques de disponibilidad en un rango | `IAvailabilityBlockService.getBlocksInRange(UUID tutorUserId, LocalDate from, LocalDate to)` → `List<AvailabilityBlockResponse>` |
 | Reservas activas en un rango | `IBookingRepository.findActiveBookingsInRange(UUID tutorUserId, LocalDate from, LocalDate to, List<BookingStatus> activeStatuses)` → `List<Booking>` |
-| Grupo de estados "activos" | `BookingStatusGroups.ACTIVE` = `PENDING, BOOKED, IN_PROGRESS` (en `com.knowlink.api.tutors.availability.data.enums`) |
+| Grupo de estados que ocupan un turno | `BookingStatusGroups.OCCUPYING` = `PENDING, BOOKED, IN_PROGRESS, COMPLETED` (en `com.knowlink.api.tutors.availability.data.enums`) |
 | Mapear `Booking` a DTO | `BookingMapper.toResponse(Booking)` → `BookingResponse` (ya existe, reutilizable tal cual) |
 | Zona horaria de referencia para "ahora" | `AppTimeZone.ZONE` = `America/Argentina/Cordoba` |
 
@@ -119,7 +119,7 @@ GET /api/v1/tutors/me/weekly-schedule?from=YYYY-MM-DD&to=YYYY-MM-DD
 }
 ```
 
-- `summary.nextClass` es `null` cuando no hay reservas `BOOKED` futuras.
+- `summary.nextClass` es `null` cuando no hay reservas confirmadas (`BOOKED`, `IN_PROGRESS` o `COMPLETED`) futuras.
 - `summary.freeBlocksCount` cuenta las **horas libres** de 1 hora que se muestran en el calendario:
   la suma de `floor(duración del tramo en minutos / 60)` de todos los tramos libres. Un bloque
   de 09:00 a 12:00 cuenta 3, y un bloque partido por una reserva suma las horas de cada tramo.
@@ -195,7 +195,7 @@ No debe inyectar ni tocar `IAvailabilityBlockRepository` ni `IBookingRepository`
 
 2. **`IAvailabilityBlockRepository.findInRange` excluye bloques pasados por diseño** (filtra `ab.date > today OR (ab.date = today AND ab.endTime > nowTime)`), y además existe un job `deletePastOrphaned` que borra físicamente bloques pasados sin reserva asociada. Esto significa que, al navegar a una semana pasada, `availabilityBlocks` va a venir naturalmente vacío o parcial — **es el comportamiento esperado del dominio**, no un bug a corregir en esta historia. Las reservas (`bookings`) sí se preservan completas para semanas pasadas vía `findActiveBookingsInRange`. Confirmar con el equipo que este comportamiento (bloques pasados no visibles, reservas pasadas sí) es aceptable como respuesta a los criterios de aceptación 5 y 6.
 
-3. **Definir qué cuenta como "reserva confirmada".** `BookingStatusGroups.ACTIVE` agrupa `PENDING, BOOKED, IN_PROGRESS`. El criterio de aceptación habla puntualmente de "reservas confirmadas", lo que sugiere específicamente `BookingStatus.BOOKED`, no todo el grupo `ACTIVE`. Para la grilla (`bookings`) puede tener sentido devolver todo `ACTIVE` (para que el tutor vea también lo `PENDING`/`IN_PROGRESS`), pero `summary.confirmedBookingsCount` y `summary.nextClass` deberían filtrar estrictamente por `BOOKED`. Confirmar este criterio con el equipo antes de implementar — está indicado así en este spec pero es una interpretación, no algo confirmado en la reunión.
+3. **Definir qué cuenta como "reserva confirmada" — RESUELTO.** Criterio acordado: `BOOKED + IN_PROGRESS + COMPLETED`. Una clase cuenta como confirmada una vez reservada (`BOOKED`), mientras se dicta (`IN_PROGRESS`) o cuando ya se dictó con asistencia confirmada (`COMPLETED`). `PENDING` no cuenta porque es solo un hold, no una reserva concretada. El filtrado se hace sobre `BookingStatusGroups.OCCUPYING` (que ya incluye `COMPLETED`) excluyendo `PENDING`, en `TutorWeeklyScheduleServiceImpl`.
 
 4. **`getBlocksInRange` recibe `tutorUserId`, no `tutorProfileId`** — igual que `findActiveBookingsInRange`. No hace falta resolver `TutorProfile` para pasarlo a estos dos métodos; solo se necesita `tutorProfileId` si se toma la opción (a) del punto 1, ya que `IAvailabilityBlockRepository.findInRange` sí pide `tutorProfileId`.
 
@@ -214,7 +214,7 @@ No debe inyectar ni tocar `IAvailabilityBlockRepository` ni `IBookingRepository`
 - [ ] `GET /api/v1/tutors/me/weekly-schedule?from=&to=` implementado y documentado con `@Operation`/`@ApiResponses` (Swagger)
 - [ ] Reutiliza `ITutorProfileValidationService`, `IAvailabilityBlockService`, `IBookingRepository`, `BookingMapper`, `BookingStatusGroups`, `AppTimeZone` — sin duplicar lógica
 - [ ] Resuelto y documentado el punto de `available` en `AvailabilityBlockResponse` (opción a o b, ver advertencia 1)
-- [ ] Resuelto con el equipo qué estados cuentan como "confirmada" para el resumen (ver advertencia 3)
+- [x] Resuelto con el equipo qué estados cuentan como "confirmada" para el resumen: `BOOKED + IN_PROGRESS + COMPLETED` (ver advertencia 3)
 - [ ] Maneja semana sin actividad (200, listas vacías, resumen en cero, `nextClass: null`)
 - [ ] Permite navegar a semanas pasadas sin filtrar `bookings`
 - [ ] No expone ninguna operación de escritura bajo `tutors/me/weekly-schedule`
