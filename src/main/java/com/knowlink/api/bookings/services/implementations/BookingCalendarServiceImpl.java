@@ -56,7 +56,7 @@ public class BookingCalendarServiceImpl implements IBookingCalendarService {
                 .collect(Collectors.groupingBy(h -> h.getTimeSlot().getTimeSlotId()));
 
         Map<UUID, List<Booking>> bookingsBySlot = bookingRepository
-                .findActiveBookingsInRange(tutorUserId, from, to, BookingStatusGroups.ACTIVE)
+                .findActiveBookingsInRange(tutorUserId, from, to, BookingStatusGroups.OCCUPYING)
                 .stream()
                 .collect(Collectors.groupingBy(b -> b.getTimeSlot().getTimeSlotId()));
 

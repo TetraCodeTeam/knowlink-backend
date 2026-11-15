@@ -2,7 +2,7 @@ package com.knowlink.api.bookings.services.implementations;
 
 import com.knowlink.api.bookings.data.models.Booking;
 import com.knowlink.api.bookings.repositories.IBookingRepository;
-import com.knowlink.api.bookings.utils.BookingConstants;
+import com.knowlink.api.tutors.availability.data.enums.BookingStatusGroups;
 import com.knowlink.api.bookings.services.interfaces.IStudentScheduleValidationService;
 import com.knowlink.api.exceptions.custom_exceptions.ValidationException;
 import com.knowlink.api.users.data.models.User;
@@ -23,7 +23,7 @@ public class StudentScheduleValidationServiceImpl implements IStudentScheduleVal
     @Override
     public void validateNoTimeConflict(User student, LocalDate date, LocalTime startTime, LocalTime endTime) {
         List<Booking> sameDayBookings = bookingRepository.findActiveByStudentAndDate(
-                student.getUserId(), date, BookingConstants.ACTIVE_STATUSES);
+                student.getUserId(), date, BookingStatusGroups.OCCUPYING);
 
         sameDayBookings.stream()
                 .filter(b -> startTime.isBefore(b.getEndTime()) && endTime.isAfter(b.getStartTime()))

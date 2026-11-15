@@ -108,7 +108,7 @@ class TutorWeeklyScheduleServiceImplTest {
         Booking booking1 = buildBooking(monday, LocalTime.of(10, 0), LocalTime.of(11, 0), BookingStatus.BOOKED);
         Booking booking2 = buildBooking(monday, LocalTime.of(14, 0), LocalTime.of(15, 0), BookingStatus.BOOKED);
         Booking booking3 = buildBooking(monday.plusDays(2), LocalTime.of(9, 0), LocalTime.of(10, 0), BookingStatus.PENDING);
-        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.OCCUPYING))
                 .thenReturn(List.of(booking1, booking2, booking3));
 
         BookingResponse response1 = new BookingResponse(
@@ -145,7 +145,7 @@ class TutorWeeklyScheduleServiceImplTest {
         when(availabilityBlockService.getBlocksInRange(tutorUserId, monday, sunday))
                 .thenReturn(List.of());
 
-        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.OCCUPYING))
                 .thenReturn(List.of());
 
         WeeklyScheduleResponse result = service.getWeeklySchedule(tutorUserId, monday, sunday);
@@ -171,7 +171,7 @@ class TutorWeeklyScheduleServiceImplTest {
         Booking fartherBooking = buildBooking(monday.plusDays(3), LocalTime.of(14, 0), LocalTime.of(15, 0), BookingStatus.BOOKED);
         Booking nearerBooking = buildBooking(monday, LocalTime.of(9, 0), LocalTime.of(10, 0), BookingStatus.BOOKED);
         Booking pastBooking = buildBooking(LocalDate.now().minusDays(3), LocalTime.of(10, 0), LocalTime.of(11, 0), BookingStatus.BOOKED);
-        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.OCCUPYING))
                 .thenReturn(List.of(fartherBooking, nearerBooking, pastBooking));
 
         when(bookingMapper.toResponse(any())).thenReturn(null);
@@ -196,7 +196,7 @@ class TutorWeeklyScheduleServiceImplTest {
                 .thenReturn(List.of());
 
         Booking pastBooking = buildBooking(pastMonday.plusDays(2), LocalTime.of(10, 0), LocalTime.of(11, 0), BookingStatus.BOOKED);
-        when(bookingRepository.findActiveBookingsInRange(tutorUserId, pastMonday, pastSunday, BookingStatusGroups.ACTIVE))
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, pastMonday, pastSunday, BookingStatusGroups.OCCUPYING))
                 .thenReturn(List.of(pastBooking));
 
         BookingResponse pastResponse = new BookingResponse(
@@ -220,7 +220,7 @@ class TutorWeeklyScheduleServiceImplTest {
                 .thenReturn(List.of());
 
         Booking pastBooking = buildBooking(LocalDate.now().minusDays(3), LocalTime.of(10, 0), LocalTime.of(11, 0), BookingStatus.BOOKED);
-        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.OCCUPYING))
                 .thenReturn(List.of(pastBooking));
 
         when(bookingMapper.toResponse(pastBooking)).thenReturn(null);
@@ -232,7 +232,7 @@ class TutorWeeklyScheduleServiceImplTest {
     }
 
     @Test
-    @DisplayName("CP-052.06 - Solo reservas BOOKED cuentan como confirmadas, no PENDING ni IN_PROGRESS")
+    @DisplayName("CP-052.06 - PENDING e IN_PROGRESS no cuentan como confirmadas")
     void getWeeklySchedule_onlyBookedCountAsConfirmed() {
         when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId))
                 .thenReturn(buildTutorProfile());
@@ -243,7 +243,7 @@ class TutorWeeklyScheduleServiceImplTest {
         Booking booked = buildBooking(monday, LocalTime.of(10, 0), LocalTime.of(11, 0), BookingStatus.BOOKED);
         Booking pending = buildBooking(monday.plusDays(1), LocalTime.of(10, 0), LocalTime.of(11, 0), BookingStatus.PENDING);
         Booking inProgress = buildBooking(monday.plusDays(2), LocalTime.of(10, 0), LocalTime.of(11, 0), BookingStatus.IN_PROGRESS);
-        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.OCCUPYING))
                 .thenReturn(List.of(booked, pending, inProgress));
 
         when(bookingMapper.toResponse(any())).thenReturn(null);
@@ -251,6 +251,31 @@ class TutorWeeklyScheduleServiceImplTest {
         WeeklyScheduleResponse result = service.getWeeklySchedule(tutorUserId, monday, sunday);
 
         assertThat(result.bookings()).hasSize(3);
+        assertThat(result.summary().confirmedBookingsCount()).isEqualTo(1);
+    }
+    @Test
+    @DisplayName("CP-052.16 - Una reserva COMPLETED aparece en la grilla y cuenta como confirmada")
+    void getWeeklySchedule_completedBooking_countsAsConfirmed() {
+        LocalDate currentMonday = LocalDate.now().with(java.time.DayOfWeek.MONDAY);
+        LocalDate currentSunday = currentMonday.plusDays(6);
+
+        when(tutorProfileValidationService.findTutorProfileOrThrowException(tutorUserId))
+                .thenReturn(buildTutorProfile());
+
+        when(availabilityBlockService.getBlocksInRange(tutorUserId, currentMonday, currentSunday))
+                .thenReturn(List.of());
+
+        Booking completed = buildBooking(currentMonday, LocalTime.of(10, 0), LocalTime.of(11, 0),
+                BookingStatus.COMPLETED);
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, currentMonday, currentSunday,
+                        BookingStatusGroups.OCCUPYING))
+                .thenReturn(List.of(completed));
+
+        when(bookingMapper.toResponse(any())).thenReturn(null);
+
+        WeeklyScheduleResponse result = service.getWeeklySchedule(tutorUserId, currentMonday, currentSunday);
+
+        assertThat(result.bookings()).hasSize(1);
         assertThat(result.summary().confirmedBookingsCount()).isEqualTo(1);
     }
 
@@ -266,7 +291,7 @@ class TutorWeeklyScheduleServiceImplTest {
                 .thenReturn(List.of(block));
 
         Booking booking = buildBooking(monday, LocalTime.of(11, 0), LocalTime.of(12, 0), BookingStatus.BOOKED);
-        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.OCCUPYING))
                 .thenReturn(List.of(booking));
 
         when(bookingMapper.toResponse(any())).thenReturn(null);
@@ -293,7 +318,7 @@ class TutorWeeklyScheduleServiceImplTest {
                 .thenReturn(List.of(block));
 
         Booking booking = buildBooking(monday, LocalTime.of(10, 0), LocalTime.of(11, 0), BookingStatus.BOOKED);
-        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.OCCUPYING))
                 .thenReturn(List.of(booking));
 
         when(bookingMapper.toResponse(any())).thenReturn(null);
@@ -316,7 +341,7 @@ class TutorWeeklyScheduleServiceImplTest {
                 .thenReturn(List.of(block));
 
         Booking booking = buildBooking(tuesday, LocalTime.of(9, 0), LocalTime.of(10, 0), BookingStatus.BOOKED);
-        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.OCCUPYING))
                 .thenReturn(List.of(booking));
 
         when(bookingMapper.toResponse(any())).thenReturn(null);
@@ -341,7 +366,7 @@ class TutorWeeklyScheduleServiceImplTest {
 
         Booking booking1 = buildBooking(monday, LocalTime.of(10, 0), LocalTime.of(11, 0), BookingStatus.BOOKED);
         Booking booking2 = buildBooking(monday, LocalTime.of(13, 0), LocalTime.of(14, 0), BookingStatus.BOOKED);
-        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.OCCUPYING))
                 .thenReturn(List.of(booking1, booking2));
 
         when(bookingMapper.toResponse(any())).thenReturn(null);
@@ -369,7 +394,7 @@ class TutorWeeklyScheduleServiceImplTest {
                 .thenReturn(List.of(block));
 
         Booking booking = buildBooking(monday, LocalTime.of(9, 0), LocalTime.of(12, 0), BookingStatus.BOOKED);
-        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.OCCUPYING))
                 .thenReturn(List.of(booking));
 
         when(bookingMapper.toResponse(any())).thenReturn(null);
@@ -391,7 +416,7 @@ class TutorWeeklyScheduleServiceImplTest {
                 UUID.randomUUID(), monday, LocalTime.of(9, 0), LocalTime.of(12, 0), false, false);
         when(availabilityBlockService.getBlocksInRange(tutorUserId, monday, sunday))
                 .thenReturn(List.of(block));
-        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.OCCUPYING))
                 .thenReturn(List.of());
 
         WeeklyScheduleResponse result = service.getWeeklySchedule(tutorUserId, monday, sunday);
@@ -411,7 +436,7 @@ class TutorWeeklyScheduleServiceImplTest {
                 .thenReturn(List.of(block));
 
         Booking booking = buildBooking(monday, LocalTime.of(9, 0), LocalTime.of(10, 0), BookingStatus.BOOKED);
-        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.OCCUPYING))
                 .thenReturn(List.of(booking));
         when(bookingMapper.toResponse(any())).thenReturn(null);
 
@@ -430,7 +455,7 @@ class TutorWeeklyScheduleServiceImplTest {
                 UUID.randomUUID(), monday, LocalTime.of(9, 0), LocalTime.of(9, 45), false, false);
         when(availabilityBlockService.getBlocksInRange(tutorUserId, monday, sunday))
                 .thenReturn(List.of(block));
-        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.OCCUPYING))
                 .thenReturn(List.of());
 
         WeeklyScheduleResponse result = service.getWeeklySchedule(tutorUserId, monday, sunday);
@@ -448,7 +473,7 @@ class TutorWeeklyScheduleServiceImplTest {
                 UUID.randomUUID(), monday, LocalTime.MIDNIGHT, EndOfDay.TIME, false, false);
         when(availabilityBlockService.getBlocksInRange(tutorUserId, monday, sunday))
                 .thenReturn(List.of(block));
-        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.ACTIVE))
+        when(bookingRepository.findActiveBookingsInRange(tutorUserId, monday, sunday, BookingStatusGroups.OCCUPYING))
                 .thenReturn(List.of());
 
         WeeklyScheduleResponse result = service.getWeeklySchedule(tutorUserId, monday, sunday);

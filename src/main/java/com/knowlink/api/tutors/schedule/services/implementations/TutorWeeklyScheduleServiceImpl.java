@@ -47,19 +47,22 @@ public class TutorWeeklyScheduleServiceImpl implements ITutorWeeklyScheduleServi
         List<AvailabilityBlockResponse> rawBlocks =
                 availabilityBlockService.getBlocksInRange(tutorUserId, from, to);
 
-        List<Booking> activeBookings =
-                bookingRepository.findActiveBookingsInRange(tutorUserId, from, to, BookingStatusGroups.ACTIVE);
+        List<Booking> occupyingBookings =
+                bookingRepository.findActiveBookingsInRange(tutorUserId, from, to, BookingStatusGroups.OCCUPYING);
 
         List<AvailabilityBlockResponse> availabilityBlocks = rawBlocks.stream()
-                .flatMap(block -> splitBlockByBookings(block, activeBookings).stream())
+                .flatMap(block -> splitBlockByBookings(block, occupyingBookings).stream())
                 .toList();
 
-        List<BookingResponse> bookings = activeBookings.stream()
+        List<BookingResponse> bookings = occupyingBookings.stream()
                 .map(bookingMapper::toResponse)
                 .toList();
 
-        List<Booking> confirmedBookings = activeBookings.stream()
-                .filter(b -> b.getBookingStatus() == BookingStatus.BOOKED)
+        // COMPLETED counts as confirmed: attendance was already confirmed, even if
+        // it happened while the class was still running.
+        List<Booking> confirmedBookings = occupyingBookings.stream()
+                .filter(b -> b.getBookingStatus() == BookingStatus.BOOKED
+                        || b.getBookingStatus() == BookingStatus.COMPLETED)
                 .toList();
 
         LocalDateTime now = LocalDateTime.now(AppTimeZone.ZONE);
@@ -96,9 +99,9 @@ public class TutorWeeklyScheduleServiceImpl implements ITutorWeeklyScheduleServi
 
     private List<AvailabilityBlockResponse> splitBlockByBookings(
             AvailabilityBlockResponse block,
-            List<Booking> activeBookings) {
+            List<Booking> occupyingBookings) {
 
-        List<Booking> overlapping = activeBookings.stream()
+        List<Booking> overlapping = occupyingBookings.stream()
                 .filter(b -> b.getSessionDate().equals(block.date()))
                 .filter(b -> ReservationWindowUtil.overlaps(
                         block.startTime(), block.endTime(), b.getStartTime(), b.getEndTime()))
